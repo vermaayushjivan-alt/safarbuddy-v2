@@ -1,0 +1,119 @@
+// Shared homepage data layer.
+// Dummy data lives here for now — swap the arrays/fetchers below for
+// Supabase queries later without touching the components that consume them.
+
+export type BookingType = "Flight" | "Hotel" | "Holiday Package" | "Bus";
+
+export type Testimonial = {
+  id: string;
+  name: string;
+  location: string;
+  avatarSeed: string;
+  verified: boolean;
+  rating: number;
+  reviewText: string;
+  bookingType: BookingType;
+  destination: string;
+  travelDate: string;
+  helpfulCount: number;
+};
+
+export const testimonials: Testimonial[] = [
+  {
+    id: "goa-trip",
+    name: "Priya Sharma",
+    location: "Delhi, India",
+    avatarSeed: "PS",
+    verified: true,
+    rating: 5,
+    reviewText:
+      "Our Goa package was perfectly planned — the beach resort was stunning and the transfers were always on time. SafarBuddy made a 3-day trip feel completely stress-free.",
+    bookingType: "Holiday Package",
+    destination: "Goa, India",
+    travelDate: "Dec 2025",
+    helpfulCount: 128,
+  },
+  {
+    id: "dubai-holiday",
+    name: "Rahul Mehta",
+    location: "Mumbai, India",
+    avatarSeed: "RM",
+    verified: true,
+    rating: 5,
+    reviewText:
+      "Booked our Dubai flights here and got a much better fare than anywhere else I checked. The booking process took under five minutes and the tickets were confirmed instantly.",
+    bookingType: "Flight",
+    destination: "Dubai, UAE",
+    travelDate: "Jan 2026",
+    helpfulCount: 96,
+  },
+  {
+    id: "bali-honeymoon",
+    name: "Ananya & Karan",
+    location: "Bengaluru, India",
+    avatarSeed: "AK",
+    verified: true,
+    rating: 5,
+    reviewText:
+      "Our Bali honeymoon package covered everything from the villa to the airport pickup. Every detail felt handpicked — easily the best trip we've taken together.",
+    bookingType: "Holiday Package",
+    destination: "Bali, Indonesia",
+    travelDate: "Feb 2026",
+    helpfulCount: 214,
+  },
+  {
+    id: "kashmir-tour",
+    name: "Vikram Singh",
+    location: "Jaipur, India",
+    avatarSeed: "VS",
+    verified: true,
+    rating: 4,
+    reviewText:
+      "The Srinagar houseboat stay was gorgeous and exactly like the photos. Only minor hiccup was a late check-in, but the support team sorted it out quickly.",
+    bookingType: "Hotel",
+    destination: "Srinagar, Kashmir",
+    travelDate: "Nov 2025",
+    helpfulCount: 74,
+  },
+  {
+    id: "thailand-vacation",
+    name: "Sneha Iyer",
+    location: "Chennai, India",
+    avatarSeed: "SI",
+    verified: true,
+    rating: 5,
+    reviewText:
+      "Flight prices for our Phuket trip were unbeatable, and the app kept us updated at every step. Will definitely book through SafarBuddy again for our next vacation.",
+    bookingType: "Flight",
+    destination: "Phuket, Thailand",
+    travelDate: "Mar 2026",
+    helpfulCount: 152,
+  },
+  {
+    id: "manali-family-trip",
+    name: "The Kapoor Family",
+    location: "Lucknow, India",
+    avatarSeed: "TK",
+    verified: true,
+    rating: 5,
+    reviewText:
+      "Traveled with two kids to Manali and the bus booking was comfortable with clean seats and punctual timing. Great value for a family trip on a budget.",
+    bookingType: "Bus",
+    destination: "Manali, Himachal Pradesh",
+    travelDate: "Oct 2025",
+    helpfulCount: 89,
+  },
+];
+
+export type HomeStat = {
+  id: string;
+  value: string;
+  label: string;
+};
+
+export const homeStats: HomeStat[] = [
+  { id: "travelers", value: "50,000+", label: "Happy Travelers" },
+  { id: "hotel-bookings", value: "10,000+", label: "Hotel Bookings" },
+  { id: "destinations", value: "120+", label: "Destinations" },
+  { id: "rating", value: "4.9★", label: "Average Rating" },
+];
