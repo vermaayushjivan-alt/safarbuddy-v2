@@ -296,5 +296,3 @@ export default function Trending() {
     </section>
   );
 }
-EOF
-echo done
