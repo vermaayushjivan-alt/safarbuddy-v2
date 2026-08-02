@@ -73,9 +73,67 @@ body {
   letter-spacing: 0.06em;
 }
 
+/* Accessible focus ring — used on every interactive element site-wide */
+.focus-ring {
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-cream), 0 0 0 4px var(--color-orange);
+  border-radius: 6px;
+}
+
+/* Hover-lift — cards across Offers, Destinations, Trending, Packages, Testimonials */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* Scroll-in entrance — apply with style="animation-delay: Nms" for stagger */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal {
+  animation: fade-up 0.5s ease both;
+}
+
+/* Skeleton shimmer — loading states for cards while data streams in */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-mist) 25%,
+    var(--color-mist-2) 37%,
+    var(--color-mist) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
+  }
+  .reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
