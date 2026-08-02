@@ -9,6 +9,15 @@ import {
   Bell,
   Wallet,
   ShieldCheck,
+  Plane,
+  BedDouble,
+  Package as PackageIcon,
+  PiggyBank,
+  Compass,
+  Rocket,
+  Ban,
+  XCircle,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -169,4 +178,55 @@ export const appDownloadContent: AppDownloadContent = {
   primaryCta: "Download App",
   secondaryCta: "Learn More",
   qrLabel: "Scan to download",
+};
+
+export type NewsletterFeature = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+export const newsletterFeatures: NewsletterFeature[] = [
+  { id: "flight-deals", label: "Exclusive Flight Deals", icon: Plane },
+  { id: "hotel-discounts", label: "Hotel Discounts", icon: BedDouble },
+  { id: "package-offers", label: "Holiday Package Offers", icon: PackageIcon },
+  { id: "cashback-alerts", label: "Cashback Alerts", icon: PiggyBank },
+  { id: "travel-tips", label: "Travel Tips", icon: Compass },
+  { id: "early-access", label: "Early Access Promotions", icon: Rocket },
+];
+
+export type TrustBadge = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+export const newsletterTrustBadges: TrustBadge[] = [
+  { id: "no-spam", label: "No Spam", icon: Ban },
+  { id: "cancel-anytime", label: "Cancel Anytime", icon: XCircle },
+  { id: "secure-subscription", label: "Secure Subscription", icon: Lock },
+];
+
+export type NewsletterContent = {
+  heading: string;
+  subtitle: string;
+  placeholder: string;
+  submitLabel: string;
+  loadingLabel: string;
+  privacyNotice: string;
+  successMessage: string;
+  errorMessage: string;
+};
+
+export const newsletterContent: NewsletterContent = {
+  heading: "Never Miss a Travel Deal",
+  subtitle:
+    "Subscribe to receive exclusive flight offers, hotel discounts, holiday packages, cashback offers and travel updates.",
+  placeholder: "Enter your email address",
+  submitLabel: "Subscribe",
+  loadingLabel: "Subscribing...",
+  privacyNotice:
+    "We respect your privacy. Unsubscribe anytime — no spam, ever.",
+  successMessage: "You're subscribed! Watch your inbox for exclusive deals.",
+  errorMessage: "Please enter a valid email address.",
 };
