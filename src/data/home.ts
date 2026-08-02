@@ -2,6 +2,16 @@
 // Dummy data lives here for now — swap the arrays/fetchers below for
 // Supabase queries later without touching the components that consume them.
 
+import {
+  Zap,
+  Percent,
+  Activity,
+  Bell,
+  Wallet,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
+
 export type BookingType = "Flight" | "Hotel" | "Holiday Package" | "Bus";
 
 export type Testimonial = {
@@ -117,3 +127,46 @@ export const homeStats: HomeStat[] = [
   { id: "destinations", value: "120+", label: "Destinations" },
   { id: "rating", value: "4.9★", label: "Average Rating" },
 ];
+
+export type AppBenefit = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+export const appBenefits: AppBenefit[] = [
+  { id: "faster-booking", label: "Faster Booking", icon: Zap },
+  { id: "app-discounts", label: "Exclusive App Discounts", icon: Percent },
+  { id: "live-updates", label: "Live Booking Updates", icon: Activity },
+  { id: "notifications", label: "Instant Notifications", icon: Bell },
+  { id: "wallet-rewards", label: "Wallet Rewards", icon: Wallet },
+  { id: "secure-payments", label: "Secure Payments", icon: ShieldCheck },
+];
+
+export type StoreBadge = {
+  id: "google-play" | "app-store";
+  eyebrow: string;
+  label: string;
+};
+
+export const storeBadges: StoreBadge[] = [
+  { id: "google-play", eyebrow: "GET IT ON", label: "Google Play" },
+  { id: "app-store", eyebrow: "Download on the", label: "App Store" },
+];
+
+export type AppDownloadContent = {
+  heading: string;
+  subtitle: string;
+  primaryCta: string;
+  secondaryCta: string;
+  qrLabel: string;
+};
+
+export const appDownloadContent: AppDownloadContent = {
+  heading: "Download the SafarBuddy App",
+  subtitle:
+    "Book Flights, Hotels, Buses, Trains and Holiday Packages anytime, anywhere.",
+  primaryCta: "Download App",
+  secondaryCta: "Learn More",
+  qrLabel: "Scan to download",
+};
