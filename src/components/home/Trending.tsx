@@ -1,4 +1,3 @@
-cat > /home/claude/safarbuddy/src/components/home/Trending.tsx << 'EOF'
 "use client";
 
 import { useEffect, useState } from "react";
