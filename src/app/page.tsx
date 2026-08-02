@@ -1,3 +1,4 @@
+import Newsletter from "@/components/home/Newsletter";
 import Navbar from "@/components/home/Navbar";
 import Hero from "@/components/home/Hero";
 import Offers from "@/components/home/Offers";
@@ -20,6 +21,7 @@ export default function Home() {
       <Packages />
       <Testimonials />
       <AppDownload />
+      <Newsletter />
       <Footer />
     </main>
   );
