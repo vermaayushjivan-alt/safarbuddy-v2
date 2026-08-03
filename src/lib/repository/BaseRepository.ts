@@ -1,8 +1,10 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import {
+  PostgrestFilterBuilder,
+  PostgrestTransformBuilder,
+} from '@supabase/postgrest-js';
 import {
   DatabaseError,
   NotFoundError,
-  ConflictError,
   ValidationError,
   handleDatabaseError,
 } from '@/lib/errors/database.errors';
@@ -33,60 +35,84 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
   }
 
   /**
-   * Apply filters to a query
+   * Apply filters to a Postgrest filter query safely without losing generic type context
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected applyFilters(query: any, filters: FilterOptions[]) {
+  protected applyFilters<
+    Schema,
+    Row extends Record<string, unknown>,
+    Result
+  >(
+    query: PostgrestFilterBuilder<Schema, Row, Result>,
+    filters: FilterOptions[]
+  ): PostgrestFilterBuilder<Schema, Row, Result> {
+    let currentQuery = query;
+
     filters.forEach((filter) => {
       switch (filter.operator) {
         case 'eq':
-          query = query.eq(filter.column, filter.value);
+          currentQuery = currentQuery.eq(filter.column, filter.value);
           break;
         case 'neq':
-          query = query.neq(filter.column, filter.value);
+          currentQuery = currentQuery.neq(filter.column, filter.value);
           break;
         case 'gt':
-          query = query.gt(filter.column, filter.value);
+          currentQuery = currentQuery.gt(filter.column, filter.value);
           break;
         case 'gte':
-          query = query.gte(filter.column, filter.value);
+          currentQuery = currentQuery.gte(filter.column, filter.value);
           break;
         case 'lt':
-          query = query.lt(filter.column, filter.value);
+          currentQuery = currentQuery.lt(filter.column, filter.value);
           break;
         case 'lte':
-          query = query.lte(filter.column, filter.value);
+          currentQuery = currentQuery.lte(filter.column, filter.value);
           break;
         case 'like':
-          query = query.like(filter.column, filter.value);
+          currentQuery = currentQuery.like(filter.column, filter.value);
           break;
         case 'ilike':
-          query = query.ilike(filter.column, filter.value);
+          currentQuery = currentQuery.ilike(filter.column, filter.value);
           break;
         case 'in':
-          query = query.in(filter.column, filter.value);
+          currentQuery = currentQuery.in(
+            filter.column,
+            Array.isArray(filter.value) ? filter.value : [filter.value]
+          );
           break;
         case 'is':
-          query = query.is(filter.column, filter.value);
+          currentQuery = currentQuery.is(filter.column, filter.value);
           break;
       }
     });
-    return query;
+
+    return currentQuery;
   }
 
   /**
-   * Apply sorting to a query
+   * Apply sorting options
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected applySort(query: any, sort: SortOptions) {
+  protected applySort<
+    Schema,
+    Row extends Record<string, unknown>,
+    Result
+  >(
+    query: PostgrestFilterBuilder<Schema, Row, Result>,
+    sort: SortOptions
+  ): PostgrestTransformBuilder<Schema, Row, Result> {
     return query.order(sort.column, { ascending: sort.ascending ?? true });
   }
 
   /**
-   * Apply pagination to a query
+   * Apply pagination options
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected applyPagination(query: any, pagination: PaginationOptions) {
+  protected applyPagination<
+    Schema,
+    Row extends Record<string, unknown>,
+    Result
+  >(
+    query: PostgrestFilterBuilder<Schema, Row, Result>,
+    pagination: PaginationOptions
+  ): PostgrestTransformBuilder<Schema, Row, Result> {
     const from = (pagination.page - 1) * pagination.limit;
     const to = from + pagination.limit - 1;
     return query.range(from, to);
@@ -109,7 +135,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         query = query.is(this.softDeleteColumn, null);
       }
 
-      const { data, error } = await query.single();
+      const { data, error } = await query.returns<T>().single();
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -118,7 +144,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return data as T;
+      return data;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -145,7 +171,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         query = query.is(this.softDeleteColumn, null);
       }
 
-      const { data, error } = await query.single();
+      const { data, error } = await query.returns<T>().single();
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -154,7 +180,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return data as T;
+      return data;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -187,13 +213,13 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         query = this.applyPagination(query, options.pagination);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.returns<T[]>();
 
       if (error) {
         throw handleDatabaseError(error);
       }
 
-      return (data as T[]) ?? [];
+      return data ?? [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -210,7 +236,6 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
   ): Promise<PaginationResult<T>> {
     try {
       const { pagination, ...selectOptions } = options;
-      const columns = options.columns ?? '*';
 
       // Get total count
       let countQuery = this.supabase
@@ -265,8 +290,9 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data as Record<string, unknown>)
+        .insert(data)
         .select()
+        .returns<T>()
         .single();
 
       if (error) {
@@ -277,7 +303,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new DatabaseError('Failed to create record - no data returned');
       }
 
-      return result as T;
+      return result;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -293,14 +319,15 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data as Record<string, unknown>[])
-        .select();
+        .insert(data)
+        .select()
+        .returns<T[]>();
 
       if (error) {
         throw handleDatabaseError(error);
       }
 
-      return (result as T[]) ?? [];
+      return result ?? [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -316,14 +343,17 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
     try {
       let query = this.supabase
         .from(this.tableName)
-        .update(data as Record<string, unknown>)
+        .update(data)
         .eq('id', id);
 
       if (this.softDelete) {
         query = query.is(this.softDeleteColumn, null);
       }
 
-      const { data: result, error } = await query.select().single();
+      const { data: result, error } = await query
+        .select()
+        .returns<T>()
+        .single();
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -336,7 +366,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found');
       }
 
-      return result as T;
+      return result;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -355,7 +385,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
     try {
       let query = this.supabase
         .from(this.tableName)
-        .update(data as Record<string, unknown>);
+        .update(data);
 
       query = this.applyFilters(query, filters);
 
@@ -363,13 +393,13 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         query = query.is(this.softDeleteColumn, null);
       }
 
-      const { data: result, error } = await query.select();
+      const { data: result, error } = await query.select().returns<T[]>();
 
       if (error) {
         throw handleDatabaseError(error);
       }
 
-      return (result as T[]) ?? [];
+      return result ?? [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -451,6 +481,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         .eq('id', id)
         .is(this.softDeleteColumn, null)
         .select()
+        .returns<T>()
         .single();
 
       if (error) {
@@ -464,7 +495,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found or already deleted');
       }
 
-      return data as T;
+      return data;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -492,6 +523,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         .eq('id', id)
         .not(this.softDeleteColumn, 'is', null)
         .select()
+        .returns<T>()
         .single();
 
       if (error) {
@@ -505,7 +537,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found or not deleted');
       }
 
-      return data as T;
+      return data;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
