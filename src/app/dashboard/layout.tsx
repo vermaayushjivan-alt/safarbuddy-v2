@@ -1,23 +1,14 @@
-import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth/session";
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { LoadingScreen } from '@/components/auth/LoadingScreen';
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  try {
-    await requireRole([
-      "admin",
-      "super_admin",
-      "vendor",
-      "hotel_owner",
-      "travel_agent",
-      "user",
-    ]);
-  } catch {
-    redirect("/login");
-  }
-
-  return <>{children}</>;
+  return (
+    <ProtectedRoute fallback={<LoadingScreen />}>
+      {children}
+    </ProtectedRoute>
+  );
 }
