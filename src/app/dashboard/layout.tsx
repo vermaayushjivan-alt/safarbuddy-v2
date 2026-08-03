@@ -7,7 +7,14 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   try {
-    await requireRole(["admin", "vendor", "user"]);
+    await requireRole([
+      "admin",
+      "super_admin",
+      "vendor",
+      "hotel_owner",
+      "travel_agent",
+      "user",
+    ]);
   } catch {
     redirect("/login");
   }
