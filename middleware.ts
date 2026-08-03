@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { getUserRoles } from "@/lib/auth/session";
 
 const PUBLIC_ROUTES = [
   "/",
@@ -8,12 +7,6 @@ const PUBLIC_ROUTES = [
   "/register",
   "/forgot-password",
   "/auth/callback",
-];
-
-const ROLE_ROUTE_PREFIXES: { prefix: string; roles: string[] }[] = [
-  { prefix: "/admin", roles: ["admin"] },
-  { prefix: "/vendor", roles: ["admin", "vendor"] },
-  { prefix: "/dashboard", roles: ["admin", "vendor", "user"] },
 ];
 
 function isPublicRoute(pathname: string) {
@@ -25,6 +18,13 @@ function isPublicRoute(pathname: string) {
   );
 }
 
+// NOTE: Middleware runs on the Edge runtime, which cannot use the `pg`
+// driver (Node.js-only). So middleware only handles the lightweight,
+// fetch-based check: "is there a logged-in session at all?". Role-based
+// access (admin/vendor/user) is enforced in each protected route group's
+// layout.tsx (Server Component, Node.js runtime) via requireRole() from
+// src/lib/auth/session.ts — see src/app/admin/layout.tsx,
+// src/app/vendor/layout.tsx, src/app/dashboard/layout.tsx.
 export async function middleware(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);
   const { pathname } = request.nextUrl;
@@ -38,20 +38,6 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  // Role-based access for protected prefixes.
-  const matchedRule = ROLE_ROUTE_PREFIXES.find((rule) =>
-    pathname.startsWith(rule.prefix)
-  );
-
-  if (matchedRule) {
-    const roles = await getUserRoles(user.id);
-    const isAllowed = roles.some((role) => matchedRule.roles.includes(role));
-
-    if (!isAllowed) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
   }
 
   return supabaseResponse;
