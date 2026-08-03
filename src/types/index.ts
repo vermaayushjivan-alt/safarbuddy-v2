@@ -110,14 +110,16 @@ export interface PaginatedData<T> {
 // ============================================
 
 /**
- * User roles
+ * User roles.
+ * Kept in sync with AppRole in src/db/schema.ts (the source of truth,
+ * backed by the public.roles table) — see AUTH-05.
  */
-export type UserRole = 
-  | 'user' 
-  | 'vendor' 
-  | 'vendor_pending' 
-  | 'support' 
-  | 'admin' 
+export type UserRole =
+  | 'user' // Customer
+  | 'vendor'
+  | 'hotel_owner'
+  | 'travel_agent'
+  | 'admin'
   | 'super_admin';
 
 /**
