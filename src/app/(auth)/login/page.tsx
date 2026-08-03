@@ -1,13 +1,42 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { loginAction, googleLoginAction, type AuthActionState } from "@/actions/auth";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { TextField } from "@/components/auth/TextField";
+import { PasswordField } from "@/components/auth/PasswordField";
+import { SubmitButton } from "@/components/auth/SubmitButton";
+import { Alert } from "@/components/auth/Alert";
 
 const initialState: AuthActionState = {};
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFormSkeleton />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginFormSkeleton() {
+  return (
+    <AuthLayout
+      eyebrow="Welcome back"
+      title="Log in to SafarBuddy"
+      subtitle="Book flights, hotels and holiday packages in seconds."
+    >
+      <div className="space-y-5" aria-hidden="true">
+        <div className="h-[68px] animate-pulse rounded-xl bg-neutral-100" />
+        <div className="h-[68px] animate-pulse rounded-xl bg-neutral-100" />
+        <div className="h-10 animate-pulse rounded-xl bg-neutral-100" />
+      </div>
+    </AuthLayout>
+  );
+}
+
+function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "";
   const oauthError = searchParams.get("error");
@@ -18,113 +47,89 @@ export default function LoginPage() {
   );
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-neutral-900">
-          Log in to SafarBuddy
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Welcome back — book your next trip in seconds.
-        </p>
-
-        {(state.error || oauthError) && (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-            {state.error ?? oauthError}
-          </p>
-        )}
-
-        <form action={formAction} className="mt-6 space-y-4">
-          <input type="hidden" name="redirectTo" value={redirectTo} />
-
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-            {state.fieldErrors?.email && (
-              <p className="mt-1 text-xs text-red-600">
-                {state.fieldErrors.email[0]}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-neutral-700"
-              >
-                Password
-              </label>
-              <Link
-                href="/forgot-password"
-                className="text-xs font-medium text-neutral-500 hover:text-neutral-900"
-              >
-                Forgot password?
-              </Link>
-            </div>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-            {state.fieldErrors?.password && (
-              <p className="mt-1 text-xs text-red-600">
-                {state.fieldErrors.password[0]}
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={isPending}
-            className="w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:opacity-60"
-          >
-            {isPending ? "Logging in..." : "Log in"}
-          </button>
-        </form>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-neutral-200" />
-          <span className="text-xs text-neutral-400">or</span>
-          <div className="h-px flex-1 bg-neutral-200" />
-        </div>
-
-        <form action={googleLoginAction}>
-          <input type="hidden" name="redirectTo" value={redirectTo} />
-          <button
-            type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-neutral-500">
+    <AuthLayout
+      eyebrow="Welcome back"
+      title="Log in to SafarBuddy"
+      subtitle="Book flights, hotels and holiday packages in seconds."
+      footer={
+        <>
           New to SafarBuddy?{" "}
           <Link
             href="/register"
-            className="font-medium text-neutral-900 hover:underline"
+            className="font-medium text-teal-700 hover:underline"
           >
             Create an account
           </Link>
-        </p>
+        </>
+      }
+    >
+      <form action={formAction} className="space-y-5" noValidate>
+        <input type="hidden" name="redirectTo" value={redirectTo} />
+
+        {(state.error || oauthError) && (
+          <Alert variant="error">{state.error ?? oauthError}</Alert>
+        )}
+
+        <TextField
+          id="email"
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          error={state.fieldErrors?.email?.[0]}
+        />
+
+        <PasswordField
+          id="password"
+          name="password"
+          label="Password"
+          autoComplete="current-password"
+          required
+          error={state.fieldErrors?.password?.[0]}
+          rightSlot={
+            <Link
+              href="/forgot-password"
+              className="text-xs font-medium text-teal-700 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          }
+        />
+
+        <label className="flex select-none items-center gap-2 text-sm text-neutral-600">
+          <input
+            type="checkbox"
+            name="rememberMe"
+            className="h-4 w-4 rounded border-neutral-300 text-teal-700 focus:ring-teal-600/30"
+          />
+          Remember me
+        </label>
+
+        <SubmitButton
+          pending={isPending}
+          label="Log in"
+          pendingLabel="Logging in..."
+        />
+      </form>
+
+      <div className="my-6 flex items-center gap-3">
+        <div className="h-px flex-1 bg-neutral-200" />
+        <span className="text-xs text-neutral-400">or</span>
+        <div className="h-px flex-1 bg-neutral-200" />
       </div>
-    </main>
+
+      <form action={googleLoginAction}>
+        <input type="hidden" name="redirectTo" value={redirectTo} />
+        <button
+          type="submit"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+        >
+          <GoogleIcon />
+          Continue with Google
+        </button>
+      </form>
+    </AuthLayout>
   );
 }
 
