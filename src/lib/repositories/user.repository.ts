@@ -1,10 +1,12 @@
 // src/lib/repositories/user.repository.ts
 
 import { eq, and, isNull, desc } from 'drizzle-orm';
-import { BaseRepository } from './base.repository';
+
+// ⚠️ VERIFY THESE PATHS MATCH YOUR PROJECT STRUCTURE
+import { BaseRepository } from '@/lib/repositories/base.repository'; 
 import { users } from '@/lib/db/schema';
 import { User, InsertUser, UpdateUser } from '@/lib/db/types';
-import { NotFoundError, ValidationError } from './errors';
+import { NotFoundError, ValidationError } from '@/lib/repositories/errors';
 
 export class UserRepository extends BaseRepository {
   /**
@@ -89,7 +91,6 @@ export class UserRepository extends BaseRepository {
    * @returns Created user
    */
   async create(data: InsertUser): Promise<User> {
-    // Validate required fields
     if (!data.auth_user_id) {
       throw new ValidationError('auth_user_id is required');
     }
@@ -102,19 +103,16 @@ export class UserRepository extends BaseRepository {
       throw new ValidationError('full_name is required');
     }
 
-    // Check if auth_user_id already exists
     const existingByAuthId = await this.findByAuthUserId(data.auth_user_id);
     if (existingByAuthId) {
       throw new ValidationError('User with this auth_user_id already exists');
     }
 
-    // Check if email already exists
     const existingByEmail = await this.findByEmail(data.email);
     if (existingByEmail) {
       throw new ValidationError('User with this email already exists');
     }
 
-    // Normalize data
     const normalizedData: InsertUser = {
       ...data,
       email: data.email.toLowerCase().trim(),
@@ -148,7 +146,6 @@ export class UserRepository extends BaseRepository {
       throw new NotFoundError('User', id);
     }
 
-    // Validate email uniqueness if being updated
     if (data.email) {
       const normalizedEmail = data.email.toLowerCase().trim();
       const userWithEmail = await this.findByEmail(normalizedEmail);
@@ -157,7 +154,6 @@ export class UserRepository extends BaseRepository {
       }
     }
 
-    // Validate phone uniqueness if being updated
     if (data.phone) {
       const normalizedPhone = data.phone.trim();
       const userWithPhone = await this.findByPhone(normalizedPhone);
@@ -166,7 +162,6 @@ export class UserRepository extends BaseRepository {
       }
     }
 
-    // Normalize data
     const normalizedData: UpdateUser = {
       ...data,
       email: data.email ? data.email.toLowerCase().trim() : undefined,
