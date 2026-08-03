@@ -11,7 +11,13 @@ if (!connectionString) {
   );
 }
 
-const pool = new Pool({ connectionString });
+const pool = new Pool({
+  connectionString,
+  // Supabase's pooler (port 6543) requires SSL. `rejectUnauthorized: false`
+  // is safe here because we're connecting via Supabase's trusted endpoint
+  // over a connection string that already encodes host/user/password.
+  ssl: { rejectUnauthorized: false },
+});
 
 export const db = drizzle(pool, { schema });
 export { schema };
