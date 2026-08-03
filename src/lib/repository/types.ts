@@ -48,22 +48,22 @@ export interface BaseRepositoryConfig {
 
 export type SupabaseClientType = SupabaseClient;
 
-// Type helper for database records
+// Type helper for database records - MORE FLEXIBLE
+// Only requires id, allows any other fields
 export type DatabaseRecord = {
   id: string;
-  created_at?: string;
-  updated_at?: string;
-  [key: string]: unknown;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 // Type helper for insert data (partial without id, created_at, updated_at)
-export type InsertData<T extends DatabaseRecord> = Omit<T, 'id' | 'created_at' | 'updated_at'> & {
+export type InsertData<T> = Omit<T, 'id' | 'created_at' | 'updated_at'> & {
   id?: string;
   created_at?: string;
   updated_at?: string;
 };
 
 // Type helper for update data (partial without created_at)
-export type UpdateData<T extends DatabaseRecord> = Partial<Omit<T, 'id' | 'created_at'>> & {
+export type UpdateData<T> = Partial<Omit<T, 'id' | 'created_at'>> & {
   updated_at?: string;
 };
