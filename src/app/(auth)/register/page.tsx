@@ -7,6 +7,11 @@ import {
   googleLoginAction,
   type AuthActionState,
 } from "@/actions/auth";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { TextField } from "@/components/auth/TextField";
+import { PasswordField } from "@/components/auth/PasswordField";
+import { SubmitButton } from "@/components/auth/SubmitButton";
+import { Alert } from "@/components/auth/Alert";
 
 const initialState: AuthActionState = {};
 
@@ -18,165 +23,103 @@ export default function RegisterPage() {
 
   if (state.success) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-        <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-xl font-semibold text-neutral-900">
-            Check your inbox
-          </h1>
-          <p className="mt-2 text-sm text-neutral-500">
-            We&apos;ve sent a confirmation link to your email. Verify your
-            address to finish creating your account.
-          </p>
-          <Link
-            href="/login"
-            className="mt-6 inline-block text-sm font-medium text-neutral-900 hover:underline"
-          >
-            Back to login
-          </Link>
-        </div>
-      </main>
+      <AuthLayout
+        eyebrow="Almost there"
+        title="Check your inbox"
+        subtitle="One more step before you can start booking."
+      >
+        <Alert variant="success">
+          We&apos;ve sent a confirmation link to your email. Verify your
+          address to finish creating your account.
+        </Alert>
+        <Link
+          href="/login"
+          className="mt-6 inline-block text-sm font-medium text-teal-700 hover:underline"
+        >
+          Back to login
+        </Link>
+      </AuthLayout>
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-neutral-900">
-          Create your account
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Join SafarBuddy and start planning your next trip.
-        </p>
-
-        {state.error && (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-            {state.error}
-          </p>
-        )}
-
-        <form action={formAction} className="mt-6 space-y-4">
-          <div>
-            <label
-              htmlFor="fullName"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Full name
-            </label>
-            <input
-              id="fullName"
-              name="fullName"
-              type="text"
-              autoComplete="name"
-              required
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-            {state.fieldErrors?.fullName && (
-              <p className="mt-1 text-xs text-red-600">
-                {state.fieldErrors.fullName[0]}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-            {state.fieldErrors?.email && (
-              <p className="mt-1 text-xs text-red-600">
-                {state.fieldErrors.email[0]}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-            {state.fieldErrors?.password && (
-              <p className="mt-1 text-xs text-red-600">
-                {state.fieldErrors.password[0]}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="confirmPassword"
-              className="block text-sm font-medium text-neutral-700"
-            >
-              Confirm password
-            </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
-            />
-            {state.fieldErrors?.confirmPassword && (
-              <p className="mt-1 text-xs text-red-600">
-                {state.fieldErrors.confirmPassword[0]}
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={isPending}
-            className="w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:opacity-60"
-          >
-            {isPending ? "Creating account..." : "Create account"}
-          </button>
-        </form>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-neutral-200" />
-          <span className="text-xs text-neutral-400">or</span>
-          <div className="h-px flex-1 bg-neutral-200" />
-        </div>
-
-        <form action={googleLoginAction}>
-          <button
-            type="submit"
-            className="w-full rounded-lg border border-neutral-300 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
-          >
-            Continue with Google
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-neutral-500">
+    <AuthLayout
+      eyebrow="Join SafarBuddy"
+      title="Create your account"
+      subtitle="Join SafarBuddy and start planning your next trip."
+      footer={
+        <>
           Already have an account?{" "}
           <Link
             href="/login"
-            className="font-medium text-neutral-900 hover:underline"
+            className="font-medium text-teal-700 hover:underline"
           >
             Log in
           </Link>
-        </p>
+        </>
+      }
+    >
+      <form action={formAction} className="space-y-5" noValidate>
+        {state.error && <Alert variant="error">{state.error}</Alert>}
+
+        <TextField
+          id="fullName"
+          name="fullName"
+          label="Full name"
+          autoComplete="name"
+          required
+          error={state.fieldErrors?.fullName?.[0]}
+        />
+
+        <TextField
+          id="email"
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          error={state.fieldErrors?.email?.[0]}
+        />
+
+        <PasswordField
+          id="password"
+          name="password"
+          label="Password"
+          autoComplete="new-password"
+          required
+          error={state.fieldErrors?.password?.[0]}
+        />
+
+        <PasswordField
+          id="confirmPassword"
+          name="confirmPassword"
+          label="Confirm password"
+          autoComplete="new-password"
+          required
+          error={state.fieldErrors?.confirmPassword?.[0]}
+        />
+
+        <SubmitButton
+          pending={isPending}
+          label="Create account"
+          pendingLabel="Creating account..."
+        />
+      </form>
+
+      <div className="my-6 flex items-center gap-3">
+        <div className="h-px flex-1 bg-neutral-200" />
+        <span className="text-xs text-neutral-400">or</span>
+        <div className="h-px flex-1 bg-neutral-200" />
       </div>
-    </main>
+
+      <form action={googleLoginAction}>
+        <button
+          type="submit"
+          className="w-full rounded-xl border border-neutral-300 py-2.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+        >
+          Continue with Google
+        </button>
+      </form>
+    </AuthLayout>
   );
 }
