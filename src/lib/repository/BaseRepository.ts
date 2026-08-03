@@ -16,7 +16,7 @@ import {
   SupabaseClientType,
 } from './types';
 
-export abstract class BaseRepository<T extends Record<string, unknown>> {
+export abstract class BaseRepository<T> {
   protected tableName: string;
   protected softDelete: boolean;
   protected softDeleteColumn: string;
@@ -58,7 +58,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return (data as unknown) as T;
+      return data as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -94,7 +94,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return (data as unknown) as T;
+      return data as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -133,7 +133,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return ((data as unknown) as T[]) ?? [];
+      return (data as T[]) ?? [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -205,7 +205,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data as Record<string, unknown>)
+        .insert(data as never)
         .select()
         .single();
 
@@ -217,7 +217,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new DatabaseError('Failed to create record - no data returned');
       }
 
-      return (result as unknown) as T;
+      return result as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -233,331 +233,13 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data as Record<string, unknown>[])
+        .insert(data as never[])
         .select();
 
       if (error) {
         throw handleDatabaseError(error);
       }
 
-      return ((result as unknown) as T[]) ?? [];
+      return (result as T[]) ?? [];
     } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to create records');
-    }
-  }
-
-  /**
-   * Update a record by ID
-   */
-  protected async update(id: string, data: Partial<T>): Promise<T> {
-    try {
-      let query = this.supabase
-        .from(this.tableName)
-        .update(data as Record<string, unknown>)
-        .eq('id', id);
-
-      if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
-      }
-
-      const { data: result, error } = await query.select().single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          throw new NotFoundError('Record not found');
-        }
-        throw handleDatabaseError(error);
-      }
-
-      if (!result) {
-        throw new NotFoundError('Record not found');
-      }
-
-      return (result as unknown) as T;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to update record');
-    }
-  }
-
-  /**
-   * Update multiple records matching filters
-   */
-  protected async updateMany(
-    filters: FilterOptions[],
-    data: Partial<T>
-  ): Promise<T[]> {
-    try {
-      let query = this.supabase
-        .from(this.tableName)
-        .update(data as Record<string, unknown>);
-
-      query = this.applyFilters(query, filters);
-
-      if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
-      }
-
-      const { data: result, error } = await query.select();
-
-      if (error) {
-        throw handleDatabaseError(error);
-      }
-
-      return ((result as unknown) as T[]) ?? [];
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to update records');
-    }
-  }
-
-  /**
-   * Hard delete a record by ID
-   */
-  protected async delete(id: string): Promise<boolean> {
-    try {
-      const { error } = await this.supabase
-        .from(this.tableName)
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        throw handleDatabaseError(error);
-      }
-
-      return true;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to delete record');
-    }
-  }
-
-  /**
-   * Hard delete multiple records matching filters
-   */
-  protected async deleteMany(filters: FilterOptions[]): Promise<number> {
-    try {
-      let query = this.supabase.from(this.tableName).delete();
-
-      query = this.applyFilters(query, filters);
-
-      const { data, error } = await query.select();
-
-      if (error) {
-        throw handleDatabaseError(error);
-      }
-
-      return data?.length ?? 0;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to delete records');
-    }
-  }
-
-  /**
-   * Soft delete a record by ID
-   */
-  protected async softDeleteById(
-    id: string,
-    deletedBy?: string
-  ): Promise<T> {
-    if (!this.softDelete) {
-      throw new ValidationError('Soft delete is not enabled for this repository');
-    }
-
-    try {
-      const updateData: Record<string, unknown> = {
-        [this.softDeleteColumn]: new Date().toISOString(),
-      };
-
-      if (deletedBy) {
-        updateData.deleted_by = deletedBy;
-      }
-
-      const { data, error } = await this.supabase
-        .from(this.tableName)
-        .update(updateData)
-        .eq('id', id)
-        .is(this.softDeleteColumn, null)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          throw new NotFoundError('Record not found or already deleted');
-        }
-        throw handleDatabaseError(error);
-      }
-
-      if (!data) {
-        throw new NotFoundError('Record not found or already deleted');
-      }
-
-      return (data as unknown) as T;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to soft delete record');
-    }
-  }
-
-  /**
-   * Restore a soft-deleted record
-   */
-  protected async restore(id: string): Promise<T> {
-    if (!this.softDelete) {
-      throw new ValidationError('Soft delete is not enabled for this repository');
-    }
-
-    try {
-      const updateData: Record<string, unknown> = {
-        [this.softDeleteColumn]: null,
-      };
-
-      const { data, error } = await this.supabase
-        .from(this.tableName)
-        .update(updateData)
-        .eq('id', id)
-        .not(this.softDeleteColumn, 'is', null)
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          throw new NotFoundError('Record not found or not deleted');
-        }
-        throw handleDatabaseError(error);
-      }
-
-      if (!data) {
-        throw new NotFoundError('Record not found or not deleted');
-      }
-
-      return (data as unknown) as T;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to restore record');
-    }
-  }
-
-  /**
-   * Count records matching filters
-   */
-  protected async count(filters?: FilterOptions[]): Promise<number> {
-    try {
-      let query = this.supabase
-        .from(this.tableName)
-        .select('*', { count: 'exact', head: true });
-
-      if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
-      }
-
-      if (filters) {
-        query = this.applyFilters(query, filters);
-      }
-
-      const { count, error } = await query;
-
-      if (error) {
-        throw handleDatabaseError(error);
-      }
-
-      return count ?? 0;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to count records');
-    }
-  }
-
-  /**
-   * Check if a record exists
-   */
-  protected async exists(filters: FilterOptions[]): Promise<boolean> {
-    try {
-      const count = await this.count(filters);
-      return count > 0;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to check record existence');
-    }
-  }
-
-  /**
-   * Apply filters to a query
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private applyFilters(query: any, filters: FilterOptions[]) {
-    filters.forEach((filter) => {
-      switch (filter.operator) {
-        case 'eq':
-          query = query.eq(filter.column, filter.value);
-          break;
-        case 'neq':
-          query = query.neq(filter.column, filter.value);
-          break;
-        case 'gt':
-          query = query.gt(filter.column, filter.value);
-          break;
-        case 'gte':
-          query = query.gte(filter.column, filter.value);
-          break;
-        case 'lt':
-          query = query.lt(filter.column, filter.value);
-          break;
-        case 'lte':
-          query = query.lte(filter.column, filter.value);
-          break;
-        case 'like':
-          query = query.like(filter.column, filter.value);
-          break;
-        case 'ilike':
-          query = query.ilike(filter.column, filter.value);
-          break;
-        case 'in':
-          query = query.in(filter.column, filter.value);
-          break;
-        case 'is':
-          query = query.is(filter.column, filter.value);
-          break;
-      }
-    });
-    return query;
-  }
-
-  /**
-   * Apply sorting to a query
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private applySort(query: any, sort: SortOptions) {
-    return query.order(sort.column, { ascending: sort.ascending ?? true });
-  }
-
-  /**
-   * Apply pagination to a query
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private applyPagination(query: any, pagination: PaginationOptions) {
-    const from = (pagination.page - 1) * pagination.limit;
-    const to = from + pagination.limit - 1;
-    return query.range(from, to);
-  }
-}
+      if (error 
