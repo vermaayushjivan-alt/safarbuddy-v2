@@ -58,7 +58,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return data as T;
+      return (data as unknown) as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -94,7 +94,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return data as T;
+      return (data as unknown) as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -133,7 +133,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return (data as T[]) ?? [];
+      return ((data as unknown) as T[]) ?? [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -217,7 +217,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new DatabaseError('Failed to create record - no data returned');
       }
 
-      return result as T;
+      return (result as unknown) as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -240,7 +240,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return (result as T[]) ?? [];
+      return ((result as unknown) as T[]) ?? [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -276,7 +276,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found');
       }
 
-      return result as T;
+      return (result as unknown) as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -309,7 +309,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return (result as T[]) ?? [];
+      return ((result as unknown) as T[]) ?? [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -404,7 +404,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found or already deleted');
       }
 
-      return data as T;
+      return (data as unknown) as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -445,7 +445,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found or not deleted');
       }
 
-      return data as T;
+      return (data as unknown) as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
