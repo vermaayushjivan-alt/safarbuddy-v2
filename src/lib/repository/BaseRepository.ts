@@ -16,7 +16,7 @@ import {
   SupabaseClientType,
 } from './types';
 
-export abstract class BaseRepository<T> {
+export abstract class BaseRepository<T extends Record<string, unknown>> {
   protected tableName: string;
   protected softDelete: boolean;
   protected softDeleteColumn: string;
@@ -205,7 +205,7 @@ export abstract class BaseRepository<T> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data)
+        .insert(data as Record<string, unknown>)
         .select()
         .single();
 
@@ -233,7 +233,7 @@ export abstract class BaseRepository<T> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data)
+        .insert(data as Record<string, unknown>[])
         .select();
 
       if (error) {
@@ -256,7 +256,7 @@ export abstract class BaseRepository<T> {
     try {
       let query = this.supabase
         .from(this.tableName)
-        .update(data)
+        .update(data as Record<string, unknown>)
         .eq('id', id);
 
       if (this.softDelete) {
@@ -295,7 +295,7 @@ export abstract class BaseRepository<T> {
     try {
       let query = this.supabase
         .from(this.tableName)
-        .update(data);
+        .update(data as Record<string, unknown>);
 
       query = this.applyFilters(query, filters);
 
