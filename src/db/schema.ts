@@ -316,4 +316,10 @@ export type NewVendorBranch = typeof vendorBranches.$inferInsert;
 export type AppSetting = typeof appSettings.$inferSelect;
 export type OtpVerification = typeof otpVerifications.$inferSelect;
 
-export type AppRole = "admin" | "vendor" | "user";
+export type AppRole =
+  | "admin"
+  | "vendor"
+  | "user" // Customer account type — see 002_role_seed_auth05.sql note.
+  | "hotel_owner"
+  | "travel_agent"
+  | "super_admin";
