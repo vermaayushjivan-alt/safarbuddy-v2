@@ -7,6 +7,12 @@ const PUBLIC_ROUTES = [
   "/register",
   "/forgot-password",
   "/auth/callback",
+
+  // AUTH-06 Public Marketing Pages
+  "/hotels",
+  "/destinations",
+  "/about",
+  "/contact",
 ];
 
 function isPublicRoute(pathname: string) {
@@ -18,36 +24,41 @@ function isPublicRoute(pathname: string) {
   );
 }
 
-// NOTE: Middleware runs on the Edge runtime, which cannot use the `pg`
-// driver (Node.js-only). So middleware only handles the lightweight,
-// fetch-based check: "is there a logged-in session at all?". Role-based
-// access (admin/vendor/user) is enforced in each protected route group's
-// layout.tsx (Server Component, Node.js runtime) via requireRole() from
-// src/lib/auth/session.ts — see src/app/admin/layout.tsx,
-// src/app/vendor/layout.tsx, src/app/dashboard/layout.tsx.
+// NOTE:
+// Middleware runs on the Edge Runtime.
+// Keep it lightweight.
+// Authentication is checked here.
+// Role authorization is handled inside protected layouts
+// (admin, vendor, dashboard, hotel-owner, travel-agent, super-admin)
+// using server-side helpers.
+
 export async function middleware(request: NextRequest) {
-  const { supabaseResponse, user } = await updateSession(request);
   const { pathname } = request.nextUrl;
 
+  // AUTH-06 Optimization:
+  // Skip Supabase session lookup for public pages.
   if (isPublicRoute(pathname)) {
-    return supabaseResponse;
+    return NextResponse.next();
   }
 
-  // Not logged in -> send to login, preserve intended destination.
+  // Session check for protected routes.
+  const { supabaseResponse, user } = await updateSession(request);
+
+  // Redirect unauthenticated users to login.
   if (!user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
+  // User authenticated.
   return supabaseResponse;
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except static assets, to keep the middleware
-     * fast while still covering every page and API route.
+     * Match everything except static assets.
      */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
