@@ -7,7 +7,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   try {
-    await requireRole(["admin"]);
+    await requireRole(["admin", "super_admin"]);
   } catch {
     redirect("/");
   }
