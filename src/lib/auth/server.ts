@@ -2,8 +2,8 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { cache } from 'react';
 
-export const createServerSupabaseClient = cache(() => {
-  const cookieStore = cookies();
+export const createServerSupabaseClient = cache(async () => {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,7 +19,7 @@ export const createServerSupabaseClient = cache(() => {
 });
 
 export const getServerSession = cache(async () => {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   
   try {
     const {
@@ -40,7 +40,7 @@ export const getServerSession = cache(async () => {
 });
 
 export const getServerUser = cache(async () => {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   
   try {
     const {
