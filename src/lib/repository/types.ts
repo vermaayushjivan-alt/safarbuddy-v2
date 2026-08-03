@@ -20,9 +20,11 @@ export interface SortOptions {
   ascending?: boolean;
 }
 
+export type FilterOperator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'ilike' | 'in' | 'is';
+
 export interface FilterOptions {
   column: string;
-  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'ilike' | 'in' | 'is';
+  operator: FilterOperator;
   value: string | number | boolean | null | Array<string | number>;
 }
 
@@ -45,3 +47,23 @@ export interface BaseRepositoryConfig {
 }
 
 export type SupabaseClientType = SupabaseClient;
+
+// Type helper for database records
+export type DatabaseRecord = {
+  id: string;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+};
+
+// Type helper for insert data (partial without id, created_at, updated_at)
+export type InsertData<T extends DatabaseRecord> = Omit<T, 'id' | 'created_at' | 'updated_at'> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+// Type helper for update data (partial without created_at)
+export type UpdateData<T extends DatabaseRecord> = Partial<Omit<T, 'id' | 'created_at'>> & {
+  updated_at?: string;
+};
