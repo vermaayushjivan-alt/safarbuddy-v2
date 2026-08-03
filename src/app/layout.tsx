@@ -1,18 +1,27 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { RootProvider } from '@/components/providers/RootProvider';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "SafarBuddy — Book Flights, Hotels, Bus, Train & Holidays",
-  description:
-    "SafarBuddy is your all-in-one travel marketplace — flights, hotels, bus, train, holiday packages, visa, forex and insurance, in one boarding pass.",
+  title: 'SafarBuddy - Your Travel Companion',
+  description: 'Enterprise-grade travel platform for hotels, resorts, homestays, and tour packages',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className={inter.className}>
+        <RootProvider>
+          {children}
+        </RootProvider>
+      </body>
     </html>
   );
 }
