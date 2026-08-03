@@ -1,9 +1,9 @@
 import { db } from '@/lib/db';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type * as schema from '@/lib/db/schema';
 
 export abstract class BaseRepository {
-  protected db: PostgresJsDatabase<typeof schema>;
+  protected db: NodePgDatabase<typeof schema>;
 
   constructor() {
     this.db = db;
@@ -13,7 +13,7 @@ export abstract class BaseRepository {
    * Execute operations within a transaction
    */
   protected async transaction<T>(
-    callback: (tx: PostgresJsDatabase<typeof schema>) => Promise<T>
+    callback: (tx: NodePgDatabase<typeof schema>) => Promise<T>
   ): Promise<T> {
     return await this.db.transaction(callback);
   }
