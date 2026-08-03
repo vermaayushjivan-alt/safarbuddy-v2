@@ -7,7 +7,7 @@ export default async function VendorLayout({
   children: React.ReactNode;
 }) {
   try {
-    await requireRole(["admin", "vendor"]);
+    await requireRole(["admin", "super_admin", "vendor"]);
   } catch {
     redirect("/");
   }
