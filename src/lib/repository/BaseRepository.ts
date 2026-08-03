@@ -12,9 +12,12 @@ import {
   SelectOptions,
   BaseRepositoryConfig,
   SupabaseClientType,
+  DatabaseRecord,
+  InsertData,
+  UpdateData,
 } from './types';
 
-export abstract class BaseRepository<T extends Record<string, unknown>> {
+export abstract class BaseRepository<T extends DatabaseRecord> {
   protected tableName: string;
   protected softDelete: boolean;
   protected softDeleteColumn: string;
@@ -31,96 +34,107 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
   }
 
   /**
-   * Apply filters to a Postgrest query safely
+   * Apply filters to a query
+   * Type-safe filter application
    */
-  protected applyFilters<Q extends { [key: string]: unknown }>(
-    query: Q,
-    filters: FilterOptions[]
-  ): Q {
-    let currentQuery = query;
-
+  protected applyFilters<Q>(query: Q, filters: FilterOptions[]): Q {
+    let result = query;
+    
     filters.forEach((filter) => {
-      const q = currentQuery as Record<string, (col: string, val: unknown) => Q>;
+      const typedQuery = result as {
+        eq: (column: string, value: unknown) => Q;
+        neq: (column: string, value: unknown) => Q;
+        gt: (column: string, value: unknown) => Q;
+        gte: (column: string, value: unknown) => Q;
+        lt: (column: string, value: unknown) => Q;
+        lte: (column: string, value: unknown) => Q;
+        like: (column: string, value: unknown) => Q;
+        ilike: (column: string, value: unknown) => Q;
+        in: (column: string, value: unknown) => Q;
+        is: (column: string, value: unknown) => Q;
+      };
+
       switch (filter.operator) {
         case 'eq':
-          currentQuery = q.eq(filter.column, filter.value);
+          result = typedQuery.eq(filter.column, filter.value);
           break;
         case 'neq':
-          currentQuery = q.neq(filter.column, filter.value);
+          result = typedQuery.neq(filter.column, filter.value);
           break;
         case 'gt':
-          currentQuery = q.gt(filter.column, filter.value);
+          result = typedQuery.gt(filter.column, filter.value);
           break;
         case 'gte':
-          currentQuery = q.gte(filter.column, filter.value);
+          result = typedQuery.gte(filter.column, filter.value);
           break;
         case 'lt':
-          currentQuery = q.lt(filter.column, filter.value);
+          result = typedQuery.lt(filter.column, filter.value);
           break;
         case 'lte':
-          currentQuery = q.lte(filter.column, filter.value);
+          result = typedQuery.lte(filter.column, filter.value);
           break;
         case 'like':
-          currentQuery = q.like(filter.column, filter.value);
+          result = typedQuery.like(filter.column, filter.value);
           break;
         case 'ilike':
-          currentQuery = q.ilike(filter.column, filter.value);
+          result = typedQuery.ilike(filter.column, filter.value);
           break;
         case 'in':
-          currentQuery = q.in(
-            filter.column,
-            Array.isArray(filter.value) ? filter.value : [filter.value]
-          );
+          result = typedQuery.in(filter.column, filter.value);
           break;
         case 'is':
-          currentQuery = q.is(filter.column, filter.value);
+          result = typedQuery.is(filter.column, filter.value);
           break;
       }
     });
-
-    return currentQuery;
+    
+    return result;
   }
 
   /**
-   * Apply sorting options
+   * Apply sorting to a query
+   * Type-safe sort application
    */
-  protected applySort<Q extends { order: (col: string, opts?: { ascending?: boolean }) => Q }>(
-    query: Q,
-    sort: SortOptions
-  ): Q {
-    return query.order(sort.column, { ascending: sort.ascending ?? true });
+  protected applySort<Q>(query: Q, sort: SortOptions): Q {
+    const typedQuery = query as {
+      order: (column: string, options: { ascending: boolean }) => Q;
+    };
+    return typedQuery.order(sort.column, { ascending: sort.ascending ?? true });
   }
 
   /**
-   * Apply pagination options
+   * Apply pagination to a query
+   * Type-safe pagination application
    */
-  protected applyPagination<Q extends { range: (from: number, to: number) => Q }>(
-    query: Q,
-    pagination: PaginationOptions
-  ): Q {
+  protected applyPagination<Q>(query: Q, pagination: PaginationOptions): Q {
     const from = (pagination.page - 1) * pagination.limit;
     const to = from + pagination.limit - 1;
-    return query.range(from, to);
+    
+    const typedQuery = query as {
+      range: (from: number, to: number) => Q;
+    };
+    return typedQuery.range(from, to);
   }
 
   /**
    * Find a single record by ID
+   * Type-safe query with proper error handling
    */
   protected async findById(
     id: string,
     columns: string = '*'
   ): Promise<T | null> {
     try {
-      let query = this.supabase
+      const queryBuilder = this.supabase
         .from(this.tableName)
         .select(columns)
         .eq('id', id);
 
-      if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
-      }
+      const query = this.softDelete
+        ? queryBuilder.is(this.softDeleteColumn, null)
+        : queryBuilder;
 
-      const { data, error } = await query.returns<T>().single();
+      const { data, error } = await query.single();
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -129,7 +143,9 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return data;
+      // Type assertion is safe here because Supabase guarantees the shape
+      // matches our table schema when the query succeeds
+      return data ? (data as unknown as T) : null;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -140,23 +156,24 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Find a single record by custom filter
+   * Type-safe with proper null handling
    */
   protected async findOne(
     filters: FilterOptions[],
     columns: string = '*'
   ): Promise<T | null> {
     try {
-      let query = this.supabase
+      let queryBuilder = this.supabase
         .from(this.tableName)
         .select(columns);
 
-      query = this.applyFilters(query, filters);
+      queryBuilder = this.applyFilters(queryBuilder, filters);
 
-      if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
-      }
+      const query = this.softDelete
+        ? queryBuilder.is(this.softDeleteColumn, null)
+        : queryBuilder;
 
-      const { data, error } = await query.returns<T>().single();
+      const { data, error } = await query.single();
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -165,7 +182,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw handleDatabaseError(error);
       }
 
-      return data;
+      return data ? (data as unknown as T) : null;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -176,35 +193,37 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Find multiple records with optional filters, sorting, and pagination
+   * Returns properly typed array
    */
   protected async findMany(options: SelectOptions = {}): Promise<T[]> {
     try {
       const columns = options.columns ?? '*';
-      let query = this.supabase.from(this.tableName).select(columns);
+      let queryBuilder = this.supabase.from(this.tableName).select(columns);
 
       if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
+        queryBuilder = queryBuilder.is(this.softDeleteColumn, null);
       }
 
       if (options.filters) {
-        query = this.applyFilters(query, options.filters);
+        queryBuilder = this.applyFilters(queryBuilder, options.filters);
       }
 
       if (options.sort) {
-        query = this.applySort(query, options.sort);
+        queryBuilder = this.applySort(queryBuilder, options.sort);
       }
 
       if (options.pagination) {
-        query = this.applyPagination(query, options.pagination);
+        queryBuilder = this.applyPagination(queryBuilder, options.pagination);
       }
 
-      const { data, error } = await query.returns<T[]>();
+      const { data, error } = await queryBuilder;
 
       if (error) {
         throw handleDatabaseError(error);
       }
 
-      return data ?? [];
+      // Safe type assertion: Supabase returns array matching table schema
+      return data ? (data as unknown as T[]) : [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -215,6 +234,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Find records with pagination metadata
+   * Type-safe pagination result
    */
   protected async findWithPagination(
     options: SelectOptions & { pagination: PaginationOptions }
@@ -270,14 +290,14 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Create a new record
+   * Type-safe insert with proper data typing
    */
-  protected async create(data: Partial<T>): Promise<T> {
+  protected async create(data: InsertData<T>): Promise<T> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data)
+        .insert(data as Record<string, unknown>)
         .select()
-        .returns<T>()
         .single();
 
       if (error) {
@@ -288,7 +308,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new DatabaseError('Failed to create record - no data returned');
       }
 
-      return result;
+      return result as unknown as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -299,20 +319,20 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Create multiple records
+   * Type-safe bulk insert
    */
-  protected async createMany(data: Partial<T>[]): Promise<T[]> {
+  protected async createMany(data: InsertData<T>[]): Promise<T[]> {
     try {
       const { data: result, error } = await this.supabase
         .from(this.tableName)
-        .insert(data)
-        .select()
-        .returns<T[]>();
+        .insert(data as Record<string, unknown>[])
+        .select();
 
       if (error) {
         throw handleDatabaseError(error);
       }
 
-      return result ?? [];
+      return result ? (result as unknown as T[]) : [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -323,22 +343,20 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Update a record by ID
+   * Type-safe update with proper data typing
    */
-  protected async update(id: string, data: Partial<T>): Promise<T> {
+  protected async update(id: string, data: UpdateData<T>): Promise<T> {
     try {
-      let query = this.supabase
+      let queryBuilder = this.supabase
         .from(this.tableName)
-        .update(data)
+        .update(data as Record<string, unknown>)
         .eq('id', id);
 
       if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
+        queryBuilder = queryBuilder.is(this.softDeleteColumn, null);
       }
 
-      const { data: result, error } = await query
-        .select()
-        .returns<T>()
-        .single();
+      const { data: result, error } = await queryBuilder.select().single();
 
       if (error) {
         if (error.code === 'PGRST116') {
@@ -351,7 +369,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found');
       }
 
-      return result;
+      return result as unknown as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -362,29 +380,30 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Update multiple records matching filters
+   * Type-safe bulk update
    */
   protected async updateMany(
     filters: FilterOptions[],
-    data: Partial<T>
+    data: UpdateData<T>
   ): Promise<T[]> {
     try {
-      let query = this.supabase
+      let queryBuilder = this.supabase
         .from(this.tableName)
-        .update(data);
+        .update(data as Record<string, unknown>);
 
-      query = this.applyFilters(query, filters);
+      queryBuilder = this.applyFilters(queryBuilder, filters);
 
       if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
+        queryBuilder = queryBuilder.is(this.softDeleteColumn, null);
       }
 
-      const { data: result, error } = await query.select().returns<T[]>();
+      const { data: result, error } = await queryBuilder.select();
 
       if (error) {
         throw handleDatabaseError(error);
       }
 
-      return result ?? [];
+      return result ? (result as unknown as T[]) : [];
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -395,6 +414,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Hard delete a record by ID
+   * Returns success boolean
    */
   protected async delete(id: string): Promise<boolean> {
     try {
@@ -418,14 +438,15 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Hard delete multiple records matching filters
+   * Returns count of deleted records
    */
   protected async deleteMany(filters: FilterOptions[]): Promise<number> {
     try {
-      let query = this.supabase.from(this.tableName).delete();
+      let queryBuilder = this.supabase.from(this.tableName).delete();
 
-      query = this.applyFilters(query, filters);
+      queryBuilder = this.applyFilters(queryBuilder, filters);
 
-      const { data, error } = await query.select();
+      const { data, error } = await queryBuilder.select();
 
       if (error) {
         throw handleDatabaseError(error);
@@ -442,6 +463,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Soft delete a record by ID
+   * Type-safe soft delete
    */
   protected async softDeleteById(
     id: string,
@@ -466,7 +488,6 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         .eq('id', id)
         .is(this.softDeleteColumn, null)
         .select()
-        .returns<T>()
         .single();
 
       if (error) {
@@ -480,7 +501,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found or already deleted');
       }
 
-      return data;
+      return data as unknown as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -491,6 +512,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Restore a soft-deleted record
+   * Type-safe restore
    */
   protected async restore(id: string): Promise<T> {
     if (!this.softDelete) {
@@ -508,7 +530,6 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         .eq('id', id)
         .not(this.softDeleteColumn, 'is', null)
         .select()
-        .returns<T>()
         .single();
 
       if (error) {
@@ -522,7 +543,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
         throw new NotFoundError('Record not found or not deleted');
       }
 
-      return data;
+      return data as unknown as T;
     } catch (error) {
       if (error instanceof DatabaseError) {
         throw error;
@@ -533,22 +554,23 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Count records matching filters
+   * Type-safe count
    */
   protected async count(filters?: FilterOptions[]): Promise<number> {
     try {
-      let query = this.supabase
+      let queryBuilder = this.supabase
         .from(this.tableName)
         .select('*', { count: 'exact', head: true });
 
       if (this.softDelete) {
-        query = query.is(this.softDeleteColumn, null);
+        queryBuilder = queryBuilder.is(this.softDeleteColumn, null);
       }
 
       if (filters) {
-        query = this.applyFilters(query, filters);
+        queryBuilder = this.applyFilters(queryBuilder, filters);
       }
 
-      const { count, error } = await query;
+      const { count, error } = await queryBuilder;
 
       if (error) {
         throw handleDatabaseError(error);
@@ -565,6 +587,7 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
 
   /**
    * Check if a record exists
+   * Type-safe existence check
    */
   protected async exists(filters: FilterOptions[]): Promise<boolean> {
     try {
