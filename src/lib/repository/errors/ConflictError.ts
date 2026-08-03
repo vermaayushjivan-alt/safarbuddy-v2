@@ -5,21 +5,44 @@ import { RepositoryError } from './RepositoryError';
  * Thrown when a resource already exists or conflicts with existing data
  */
 export class ConflictError extends RepositoryError {
-  constructor(message: string, details?: unknown) {
+  constructor(
+    message: string,
+    details?: Record<string, unknown>
+  ) {
     super(message, 'CONFLICT', 409, details);
   }
 
-  static duplicate(resource: string, field: string, value: string | number) {
+  /**
+   * Resource already exists
+   */
+  static duplicate(
+    resource: string,
+    field: string,
+    value: string | number
+  ): ConflictError {
     return new ConflictError(
       `${resource} with ${field} '${value}' already exists`,
-      { resource, field, value }
+      {
+        resource,
+        field,
+        value,
+      }
     );
   }
 
-  static uniqueConstraint(constraint: string, details?: unknown) {
+  /**
+   * Database unique constraint violation
+   */
+  static uniqueConstraint(
+    constraint: string,
+    details?: Record<string, unknown>
+  ): ConflictError {
     return new ConflictError(
       `Unique constraint violation: ${constraint}`,
-      { constraint, ...details }
+      {
+        constraint,
+        ...(details ?? {}),
+      }
     );
   }
 }
