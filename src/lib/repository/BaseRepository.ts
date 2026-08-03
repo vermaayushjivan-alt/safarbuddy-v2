@@ -1,8 +1,4 @@
 import {
-  PostgrestFilterBuilder,
-  PostgrestTransformBuilder,
-} from '@supabase/postgrest-js';
-import {
   DatabaseError,
   NotFoundError,
   ValidationError,
@@ -35,52 +31,49 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
   }
 
   /**
-   * Apply filters to a Postgrest filter query safely without losing generic type context
+   * Apply filters to a Postgrest query safely
    */
-  protected applyFilters<
-    Schema,
-    Row extends Record<string, unknown>,
-    Result
-  >(
-    query: PostgrestFilterBuilder<Schema, Row, Result>,
+  protected applyFilters<Q extends { [key: string]: unknown }>(
+    query: Q,
     filters: FilterOptions[]
-  ): PostgrestFilterBuilder<Schema, Row, Result> {
+  ): Q {
     let currentQuery = query;
 
     filters.forEach((filter) => {
+      const q = currentQuery as Record<string, (col: string, val: unknown) => Q>;
       switch (filter.operator) {
         case 'eq':
-          currentQuery = currentQuery.eq(filter.column, filter.value);
+          currentQuery = q.eq(filter.column, filter.value);
           break;
         case 'neq':
-          currentQuery = currentQuery.neq(filter.column, filter.value);
+          currentQuery = q.neq(filter.column, filter.value);
           break;
         case 'gt':
-          currentQuery = currentQuery.gt(filter.column, filter.value);
+          currentQuery = q.gt(filter.column, filter.value);
           break;
         case 'gte':
-          currentQuery = currentQuery.gte(filter.column, filter.value);
+          currentQuery = q.gte(filter.column, filter.value);
           break;
         case 'lt':
-          currentQuery = currentQuery.lt(filter.column, filter.value);
+          currentQuery = q.lt(filter.column, filter.value);
           break;
         case 'lte':
-          currentQuery = currentQuery.lte(filter.column, filter.value);
+          currentQuery = q.lte(filter.column, filter.value);
           break;
         case 'like':
-          currentQuery = currentQuery.like(filter.column, filter.value);
+          currentQuery = q.like(filter.column, filter.value);
           break;
         case 'ilike':
-          currentQuery = currentQuery.ilike(filter.column, filter.value);
+          currentQuery = q.ilike(filter.column, filter.value);
           break;
         case 'in':
-          currentQuery = currentQuery.in(
+          currentQuery = q.in(
             filter.column,
             Array.isArray(filter.value) ? filter.value : [filter.value]
           );
           break;
         case 'is':
-          currentQuery = currentQuery.is(filter.column, filter.value);
+          currentQuery = q.is(filter.column, filter.value);
           break;
       }
     });
@@ -91,28 +84,20 @@ export abstract class BaseRepository<T extends Record<string, unknown>> {
   /**
    * Apply sorting options
    */
-  protected applySort<
-    Schema,
-    Row extends Record<string, unknown>,
-    Result
-  >(
-    query: PostgrestFilterBuilder<Schema, Row, Result>,
+  protected applySort<Q extends { order: (col: string, opts?: { ascending?: boolean }) => Q }>(
+    query: Q,
     sort: SortOptions
-  ): PostgrestTransformBuilder<Schema, Row, Result> {
+  ): Q {
     return query.order(sort.column, { ascending: sort.ascending ?? true });
   }
 
   /**
    * Apply pagination options
    */
-  protected applyPagination<
-    Schema,
-    Row extends Record<string, unknown>,
-    Result
-  >(
-    query: PostgrestFilterBuilder<Schema, Row, Result>,
+  protected applyPagination<Q extends { range: (from: number, to: number) => Q }>(
+    query: Q,
     pagination: PaginationOptions
-  ): PostgrestTransformBuilder<Schema, Row, Result> {
+  ): Q {
     const from = (pagination.page - 1) * pagination.limit;
     const to = from + pagination.limit - 1;
     return query.range(from, to);
