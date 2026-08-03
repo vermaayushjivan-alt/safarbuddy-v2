@@ -1,0 +1,177 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+
+/* -------------------------------------------------------------------------- */
+/* Validation                                                                 */
+/* -------------------------------------------------------------------------- */
+
+const loginSchema = z.object({
+  email: z.string().email("Enter a valid email address."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+});
+
+const registerSchema = z
+  .object({
+    fullName: z.string().min(2, "Full name is too short."),
+    email: z.string().email("Enter a valid email address."),
+    password: z.string().min(6, "Password must be at least 6 characters."),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Enter a valid email address."),
+});
+
+export type AuthActionState = {
+  error?: string;
+  fieldErrors?: Record<string, string[]>;
+  success?: boolean;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Email / Password Login                                                     */
+/* -------------------------------------------------------------------------- */
+
+export async function loginAction(
+  _prevState: AuthActionState,
+  formData: FormData
+): Promise<AuthActionState> {
+  const parsed = loginSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const redirectTo = formData.get("redirectTo");
+  redirect(typeof redirectTo === "string" && redirectTo ? redirectTo : "/");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Register                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export async function registerAction(
+  _prevState: AuthActionState,
+  formData: FormData
+): Promise<AuthActionState> {
+  const parsed = registerSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const supabase = await createClient();
+  const { fullName, email, password } = parsed.data;
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+    },
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  // public.users row is created by the `on_auth_user_created` Postgres
+  // trigger (see src/db/sql/001_auth_sync_trigger.sql) — no manual insert
+  // needed here, and doing one here would race the trigger.
+
+  return { success: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Google Login                                                               */
+/* -------------------------------------------------------------------------- */
+
+export async function googleLoginAction(formData: FormData) {
+  const redirectTo = formData.get("redirectTo");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback${
+        typeof redirectTo === "string" && redirectTo
+          ? `?redirectTo=${encodeURIComponent(redirectTo)}`
+          : ""
+      }`,
+    },
+  });
+
+  if (error || !data.url) {
+    redirect(
+      `/login?error=${encodeURIComponent(
+        error?.message ?? "Google sign-in failed."
+      )}`
+    );
+  }
+
+  redirect(data.url);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Forgot Password                                                            */
+/* -------------------------------------------------------------------------- */
+
+export async function forgotPasswordAction(
+  _prevState: AuthActionState,
+  formData: FormData
+): Promise<AuthActionState> {
+  const parsed = forgotPasswordSchema.safeParse({
+    email: formData.get("email"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    parsed.data.email,
+    {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
+    }
+  );
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Logout                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export async function logoutAction() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/login");
+}
