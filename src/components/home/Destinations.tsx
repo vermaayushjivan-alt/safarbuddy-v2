@@ -2,99 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { MapPin, Star, Users, ArrowRight, Compass } from "lucide-react";
+import { getFeaturedDestinations } from "@/app/actions/destination.actions";
+import type { DestinationRecord } from "@/lib/repositories/destination.repository";
 
-type Destination = {
-  id: string;
-  city: string;
-  region: string;
-  tagline: string;
-  price: string;
-  rating: number;
-  bookings: string;
-  banner: string;
-};
-
-const destinations: Destination[] = [
-  {
-    id: "goa",
-    city: "Goa",
-    region: "India",
-    tagline: "Beaches, shacks and sunset cruises",
-    price: "3,499",
-    rating: 4.6,
-    bookings: "12.4k",
-    banner: "from-orange to-orange-2",
-  },
-  {
-    id: "dubai",
-    city: "Dubai",
-    region: "UAE",
-    tagline: "Desert safaris and skyline views",
-    price: "18,999",
-    rating: 4.8,
-    bookings: "9.1k",
-    banner: "from-sky to-deep",
-  },
-  {
-    id: "bali",
-    city: "Bali",
-    region: "Indonesia",
-    tagline: "Rice terraces and beach clubs",
-    price: "21,499",
-    rating: 4.7,
-    bookings: "7.8k",
-    banner: "from-deep-2 to-sky",
-  },
-  {
-    id: "kashmir",
-    city: "Kashmir",
-    region: "India",
-    tagline: "Houseboats and snow-capped peaks",
-    price: "9,999",
-    rating: 4.9,
-    bookings: "6.3k",
-    banner: "from-sky-light to-deep-2",
-  },
-  {
-    id: "manali",
-    city: "Manali",
-    region: "India",
-    tagline: "Mountain trails and river camps",
-    price: "4,199",
-    rating: 4.5,
-    bookings: "10.2k",
-    banner: "from-deep to-sky-light",
-  },
-  {
-    id: "thailand",
-    city: "Thailand",
-    region: "Southeast Asia",
-    tagline: "Islands, temples and street food",
-    price: "16,499",
-    rating: 4.6,
-    bookings: "8.5k",
-    banner: "from-orange-2 to-deep",
-  },
-  {
-    id: "singapore",
-    city: "Singapore",
-    region: "Southeast Asia",
-    tagline: "Gardens, skyline and city lights",
-    price: "19,999",
-    rating: 4.7,
-    bookings: "5.9k",
-    banner: "from-deep to-deep-2",
-  },
-  {
-    id: "andaman",
-    city: "Andaman",
-    region: "India",
-    tagline: "Coral reefs and quiet coastlines",
-    price: "11,499",
-    rating: 4.8,
-    bookings: "4.7k",
-    banner: "from-sky to-orange",
-  },
+// Static UI-only presentation data — no DB column exists for these yet.
+// Cycled by index against live data, same pattern as Offers.tsx.
+const destinationStyles = [
+  { price: "3,499", rating: 4.6, bookings: "12.4k", banner: "from-orange to-orange-2" },
+  { price: "18,999", rating: 4.8, bookings: "9.1k", banner: "from-sky to-deep" },
+  { price: "21,499", rating: 4.7, bookings: "7.8k", banner: "from-deep-2 to-sky" },
+  { price: "9,999", rating: 4.9, bookings: "6.3k", banner: "from-sky-light to-deep-2" },
+  { price: "4,199", rating: 4.5, bookings: "10.2k", banner: "from-deep to-sky-light" },
+  { price: "16,499", rating: 4.6, bookings: "8.5k", banner: "from-orange-2 to-deep" },
+  { price: "19,999", rating: 4.7, bookings: "5.9k", banner: "from-deep to-deep-2" },
+  { price: "11,499", rating: 4.8, bookings: "4.7k", banner: "from-sky to-orange" },
 ];
 
 function DestinationSkeleton() {
@@ -129,10 +50,25 @@ function EmptyDestinations() {
 
 export default function Destinations() {
   const [loading, setLoading] = useState(true);
+  const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setLoading(false), 700);
-    return () => window.clearTimeout(t);
+    let cancelled = false;
+
+    getFeaturedDestinations()
+      .then((data) => {
+        if (!cancelled) setDestinations(data);
+      })
+      .catch(() => {
+        if (!cancelled) setDestinations([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -177,65 +113,68 @@ export default function Destinations() {
             role="list"
             aria-label="Popular destinations"
           >
-            {destinations.map((d, i) => (
-              <div
-                key={d.id}
-                role="listitem"
-                className="reveal hover-lift group overflow-hidden rounded-2xl bg-white/90 shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)] backdrop-blur-sm hover:shadow-[0_24px_40px_-16px_rgba(11,47,92,0.45)]"
-                style={{ animationDelay: `${i * 60}ms` }}
-              >
-                <div className="relative h-48 overflow-hidden">
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-br ${d.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/0" />
+            {destinations.map((d, i) => {
+              const style = destinationStyles[i % destinationStyles.length];
+              return (
+                <div
+                  key={d.id}
+                  role="listitem"
+                  className="reveal hover-lift group overflow-hidden rounded-2xl bg-white/90 shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)] backdrop-blur-sm hover:shadow-[0_24px_40px_-16px_rgba(11,47,92,0.45)]"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
+                  <div className="relative h-48 overflow-hidden">
+                    <div
+                      className={`absolute inset-0 bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/0" />
 
-                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-deep backdrop-blur-sm">
-                    <Star size={12} className="fill-gold text-gold" aria-hidden />
-                    {d.rating.toFixed(1)}
-                  </span>
+                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-deep backdrop-blur-sm">
+                      <Star size={12} className="fill-gold text-gold" aria-hidden />
+                      {style.rating.toFixed(1)}
+                    </span>
 
-                  <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between text-white">
-                    <div>
-                      <p className="font-heading text-lg font-semibold leading-tight">
-                        {d.city}
-                      </p>
-                      <p className="flex items-center gap-1 text-[12px] text-white/80">
-                        <MapPin size={11} aria-hidden />
-                        {d.region}
-                      </p>
+                    <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between text-white">
+                      <div>
+                        <p className="font-heading text-lg font-semibold leading-tight">
+                          {d.name}
+                        </p>
+                        <p className="flex items-center gap-1 text-[12px] text-white/80">
+                          <MapPin size={11} aria-hidden />
+                          {d.state ?? "—"}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="p-5">
-                  <p className="text-[13px] leading-relaxed text-ink/60">
-                    {d.tagline}
-                  </p>
-
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-[12px] text-ink/50">
-                      Starting from
-                      <span className="ml-1.5 font-display text-[17px] text-orange">
-                        ₹{d.price}
-                      </span>
+                  <div className="p-5">
+                    <p className="text-[13px] leading-relaxed text-ink/60">
+                      {d.description}
                     </p>
-                    <span className="flex items-center gap-1 text-[11px] text-ink/45">
-                      <Users size={12} aria-hidden />
-                      {d.bookings} booked
-                    </span>
-                  </div>
 
-                  <button
-                    type="button"
-                    className="focus-ring mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition group-hover:bg-deep group-hover:text-cream active:scale-[0.98]"
-                  >
-                    Explore
-                    <ArrowRight size={14} aria-hidden />
-                  </button>
+                    <div className="mt-3 flex items-center justify-between">
+                      <p className="text-[12px] text-ink/50">
+                        Starting from
+                        <span className="ml-1.5 font-display text-[17px] text-orange">
+                          ₹{style.price}
+                        </span>
+                      </p>
+                      <span className="flex items-center gap-1 text-[11px] text-ink/45">
+                        <Users size={12} aria-hidden />
+                        {style.bookings} booked
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="focus-ring mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition group-hover:bg-deep group-hover:text-cream active:scale-[0.98]"
+                    >
+                      Explore
+                      <ArrowRight size={14} aria-hidden />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
