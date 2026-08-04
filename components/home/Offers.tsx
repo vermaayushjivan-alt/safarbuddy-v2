@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Plane, Building2, Bus, Umbrella, Clock, ArrowRight } from "lucide-react";
 import { getActiveOffers } from "@/app/actions/offer.actions";
 import type { OfferRecord } from "@/lib/repositories/offer.repository";
@@ -57,6 +58,7 @@ function EmptyOffers() {
 export default function Offers() {
   const [loading, setLoading] = useState(true);
   const [offers, setOffers] = useState<OfferRecord[]>([]);
+  const [failedImages, setFailedImages] = useState<Set<string | number>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +120,10 @@ export default function Offers() {
           {offers.map((o, i) => {
             const style = offerStyles[i % offerStyles.length];
             const Icon = style.icon;
+            const hasImage =
+              Boolean(o.image && o.image.trim().length > 0) &&
+              !failedImages.has(o.id);
+
             return (
               <div
                 key={o.id}
@@ -126,9 +132,27 @@ export default function Offers() {
                 style={{ animationDelay: `${i * 80}ms` }}
               >
                 <div
-                  className={`relative flex h-32 flex-col justify-between bg-gradient-to-br ${style.banner} p-4`}
+                  className={`relative flex h-32 flex-col justify-between p-4 ${
+                    hasImage ? "" : `bg-gradient-to-br ${style.banner}`
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
+                  {hasImage && (
+                    <>
+                      <Image
+                        src={o.image as string}
+                        alt={o.title}
+                        fill
+                        sizes="(max-width: 640px) 280px, 300px"
+                        className="object-cover"
+                        onError={() =>
+                          setFailedImages((prev) => new Set(prev).add(o.id))
+                        }
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/0" />
+                    </>
+                  )}
+
+                  <div className="relative z-10 flex items-center justify-between">
                     <span className="route-tag inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium text-deep">
                       <Icon size={12} aria-hidden />
                       {style.tag.toUpperCase()}
@@ -139,7 +163,7 @@ export default function Offers() {
                   </div>
                   <Icon
                     size={40}
-                    className="self-end text-white/25"
+                    className="relative z-10 self-end text-white/25"
                     aria-hidden
                   />
                 </div>
