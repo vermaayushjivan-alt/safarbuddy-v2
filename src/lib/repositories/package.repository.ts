@@ -1,17 +1,20 @@
+// lib/repositories/package.repository.ts
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
+
 export interface PackageRecord extends DatabaseRecord {
   id: string;
-  title: string;
+  package_name: string;
   slug: string;
   thumbnail: string | null;
   description: string | null;
   city: string | null;
   duration: string | null;
-  price: number | null;
+  starting_price: number | null;
   is_featured: boolean;
   status: string;
 }
+
 export class PackageRepository extends BaseRepository<PackageRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
