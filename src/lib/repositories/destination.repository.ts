@@ -1,6 +1,5 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
-
 export interface DestinationRecord extends DatabaseRecord {
   id: string;
   name: string;
@@ -12,7 +11,6 @@ export interface DestinationRecord extends DatabaseRecord {
   is_featured: boolean;
   status: string;
 }
-
 export class DestinationRepository extends BaseRepository<DestinationRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
@@ -20,11 +18,9 @@ export class DestinationRepository extends BaseRepository<DestinationRecord> {
       softDelete: false,
     });
   }
-
   async getFeaturedDestinations(limit: number = 8): Promise<DestinationRecord[]> {
     return this.findMany({
       filters: [
-        { column: 'status', operator: 'eq', value: 'ACTIVE' },
         { column: 'is_featured', operator: 'eq', value: true },
       ],
       sort: { column: 'name', ascending: true },
