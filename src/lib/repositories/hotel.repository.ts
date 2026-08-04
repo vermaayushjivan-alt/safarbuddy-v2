@@ -1,5 +1,7 @@
+// lib/repositories/hotel.repository.ts
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
+
 export interface HotelRecord extends DatabaseRecord {
   id: string;
   vendor_id: string | null;
@@ -14,12 +16,13 @@ export interface HotelRecord extends DatabaseRecord {
   longitude: number | null;
   thumbnail: string | null;
   gallery: string[] | null;
-  rating: number | null;
+  star_rating: number | null;
   total_reviews: number | null;
   starting_price: number | null;
   is_featured: boolean;
   status: string;
 }
+
 export class HotelRepository extends BaseRepository<HotelRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
