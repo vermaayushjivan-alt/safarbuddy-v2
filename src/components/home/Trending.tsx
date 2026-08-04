@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Star,
   MapPin,
@@ -48,6 +49,11 @@ function formatReviews(count: number | null): string {
   if (count == null) return "0";
   if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
   return `${count}`;
+}
+
+function hotelHref(h: HotelRecord): string {
+  const slug = h.slug && h.slug.trim().length > 0 ? h.slug : String(h.id);
+  return `/hotels/${slug}`;
 }
 
 function HotelSkeleton() {
@@ -120,13 +126,13 @@ export default function Trending() {
             Discover the most booked hotels at the best prices.
           </p>
         </div>
-        <button
-          type="button"
+        <Link
+          href="/hotels"
           className="focus-ring hidden shrink-0 items-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2 font-heading text-[13px] font-semibold text-deep transition hover:border-deep/30 hover:bg-mist sm:flex"
         >
           View all hotels
           <ArrowRight size={14} aria-hidden />
-        </button>
+        </Link>
       </div>
 
       {loading ? (
@@ -226,12 +232,12 @@ export default function Trending() {
                   </div>
 
                   <div className="mt-4 flex gap-2">
-                    <button
-                      type="button"
-                      className="focus-ring flex-1 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist active:scale-[0.98]"
+                    <Link
+                      href={hotelHref(h)}
+                      className="focus-ring flex-1 rounded-xl border border-deep/15 py-2.5 text-center font-heading text-[13px] font-semibold text-deep transition hover:bg-mist active:scale-[0.98]"
                     >
                       View details
-                    </button>
+                    </Link>
                     <button
                       type="button"
                       className="focus-ring flex-1 rounded-xl bg-deep py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
@@ -246,13 +252,13 @@ export default function Trending() {
         </div>
       )}
 
-      <button
-        type="button"
+      <Link
+        href="/hotels"
         className="focus-ring mt-6 flex w-full items-center justify-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2.5 font-heading text-[13px] font-semibold text-deep sm:hidden"
       >
         View all hotels
         <ArrowRight size={14} aria-hidden />
-      </button>
+      </Link>
     </section>
   );
 }
