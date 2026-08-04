@@ -1,7 +1,6 @@
 // lib/repositories/hotel.repository.ts
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
-
 export interface HotelRecord extends DatabaseRecord {
   id: string;
   vendor_id: string | null;
@@ -22,7 +21,6 @@ export interface HotelRecord extends DatabaseRecord {
   is_featured: boolean;
   status: string;
 }
-
 export class HotelRepository extends BaseRepository<HotelRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
