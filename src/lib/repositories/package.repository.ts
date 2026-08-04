@@ -1,6 +1,5 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
-
 export interface PackageRecord extends DatabaseRecord {
   id: string;
   title: string;
@@ -13,7 +12,6 @@ export interface PackageRecord extends DatabaseRecord {
   is_featured: boolean;
   status: string;
 }
-
 export class PackageRepository extends BaseRepository<PackageRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
@@ -21,14 +19,13 @@ export class PackageRepository extends BaseRepository<PackageRecord> {
       softDelete: false,
     });
   }
-
   async getFeaturedPackages(limit: number = 8): Promise<PackageRecord[]> {
     return this.findMany({
       filters: [
         { column: 'status', operator: 'eq', value: 'ACTIVE' },
         { column: 'is_featured', operator: 'eq', value: true },
       ],
-      sort: { column: 'title', ascending: true },
+      sort: { column: 'package_name', ascending: true },
       pagination: { page: 1, limit },
     });
   }
