@@ -197,7 +197,7 @@ export default function Trending() {
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-1 rounded-md bg-mist px-2 py-0.5 text-[12px] font-semibold text-deep">
                       <Star size={11} className="fill-deep text-deep" aria-hidden />
-                      {h.rating != null ? h.rating.toFixed(1) : "—"}
+                      {h.star_rating != null ? h.star_rating.toFixed(1) : "—"}
                     </span>
                     <span className="text-[12px] text-ink/50">
                       {formatReviews(h.total_reviews)} reviews
