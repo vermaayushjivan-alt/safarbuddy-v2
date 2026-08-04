@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Star, Users, ArrowRight, Compass } from "lucide-react";
 import { getFeaturedDestinations } from "@/app/actions/destination.actions";
@@ -18,6 +19,11 @@ const destinationStyles = [
   { price: "19,999", rating: 4.7, bookings: "5.9k", banner: "from-deep to-deep-2" },
   { price: "11,499", rating: 4.8, bookings: "4.7k", banner: "from-sky to-orange" },
 ];
+
+function destinationHref(d: DestinationRecord): string {
+  const slug = d.slug && d.slug.trim().length > 0 ? d.slug : String(d.id);
+  return `/destinations/${slug}`;
+}
 
 function DestinationSkeleton() {
   return (
@@ -89,13 +95,13 @@ export default function Destinations() {
             </p>
           </div>
 
-          <button
-            type="button"
+          <Link
+            href="/destinations"
             className="focus-ring hidden shrink-0 items-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2 font-heading text-[13px] font-semibold text-deep transition hover:border-deep/30 hover:bg-mist sm:flex"
           >
             View all
             <ArrowRight size={14} aria-hidden />
-          </button>
+          </Link>
         </div>
 
         {loading ? (
@@ -190,13 +196,13 @@ export default function Destinations() {
                       </span>
                     </div>
 
-                    <button
-                      type="button"
+                    <Link
+                      href={destinationHref(d)}
                       className="focus-ring mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition group-hover:bg-deep group-hover:text-cream active:scale-[0.98]"
                     >
                       Explore
                       <ArrowRight size={14} aria-hidden />
-                    </button>
+                    </Link>
                   </div>
                 </div>
               );
@@ -204,13 +210,13 @@ export default function Destinations() {
           </div>
         )}
 
-        <button
-          type="button"
+        <Link
+          href="/destinations"
           className="focus-ring mt-6 flex w-full items-center justify-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2.5 font-heading text-[13px] font-semibold text-deep sm:hidden"
         >
           View all destinations
           <ArrowRight size={14} aria-hidden />
-        </button>
+        </Link>
       </div>
     </section>
   );
