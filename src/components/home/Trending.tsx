@@ -11,93 +11,18 @@ import {
   ArrowRight,
   BedDouble,
 } from "lucide-react";
+import { getTrendingHotels } from "@/app/actions/hotel.actions";
+import type { HotelRecord } from "@/lib/repositories/hotel.repository";
 
-type Hotel = {
-  id: string;
-  name: string;
-  location: string;
-  stars: number;
-  userRating: number;
-  reviews: string;
-  price: string;
-  originalPrice: string;
-  discount: string;
-  banner: string;
-};
-
-const hotels: Hotel[] = [
-  {
-    id: "taj-lake-palace",
-    name: "Taj Lake Palace",
-    location: "Udaipur, Rajasthan",
-    stars: 5,
-    userRating: 4.9,
-    reviews: "3.1k",
-    price: "24,999",
-    originalPrice: "32,000",
-    discount: "22% OFF",
-    banner: "from-sky to-deep",
-  },
-  {
-    id: "oberoi-udaivilas",
-    name: "The Oberoi Udaivilas",
-    location: "Udaipur, Rajasthan",
-    stars: 5,
-    userRating: 4.9,
-    reviews: "2.4k",
-    price: "38,499",
-    originalPrice: "45,000",
-    discount: "14% OFF",
-    banner: "from-orange to-orange-2",
-  },
-  {
-    id: "itc-grand-goa",
-    name: "ITC Grand Goa",
-    location: "Cansaulim, Goa",
-    stars: 5,
-    userRating: 4.7,
-    reviews: "5.6k",
-    price: "16,999",
-    originalPrice: "21,499",
-    discount: "21% OFF",
-    banner: "from-deep-2 to-sky",
-  },
-  {
-    id: "leela-palace-jaipur",
-    name: "Leela Palace Jaipur",
-    location: "Jaipur, Rajasthan",
-    stars: 5,
-    userRating: 4.8,
-    reviews: "4.2k",
-    price: "21,499",
-    originalPrice: "27,000",
-    discount: "20% OFF",
-    banner: "from-sky-light to-deep-2",
-  },
-  {
-    id: "radisson-blu-manali",
-    name: "Radisson Blu Manali",
-    location: "Manali, Himachal Pradesh",
-    stars: 4,
-    userRating: 4.5,
-    reviews: "6.8k",
-    price: "8,499",
-    originalPrice: "10,999",
-    discount: "23% OFF",
-    banner: "from-deep to-sky-light",
-  },
-  {
-    id: "lemon-tree-delhi",
-    name: "Lemon Tree Delhi",
-    location: "Aerocity, New Delhi",
-    stars: 4,
-    userRating: 4.4,
-    reviews: "9.3k",
-    price: "5,299",
-    originalPrice: "6,999",
-    discount: "24% OFF",
-    banner: "from-orange-2 to-deep",
-  },
+// Static UI-only presentation data — no DB column exists for these yet.
+// Cycled by index against live data, same pattern as Offers/Destinations.
+const hotelStyles = [
+  { stars: 5, originalPrice: "32,000", discount: "22% OFF", banner: "from-sky to-deep" },
+  { stars: 5, originalPrice: "45,000", discount: "14% OFF", banner: "from-orange to-orange-2" },
+  { stars: 5, originalPrice: "21,499", discount: "21% OFF", banner: "from-deep-2 to-sky" },
+  { stars: 5, originalPrice: "27,000", discount: "20% OFF", banner: "from-sky-light to-deep-2" },
+  { stars: 4, originalPrice: "10,999", discount: "23% OFF", banner: "from-deep to-sky-light" },
+  { stars: 4, originalPrice: "6,999", discount: "24% OFF", banner: "from-orange-2 to-deep" },
 ];
 
 const amenities = [
@@ -106,6 +31,24 @@ const amenities = [
   { icon: Snowflake, label: "AC" },
   { icon: Waves, label: "Pool" },
 ];
+
+function formatLocation(city: string | null, state: string | null): string {
+  if (city && state) return `${city}, ${state}`;
+  if (city) return city;
+  if (state) return state;
+  return "Location unavailable";
+}
+
+function formatPrice(price: number | null): string {
+  if (price == null) return "—";
+  return price.toLocaleString("en-IN");
+}
+
+function formatReviews(count: number | null): string {
+  if (count == null) return "0";
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return `${count}`;
+}
 
 function HotelSkeleton() {
   return (
@@ -142,10 +85,25 @@ function EmptyHotels() {
 
 export default function Trending() {
   const [loading, setLoading] = useState(true);
+  const [hotels, setHotels] = useState<HotelRecord[]>([]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setLoading(false), 700);
-    return () => window.clearTimeout(t);
+    let cancelled = false;
+
+    getTrendingHotels()
+      .then((data) => {
+        if (!cancelled) setHotels(data);
+      })
+      .catch(() => {
+        if (!cancelled) setHotels([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -189,99 +147,102 @@ export default function Trending() {
           role="list"
           aria-label="Trending hotels"
         >
-          {hotels.map((h, i) => (
-            <div
-              key={h.id}
-              role="listitem"
-              className="reveal hover-lift group overflow-hidden rounded-2xl bg-white/90 shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)] backdrop-blur-sm hover:shadow-[0_24px_40px_-16px_rgba(11,47,92,0.45)]"
-              style={{ animationDelay: `${i * 70}ms` }}
-            >
-              <div className="relative h-44 overflow-hidden">
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${h.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0" />
+          {hotels.map((h, i) => {
+            const style = hotelStyles[i % hotelStyles.length];
+            return (
+              <div
+                key={h.id}
+                role="listitem"
+                className="reveal hover-lift group overflow-hidden rounded-2xl bg-white/90 shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)] backdrop-blur-sm hover:shadow-[0_24px_40px_-16px_rgba(11,47,92,0.45)]"
+                style={{ animationDelay: `${i * 70}ms` }}
+              >
+                <div className="relative h-44 overflow-hidden">
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0" />
 
-                <span className="absolute left-3 top-3 rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
-                  {h.discount}
-                </span>
-                <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-deep backdrop-blur-sm">
-                  {Array.from({ length: h.stars }).map((_, s) => (
-                    <Star
-                      key={s}
-                      size={10}
-                      className="fill-gold text-gold"
-                      aria-hidden
-                    />
-                  ))}
-                </span>
-
-                <div className="absolute bottom-3 left-4 right-4 text-white">
-                  <p className="font-heading text-lg font-semibold leading-tight">
-                    {h.name}
-                  </p>
-                  <p className="flex items-center gap-1 text-[12px] text-white/80">
-                    <MapPin size={11} aria-hidden />
-                    {h.location}
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-5">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-mist px-2 py-0.5 text-[12px] font-semibold text-deep">
-                    <Star size={11} className="fill-deep text-deep" aria-hidden />
-                    {h.userRating.toFixed(1)}
+                  <span className="absolute left-3 top-3 rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
+                    {style.discount}
                   </span>
-                  <span className="text-[12px] text-ink/50">
-                    {h.reviews} reviews
+                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-deep backdrop-blur-sm">
+                    {Array.from({ length: style.stars }).map((_, s) => (
+                      <Star
+                        key={s}
+                        size={10}
+                        className="fill-gold text-gold"
+                        aria-hidden
+                      />
+                    ))}
                   </span>
-                </div>
 
-                <div className="mt-3 flex flex-wrap gap-3">
-                  {amenities.map((a) => (
-                    <span
-                      key={a.label}
-                      title={a.label}
-                      className="flex items-center gap-1 text-[11px] text-ink/50"
-                    >
-                      <a.icon size={13} aria-hidden />
-                      <span className="hidden sm:inline">{a.label}</span>
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-4 flex items-end justify-between">
-                  <div>
-                    <p className="text-[11px] text-ink/45">Per night</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="font-display text-xl text-orange">
-                        ₹{h.price}
-                      </span>
-                      <span className="text-[12px] text-ink/40 line-through">
-                        ₹{h.originalPrice}
-                      </span>
-                    </div>
+                  <div className="absolute bottom-3 left-4 right-4 text-white">
+                    <p className="font-heading text-lg font-semibold leading-tight">
+                      {h.hotel_name}
+                    </p>
+                    <p className="flex items-center gap-1 text-[12px] text-white/80">
+                      <MapPin size={11} aria-hidden />
+                      {formatLocation(h.city, h.state)}
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    className="focus-ring flex-1 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist active:scale-[0.98]"
-                  >
-                    View details
-                  </button>
-                  <button
-                    type="button"
-                    className="focus-ring flex-1 rounded-xl bg-deep py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
-                  >
-                    Book now
-                  </button>
+                <div className="p-5">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-mist px-2 py-0.5 text-[12px] font-semibold text-deep">
+                      <Star size={11} className="fill-deep text-deep" aria-hidden />
+                      {h.rating != null ? h.rating.toFixed(1) : "—"}
+                    </span>
+                    <span className="text-[12px] text-ink/50">
+                      {formatReviews(h.total_reviews)} reviews
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {amenities.map((a) => (
+                      <span
+                        key={a.label}
+                        title={a.label}
+                        className="flex items-center gap-1 text-[11px] text-ink/50"
+                      >
+                        <a.icon size={13} aria-hidden />
+                        <span className="hidden sm:inline">{a.label}</span>
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex items-end justify-between">
+                    <div>
+                      <p className="text-[11px] text-ink/45">Per night</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-display text-xl text-orange">
+                          ₹{formatPrice(h.starting_price)}
+                        </span>
+                        <span className="text-[12px] text-ink/40 line-through">
+                          ₹{style.originalPrice}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      className="focus-ring flex-1 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist active:scale-[0.98]"
+                    >
+                      View details
+                    </button>
+                    <button
+                      type="button"
+                      className="focus-ring flex-1 rounded-xl bg-deep py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
+                    >
+                      Book now
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
