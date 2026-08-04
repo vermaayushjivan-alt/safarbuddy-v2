@@ -42,7 +42,7 @@ function EmptyDestinations() {
         No destinations to show
       </p>
       <p className="mt-1 max-w-xs text-[13px] text-ink/55">
-        We're curating fresh destinations for you — check back shortly.
+        We&apos;re curating fresh destinations for you — check back shortly.
       </p>
     </div>
   );
@@ -86,6 +86,7 @@ export default function Destinations() {
               Hand-picked places our travellers keep coming back to.
             </p>
           </div>
+
           <button
             type="button"
             className="focus-ring hidden shrink-0 items-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2 font-heading text-[13px] font-semibold text-deep transition hover:border-deep/30 hover:bg-mist sm:flex"
@@ -115,6 +116,7 @@ export default function Destinations() {
           >
             {destinations.map((d, i) => {
               const style = destinationStyles[i % destinationStyles.length];
+
               return (
                 <div
                   key={d.id}
@@ -129,7 +131,11 @@ export default function Destinations() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/0" />
 
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-deep backdrop-blur-sm">
-                      <Star size={12} className="fill-gold text-gold" aria-hidden />
+                      <Star
+                        size={12}
+                        className="fill-gold text-gold"
+                        aria-hidden
+                      />
                       {style.rating.toFixed(1)}
                     </span>
 
@@ -138,6 +144,7 @@ export default function Destinations() {
                         <p className="font-heading text-lg font-semibold leading-tight">
                           {d.name}
                         </p>
+
                         <p className="flex items-center gap-1 text-[12px] text-white/80">
                           <MapPin size={11} aria-hidden />
                           {d.state ?? "—"}
@@ -158,6 +165,7 @@ export default function Destinations() {
                           ₹{style.price}
                         </span>
                       </p>
+
                       <span className="flex items-center gap-1 text-[11px] text-ink/45">
                         <Users size={12} aria-hidden />
                         {style.bookings} booked
