@@ -32,6 +32,7 @@ const highlightIcons: Record<string, LucideIcon> = {
 
 // Static UI-only presentation data — no DB column exists for these yet.
 // Cycled by index against live data, same pattern as Hotels/Offers/Destinations.
+// `banner` reuses the same gradient-fallback pattern as Trending.tsx (hotelStyles.banner).
 const packageStyles = [
   {
     rating: 4.6,
@@ -40,6 +41,7 @@ const packageStyles = [
     discount: "28% OFF",
     highlights: ["Flight Included", "Hotel Included", "Breakfast", "Free Cancellation"],
     limitedOffer: true,
+    banner: "from-sky to-deep",
   },
   {
     rating: 4.8,
@@ -48,6 +50,7 @@ const packageStyles = [
     discount: "24% OFF",
     highlights: ["Hotel Included", "Sightseeing", "Airport Transfer", "Breakfast"],
     limitedOffer: true,
+    banner: "from-orange to-orange-2",
   },
   {
     rating: 4.9,
@@ -56,6 +59,7 @@ const packageStyles = [
     discount: "22% OFF",
     highlights: ["Flight Included", "Hotel Included", "Airport Transfer", "Free Cancellation"],
     limitedOffer: true,
+    banner: "from-deep-2 to-sky",
   },
   {
     rating: 4.7,
@@ -64,6 +68,7 @@ const packageStyles = [
     discount: "20% OFF",
     highlights: ["Flight Included", "Hotel Included", "Sightseeing", "Breakfast"],
     limitedOffer: false,
+    banner: "from-sky-light to-deep-2",
   },
   {
     rating: 4.6,
@@ -72,6 +77,7 @@ const packageStyles = [
     discount: "24% OFF",
     highlights: ["Flight Included", "Hotel Included", "Sightseeing", "Free Cancellation"],
     limitedOffer: true,
+    banner: "from-deep to-sky-light",
   },
   {
     rating: 4.5,
@@ -80,6 +86,7 @@ const packageStyles = [
     discount: "22% OFF",
     highlights: ["Hotel Included", "Breakfast", "Sightseeing", "Airport Transfer"],
     limitedOffer: false,
+    banner: "from-orange-2 to-deep",
   },
   {
     rating: 4.7,
@@ -88,6 +95,7 @@ const packageStyles = [
     discount: "20% OFF",
     highlights: ["Hotel Included", "Breakfast", "Sightseeing", "Free Cancellation"],
     limitedOffer: true,
+    banner: "from-sky to-deep-2",
   },
   {
     rating: 4.8,
@@ -96,6 +104,7 @@ const packageStyles = [
     discount: "21% OFF",
     highlights: ["Flight Included", "Hotel Included", "Sightseeing", "Airport Transfer"],
     limitedOffer: false,
+    banner: "from-deep-2 to-orange",
   },
 ];
 
@@ -213,10 +222,7 @@ export default function Packages() {
         >
           {packages.map((p, i) => {
             const style = packageStyles[i % packageStyles.length];
-            const imageSrc =
-              p.thumbnail && p.thumbnail.trim().length > 0
-                ? p.thumbnail
-                : `https://picsum.photos/seed/${p.slug}/800/600`;
+            const hasImage = Boolean(p.thumbnail && p.thumbnail.trim().length > 0);
 
             return (
               <div
@@ -226,13 +232,20 @@ export default function Packages() {
                 style={{ animationDelay: `${i * 70}ms` }}
               >
                 <div className="relative h-56 w-full overflow-hidden">
-                  <Image
-                    src={imageSrc}
-                    alt={`${p.title} – ${p.city ?? ""}`}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
-                  />
+                  {hasImage ? (
+                    <Image
+                      src={p.thumbnail as string}
+                      alt={`${p.package_name} – ${p.city ?? ""}`}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                    />
+                  ) : (
+                    <div
+                      className={`absolute inset-0 h-full w-full bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
+                      aria-hidden
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/0" />
 
                   <span className="absolute left-3 top-3 rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
@@ -247,7 +260,7 @@ export default function Packages() {
 
                   <div className="absolute bottom-3 left-4 right-4 text-white">
                     <p className="font-heading text-lg font-semibold leading-tight">
-                      {p.title}
+                      {p.package_name}
                     </p>
                     <p className="flex items-center gap-1 text-[12px] text-white/80">
                       <MapPin size={11} aria-hidden />
@@ -291,7 +304,7 @@ export default function Packages() {
                       <p className="text-[11px] text-ink/45">Starting from</p>
                       <div className="flex items-baseline gap-2">
                         <span className="font-display text-xl text-orange">
-                          ₹{formatPrice(p.price)}
+                          ₹{formatPrice(p.starting_price)}
                         </span>
                         <span className="text-[12px] text-ink/40 line-through">
                           ₹{style.originalPrice}
