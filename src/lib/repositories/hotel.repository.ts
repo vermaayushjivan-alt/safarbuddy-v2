@@ -1,6 +1,5 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
-
 export interface HotelRecord extends DatabaseRecord {
   id: string;
   vendor_id: string | null;
@@ -21,7 +20,6 @@ export interface HotelRecord extends DatabaseRecord {
   is_featured: boolean;
   status: string;
 }
-
 export class HotelRepository extends BaseRepository<HotelRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
@@ -30,14 +28,13 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       softDeleteColumn: 'deleted_at',
     });
   }
-
   async getTrendingHotels(limit: number = 6): Promise<HotelRecord[]> {
     return this.findMany({
       filters: [
         { column: 'status', operator: 'eq', value: 'ACTIVE' },
         { column: 'is_featured', operator: 'eq', value: true },
       ],
-      sort: { column: 'rating', ascending: false },
+      sort: { column: 'star_rating', ascending: false },
       pagination: { page: 1, limit },
     });
   }
