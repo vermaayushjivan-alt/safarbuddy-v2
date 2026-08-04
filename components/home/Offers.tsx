@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { Plane, Building2, Bus, Umbrella, Clock, ArrowRight } from "lucide-react";
 import { getActiveOffers } from "@/app/actions/offer.actions";
@@ -90,13 +91,13 @@ export default function Offers() {
             Offers worth the detour
           </h2>
         </div>
-        <button
-          type="button"
+        <Link
+          href="/offers"
           className="focus-ring hidden shrink-0 items-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2 font-heading text-[13px] font-semibold text-deep transition hover:border-deep/30 hover:bg-mist sm:flex"
         >
           View all offers
           <ArrowRight size={14} aria-hidden />
-        </button>
+        </Link>
       </div>
 
       {loading ? (
@@ -204,13 +205,13 @@ export default function Offers() {
         </div>
       )}
 
-      <button
-        type="button"
+      <Link
+        href="/offers"
         className="focus-ring mt-6 flex w-full items-center justify-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2.5 font-heading text-[13px] font-semibold text-deep sm:hidden"
       >
         View all offers
         <ArrowRight size={14} aria-hidden />
-      </button>
+      </Link>
     </section>
   );
 }
