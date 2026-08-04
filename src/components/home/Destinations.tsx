@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { MapPin, Star, Users, ArrowRight, Compass } from "lucide-react";
 import { getFeaturedDestinations } from "@/app/actions/destination.actions";
 import type { DestinationRecord } from "@/lib/repositories/destination.repository";
@@ -51,6 +52,7 @@ function EmptyDestinations() {
 export default function Destinations() {
   const [loading, setLoading] = useState(true);
   const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
+  const [failedImages, setFailedImages] = useState<Set<string | number>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +118,9 @@ export default function Destinations() {
           >
             {destinations.map((d, i) => {
               const style = destinationStyles[i % destinationStyles.length];
+              const hasImage =
+                Boolean(d.thumbnail && d.thumbnail.trim().length > 0) &&
+                !failedImages.has(d.id);
 
               return (
                 <div
@@ -125,9 +130,22 @@ export default function Destinations() {
                   style={{ animationDelay: `${i * 60}ms` }}
                 >
                   <div className="relative h-48 overflow-hidden">
-                    <div
-                      className={`absolute inset-0 bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
-                    />
+                    {hasImage ? (
+                      <Image
+                        src={d.thumbnail as string}
+                        alt={d.name}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                        className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                        onError={() =>
+                          setFailedImages((prev) => new Set(prev).add(d.id))
+                        }
+                      />
+                    ) : (
+                      <div
+                        className={`absolute inset-0 bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
+                      />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/0" />
 
                     <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-deep backdrop-blur-sm">
