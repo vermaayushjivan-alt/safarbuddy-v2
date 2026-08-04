@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import {
   Star,
@@ -103,6 +104,11 @@ function formatPrice(price: number | null): string {
   return price.toLocaleString("en-IN");
 }
 
+function packageHref(p: PackageRecord): string {
+  const slug = p.slug && p.slug.trim().length > 0 ? p.slug : String(p.id);
+  return `/packages/${slug}`;
+}
+
 function PackageSkeleton() {
   return (
     <div className="overflow-hidden rounded-2xl bg-white shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)]">
@@ -178,13 +184,13 @@ export default function Packages() {
             Handpicked holiday experiences at the best prices.
           </p>
         </div>
-        <button
-          type="button"
+        <Link
+          href="/packages"
           className="focus-ring hidden shrink-0 items-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2 font-heading text-[13px] font-semibold text-deep transition hover:border-deep/30 hover:bg-mist sm:flex"
         >
           View all packages
           <ArrowRight size={14} aria-hidden />
-        </button>
+        </Link>
       </div>
 
       {loading ? (
@@ -295,12 +301,12 @@ export default function Packages() {
                   </div>
 
                   <div className="mt-4 flex gap-2">
-                    <button
-                      type="button"
-                      className="focus-ring flex-1 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist active:scale-[0.98]"
+                    <Link
+                      href={packageHref(p)}
+                      className="focus-ring flex-1 rounded-xl border border-deep/15 py-2.5 text-center font-heading text-[13px] font-semibold text-deep transition hover:bg-mist active:scale-[0.98]"
                     >
                       View details
-                    </button>
+                    </Link>
                     <button
                       type="button"
                       className="focus-ring flex-1 rounded-xl bg-deep py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
@@ -315,13 +321,13 @@ export default function Packages() {
         </div>
       )}
 
-      <button
-        type="button"
+      <Link
+        href="/packages"
         className="focus-ring mt-6 flex w-full items-center justify-center gap-1.5 rounded-full border border-deep/15 bg-white px-4 py-2.5 font-heading text-[13px] font-semibold text-deep sm:hidden"
       >
         View all packages
         <ArrowRight size={14} aria-hidden />
-      </button>
+      </Link>
     </section>
   );
 }
