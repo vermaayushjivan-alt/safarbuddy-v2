@@ -44,31 +44,17 @@ export default function ProfileMenu() {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
-        type="button"
-        aria-label="Open profile menu"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen((v) => !v)}
-        className="focus-ring grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-deep font-heading text-[13px] font-semibold text-cream transition hover:opacity-90 active:scale-[0.97]"
-      >
+      <button type="button" aria-label="Open profile menu" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((v) => !v)} className="focus-ring grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-deep font-heading text-[13px] font-semibold text-cream transition hover:opacity-90 active:scale-[0.97]">
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt={displayName ?? user.email ?? "Profile"}
-            className="h-full w-full object-cover"
-          />
+          <img src={avatarUrl} alt={displayName ?? user.email ?? "Profile"} className="h-full w-full object-cover" />
         ) : (
           initials
         )}
       </button>
 
       {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-xl border border-deep/10 bg-white/95 py-1.5 shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)] backdrop-blur-md"
-        >
+        <div role="menu" className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-xl border border-deep/10 bg-white/95 py-1.5 shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)] backdrop-blur-md">
           <div className="border-b border-deep/10 px-4 py-2.5">
             <p className="truncate font-heading text-[13px] font-semibold text-deep">
               {displayName ?? "My Account"}
@@ -77,31 +63,13 @@ export default function ProfileMenu() {
               <p className="truncate text-[12px] text-ink/50">{user.email}</p>
             )}
           </div>
-          
-            href="/profile"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep"
-          >
+          <a href="/profile" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
             My Profile
           </a>
-          
-            href="/dashboard"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep"
-          >
+          <a href="/dashboard" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
             Dashboard
           </a>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              signOut();
-            }}
-            className="focus-ring block w-full px-4 py-2.5 text-left font-heading text-[14px] font-medium text-orange hover:bg-mist"
-          >
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); signOut(); }} className="focus-ring block w-full px-4 py-2.5 text-left font-heading text-[14px] font-medium text-orange hover:bg-mist">
             Logout
           </button>
         </div>
