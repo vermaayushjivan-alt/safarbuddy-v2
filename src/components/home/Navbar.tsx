@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,12 +31,13 @@ export default function Navbar() {
             Safar<span className="text-orange">Buddy</span>
           </span>
         </a>
+
         <nav
           aria-label="Primary"
           className="hidden items-center gap-7 lg:flex"
         >
           {links.map((l) => (
-            
+            <a
               key={l}
               href="#"
               className="focus-ring relative rounded-md py-1 font-heading text-[14px] font-medium text-ink/70 transition after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-0 after:bg-orange after:transition-all after:duration-200 hover:text-deep hover:after:w-full"
@@ -44,6 +46,7 @@ export default function Navbar() {
             </a>
           ))}
         </nav>
+
         <div className="flex items-center gap-3">
           {user ? (
             <ProfileMenu />
@@ -52,11 +55,13 @@ export default function Navbar() {
               <button className="focus-ring hidden rounded-md font-heading text-[14px] font-medium text-deep sm:block">
                 Login
               </button>
+
               <button className="focus-ring rounded-full bg-orange px-5 py-2 font-heading text-[14px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(255,106,43,0.7)] transition hover:bg-orange-2 active:scale-[0.97]">
                 Register
               </button>
             </>
           )}
+
           <button
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
@@ -69,6 +74,7 @@ export default function Navbar() {
           </button>
         </div>
       </div>
+
       <nav
         id="mobile-nav"
         aria-label="Mobile"
@@ -80,7 +86,7 @@ export default function Navbar() {
           <ul className="flex flex-col gap-1 px-6 py-3">
             {links.map((l) => (
               <li key={l}>
-                
+                <a
                   href="#"
                   onClick={() => setOpen(false)}
                   className="focus-ring block rounded-md px-2 py-2.5 font-heading text-[15px] font-medium text-ink/75 hover:bg-mist hover:text-deep"
@@ -89,9 +95,10 @@ export default function Navbar() {
                 </a>
               </li>
             ))}
+
             {!user && (
               <li className="mt-1 border-t border-deep/10 pt-3 sm:hidden">
-                
+                <a
                   href="#"
                   className="focus-ring block rounded-md px-2 py-2.5 font-heading text-[15px] font-medium text-deep"
                 >
