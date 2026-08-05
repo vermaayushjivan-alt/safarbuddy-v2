@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Star,
   MapPin,
@@ -155,6 +156,7 @@ export default function Trending() {
         >
           {hotels.map((h, i) => {
             const style = hotelStyles[i % hotelStyles.length];
+            const hasImage = Boolean(h.thumbnail && h.thumbnail.trim().length > 0);
             return (
               <div
                 key={h.id}
@@ -163,9 +165,20 @@ export default function Trending() {
                 style={{ animationDelay: `${i * 70}ms` }}
               >
                 <div className="relative h-44 overflow-hidden">
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
-                  />
+                  {hasImage ? (
+                    <Image
+                      src={h.thumbnail as string}
+                      alt={h.hotel_name}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                    />
+                  ) : (
+                    <div
+                      className={`absolute inset-0 bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
+                      aria-hidden
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0" />
 
                   <span className="absolute left-3 top-3 rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
