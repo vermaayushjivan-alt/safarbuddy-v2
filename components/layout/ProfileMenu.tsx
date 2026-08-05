@@ -3,31 +3,54 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
-function getInitials(name: string | null | undefined, email: string | null | undefined): string {
+function getInitials(
+  name: string | null | undefined,
+  email: string | null | undefined
+): string {
   if (name && name.trim().length > 0) {
     const parts = name.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return (
+      parts[0][0] + parts[parts.length - 1][0]
+    ).toUpperCase();
   }
+
   if (email && email.trim().length > 0) {
     return email.slice(0, 2).toUpperCase();
   }
+
   return "U";
 }
 
 export default function ProfileMenu() {
   const { user, signOut } = useAuth();
+
   const [open, setOpen] = useState(false);
+
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+    };
   }, []);
 
   if (!user) return null;
@@ -36,10 +59,12 @@ export default function ProfileMenu() {
     (user.user_metadata?.full_name as string | undefined) ??
     (user.user_metadata?.name as string | undefined) ??
     null;
+
   const avatarUrl =
     (user.user_metadata?.avatar_url as string | undefined) ??
     (user.user_metadata?.picture as string | undefined) ??
     null;
+
   const initials = getInitials(displayName, user.email);
 
   return (
@@ -47,13 +72,12 @@ export default function ProfileMenu() {
       <button
         type="button"
         aria-label="Open profile menu"
-        aria-expanded={open}
         aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="focus-ring grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-deep font-heading text-[13px] font-semibold text-cream transition hover:opacity-90 active:scale-[0.97]"
       >
         {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={avatarUrl}
             alt={displayName ?? user.email ?? "Profile"}
@@ -73,11 +97,15 @@ export default function ProfileMenu() {
             <p className="truncate font-heading text-[13px] font-semibold text-deep">
               {displayName ?? "My Account"}
             </p>
+
             {user.email && (
-              <p className="truncate text-[12px] text-ink/50">{user.email}</p>
+              <p className="truncate text-[12px] text-ink/50">
+                {user.email}
+              </p>
             )}
           </div>
-          
+
+          <a
             href="/profile"
             role="menuitem"
             onClick={() => setOpen(false)}
@@ -85,7 +113,8 @@ export default function ProfileMenu() {
           >
             My Profile
           </a>
-          
+
+          <a
             href="/dashboard"
             role="menuitem"
             onClick={() => setOpen(false)}
@@ -93,6 +122,7 @@ export default function ProfileMenu() {
           >
             Dashboard
           </a>
+
           <button
             type="button"
             role="menuitem"
