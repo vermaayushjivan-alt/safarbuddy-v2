@@ -1,4 +1,6 @@
 // lib/repositories/package.repository.ts
+import fs from 'fs';
+import path from 'path';
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
@@ -22,6 +24,15 @@ interface PackageImageRow {
   sort_order: number;
 }
 
+const DEFAULT_PACKAGE_PLACEHOLDER = '/images/placeholders/default-package.webp';
+const PACKAGE_PLACEHOLDER_DIR = path.join(
+  process.cwd(),
+  'public',
+  'images',
+  'placeholders',
+  'packages'
+);
+
 export class PackageRepository extends BaseRepository<PackageRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
@@ -40,17 +51,20 @@ export class PackageRepository extends BaseRepository<PackageRecord> {
       pagination: { page: 1, limit },
     });
 
-    return this.attachPrimaryImages(packages);
+    return this.resolveImages(packages);
   }
 
   /**
-   * Resolves each package's primary image from package_images (canonical
-   * source per verified production schema) and populates it into the
-   * existing `thumbnail` field for backward compatibility. Falls back to
-   * the package's existing thumbnail value if no image row is found or
-   * the storage lookup fails.
+   * Populates the existing `thumbnail` field using a 3-tier fallback:
+   * 1. Real image from package_images (Supabase Storage public URL)
+   * 2. Local per-slug placeholder (public/images/placeholders/packages/{slug}.webp)
+   * 3. Default local placeholder
+   *
+   * No new fields introduced. When storage_path is populated later via the
+   * Admin Panel, this automatically returns the real URL — no code change
+   * required anywhere else.
    */
-  private async attachPrimaryImages(
+  private async resolveImages(
     packages: PackageRecord[]
   ): Promise<PackageRecord[]> {
     if (packages.length === 0) return packages;
@@ -63,30 +77,40 @@ export class PackageRepository extends BaseRepository<PackageRecord> {
       .in('package_id', packageIds)
       .order('sort_order', { ascending: true });
 
-    if (error || !images) {
-      return packages;
-    }
-
     const primaryPathByPackageId = new Map<string, string>();
-    for (const img of images as PackageImageRow[]) {
-      const current = primaryPathByPackageId.get(img.package_id);
-      if (!current || img.is_primary) {
-        primaryPathByPackageId.set(img.package_id, img.storage_path);
+    if (!error && images) {
+      for (const img of images as PackageImageRow[]) {
+        const current = primaryPathByPackageId.get(img.package_id);
+        if (!current || img.is_primary) {
+          primaryPathByPackageId.set(img.package_id, img.storage_path);
+        }
       }
     }
 
     return packages.map((pkg) => {
+      // Priority 1: real image from Supabase Storage
       const storagePath = primaryPathByPackageId.get(pkg.id);
-      if (!storagePath) return pkg;
+      if (storagePath) {
+        const { data: publicUrlData } = this.supabase.storage
+          .from('package-images')
+          .getPublicUrl(storagePath);
 
-      const { data: publicUrlData } = this.supabase.storage
-        .from('package-images')
-        .getPublicUrl(storagePath);
+        return { ...pkg, thumbnail: publicUrlData.publicUrl };
+      }
 
-      return {
-        ...pkg,
-        thumbnail: publicUrlData.publicUrl,
-      };
+      // Priority 2: local per-slug placeholder, if it exists on disk
+      if (pkg.slug) {
+        const localPath = path.join(PACKAGE_PLACEHOLDER_DIR, `${pkg.slug}.webp`);
+        if (fs.existsSync(localPath)) {
+          return {
+            ...pkg,
+            thumbnail: `/images/placeholders/packages/${pkg.slug}.webp`,
+          };
+        }
+      }
+
+      // Priority 3: default placeholder
+      return { ...pkg, thumbnail: DEFAULT_PACKAGE_PLACEHOLDER };
     });
   }
 }
