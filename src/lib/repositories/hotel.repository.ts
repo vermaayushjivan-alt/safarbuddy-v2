@@ -54,15 +54,6 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     return this.resolveImages(hotels);
   }
 
-  /**
-   * Populates the existing `thumbnail` field using a 2-tier fallback:
-   * 1. Real image from hotel_images (Supabase Storage public URL)
-   * 2. Default local placeholder
-   *
-   * No filesystem dependency. No new fields. When an admin later populates
-   * storage_path for a hotel, this automatically returns the real Supabase
-   * URL instead — no code change required anywhere else.
-   */
   private async resolveImages(hotels: HotelRecord[]): Promise<HotelRecord[]> {
     if (hotels.length === 0) return hotels;
 
@@ -87,9 +78,13 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     return hotels.map((hotel) => {
       const storagePath = primaryPathByHotelId.get(hotel.id);
       if (storagePath) {
+        const normalizedPath = storagePath.startsWith('hotel-images/')
+          ? storagePath.slice('hotel-images/'.length)
+          : storagePath;
+
         const { data: publicUrlData } = this.supabase.storage
           .from('hotel-images')
-          .getPublicUrl(storagePath);
+          .getPublicUrl(normalizedPath);
 
         return { ...hotel, thumbnail: publicUrlData.publicUrl };
       }
