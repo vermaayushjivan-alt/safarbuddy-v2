@@ -1,6 +1,4 @@
 // lib/repositories/hotel.repository.ts
-import fs from 'fs';
-import path from 'path';
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
@@ -33,13 +31,6 @@ interface HotelImageRow {
 }
 
 const DEFAULT_HOTEL_PLACEHOLDER = '/images/placeholders/default-hotel.webp';
-const HOTEL_PLACEHOLDER_DIR = path.join(
-  process.cwd(),
-  'public',
-  'images',
-  'placeholders',
-  'hotels'
-);
 
 export class HotelRepository extends BaseRepository<HotelRecord> {
   constructor(supabase: SupabaseClientType) {
@@ -64,16 +55,13 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   }
 
   /**
-   * Populates the existing `thumbnail` field using a 3-tier fallback:
+   * Populates the existing `thumbnail` field using a 2-tier fallback:
    * 1. Real image from hotel_images (Supabase Storage public URL)
-   * 2. Local per-slug placeholder (public/images/placeholders/hotels/{slug}.webp)
-   * 3. Default local placeholder
+   * 2. Default local placeholder
    *
-   * This guarantees `thumbnail` is never null/broken. No new fields are
-   * introduced; the UI continues reading `thumbnail` exactly as before.
-   * When an admin later populates storage_path for a hotel, this method
-   * automatically returns the real Supabase URL instead — no code change
-   * required anywhere else.
+   * No filesystem dependency. No new fields. When an admin later populates
+   * storage_path for a hotel, this automatically returns the real Supabase
+   * URL instead — no code change required anywhere else.
    */
   private async resolveImages(hotels: HotelRecord[]): Promise<HotelRecord[]> {
     if (hotels.length === 0) return hotels;
@@ -97,7 +85,6 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     }
 
     return hotels.map((hotel) => {
-      // Priority 1: real image from Supabase Storage
       const storagePath = primaryPathByHotelId.get(hotel.id);
       if (storagePath) {
         const { data: publicUrlData } = this.supabase.storage
@@ -107,18 +94,6 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
         return { ...hotel, thumbnail: publicUrlData.publicUrl };
       }
 
-      // Priority 2: local per-slug placeholder, if it exists on disk
-      if (hotel.slug) {
-        const localPath = path.join(HOTEL_PLACEHOLDER_DIR, `${hotel.slug}.webp`);
-        if (fs.existsSync(localPath)) {
-          return {
-            ...hotel,
-            thumbnail: `/images/placeholders/hotels/${hotel.slug}.webp`,
-          };
-        }
-      }
-
-      // Priority 3: default placeholder
       return { ...hotel, thumbnail: DEFAULT_HOTEL_PLACEHOLDER };
     });
   }
