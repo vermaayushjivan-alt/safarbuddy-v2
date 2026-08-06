@@ -8,8 +8,16 @@ export default async function TravelAgentLayout({
 }) {
   try {
     await requireRole(["admin", "super_admin", "travel_agent"]);
-  } catch {
-    redirect("/");
+  } catch (err) {
+    // See src/app/admin/layout.tsx for why this no longer collapses
+    // every failure mode into redirect("/").
+    if (err instanceof Error && err.message === "UNAUTHENTICATED") {
+      redirect("/login?redirectTo=/travel-agent");
+    }
+    if (err instanceof Error && err.message === "FORBIDDEN") {
+      redirect("/unauthorized");
+    }
+    throw err;
   }
 
   return <>{children}</>;
