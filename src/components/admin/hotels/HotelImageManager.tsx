@@ -26,9 +26,21 @@ export function HotelImageManager({ hotelId }: HotelImageManagerProps) {
   }
 
   useEffect(() => {
-    refresh()
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load images"))
-      .finally(() => setLoading(false));
+    let active = true;
+    async function load() {
+      try {
+        const data = await getHotelImagesAdmin(hotelId);
+        if (active) setImages(data.sort((a, b) => a.sort_order - b.sort_order));
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : "Failed to load images");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      active = false;
+    };
   }, [hotelId]);
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
