@@ -5,30 +5,50 @@ export type HotelRecord = Database["public"]["Tables"]["hotels"]["Row"];
 export type HotelInsert = Database["public"]["Tables"]["hotels"]["Insert"];
 export type HotelUpdate = Database["public"]["Tables"]["hotels"]["Update"];
 
-export type HotelImageRecord = Database["public"]["Tables"]["hotel_images"]["Row"];
-export type HotelImageInsert = Database["public"]["Tables"]["hotel_images"]["Insert"];
+export type HotelImageRecord =
+  Database["public"]["Tables"]["hotel_images"]["Row"];
+
+export type HotelImageInsert =
+  Database["public"]["Tables"]["hotel_images"]["Insert"];
+
 
 export class HotelRepository {
-  constructor(private readonly supabase: SupabaseClient<Database>) {}
+
+  constructor(
+    private readonly supabase: SupabaseClient<Database>
+  ) {}
+
+
 
   async getAllHotels(): Promise<HotelRecord[]> {
+
     const { data, error } = await this.supabase
       .from("hotels")
       .select("*")
       .order("created_at", { ascending: false });
 
+
     if (error) {
-      throw new Error(`Failed to fetch hotels: ${error.message}`);
+      throw new Error(
+        `Failed to fetch hotels: ${error.message}`
+      );
     }
+
 
     return data || [];
   }
+
+
+
+
 
   async getPublishedHotels(
     page: number = 1,
     limit: number = 10
   ): Promise<{ data: HotelRecord[]; count: number }> {
+
     const offset = (page - 1) * limit;
+
 
     const { data, error, count } = await this.supabase
       .from("hotels")
@@ -37,9 +57,14 @@ export class HotelRepository {
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
+
+
     if (error) {
-      throw new Error(`Failed to fetch published hotels: ${error.message}`);
+      throw new Error(
+        `Failed to fetch published hotels: ${error.message}`
+      );
     }
+
 
     return {
       data: data || [],
@@ -47,49 +72,93 @@ export class HotelRepository {
     };
   }
 
-  async getHotelById(id: string): Promise<HotelRecord | null> {
+
+
+
+
+  async getHotelById(
+    id: string
+  ): Promise<HotelRecord | null> {
+
     const { data, error } = await this.supabase
       .from("hotels")
       .select("*")
       .eq("id", id)
       .maybeSingle();
 
+
     if (error) {
-      throw new Error(`Failed to fetch hotel by id: ${error.message}`);
+      throw new Error(
+        `Failed to fetch hotel by id: ${error.message}`
+      );
     }
+
 
     return data;
   }
 
-  async getHotelBySlug(slug: string): Promise<HotelRecord | null> {
+
+
+
+
+  async getHotelBySlug(
+    slug: string
+  ): Promise<HotelRecord | null> {
+
+
     const { data, error } = await this.supabase
       .from("hotels")
       .select("*")
       .eq("slug", slug)
       .maybeSingle();
 
+
     if (error) {
-      throw new Error(`Failed to fetch hotel by slug: ${error.message}`);
+      throw new Error(
+        `Failed to fetch hotel by slug: ${error.message}`
+      );
     }
+
 
     return data;
   }
 
-  async createHotel(hotel: HotelInsert): Promise<HotelRecord> {
+
+
+
+
+  async createHotel(
+    hotel: HotelInsert
+  ): Promise<HotelRecord> {
+
+
     const { data, error } = await this.supabase
       .from("hotels")
       .insert(hotel)
       .select()
       .single();
 
+
     if (error) {
-      throw new Error(`Failed to create hotel: ${error.message}`);
+      throw new Error(
+        `Failed to create hotel: ${error.message}`
+      );
     }
+
 
     return data;
   }
 
-  async updateHotel(id: string, hotel: HotelUpdate): Promise<HotelRecord> {
+
+
+
+
+  async updateHotel(
+    id: string,
+    hotel: HotelUpdate
+  ): Promise<HotelRecord> {
+
+
     const { data, error } = await this.supabase
       .from("hotels")
       .update(hotel)
@@ -97,62 +166,193 @@ export class HotelRepository {
       .select()
       .single();
 
+
+
     if (error) {
-      throw new Error(`Failed to update hotel: ${error.message}`);
+      throw new Error(
+        `Failed to update hotel: ${error.message}`
+      );
     }
+
 
     return data;
   }
 
-  async deleteHotel(id: string): Promise<void> {
+
+
+
+
+  async deleteHotel(
+    id: string
+  ): Promise<void> {
+
+
     const { error } = await this.supabase
       .from("hotels")
       .delete()
       .eq("id", id);
 
+
+
     if (error) {
-      throw new Error(`Failed to delete hotel: ${error.message}`);
+      throw new Error(
+        `Failed to delete hotel: ${error.message}`
+      );
     }
   }
 
-  // --- Hotel Images ---
 
-  async listHotelImages(hotelId: string): Promise<HotelImageRecord[]> {
+
+
+
+  // =========================
+  // HOTEL IMAGES ADMIN-07
+  // =========================
+
+
+  async listHotelImages(
+    hotelId: string
+  ): Promise<HotelImageRecord[]> {
+
+
     const { data, error } = await this.supabase
       .from("hotel_images")
       .select("*")
       .eq("hotel_id", hotelId)
-      .order("sort_order", { ascending: true });
+      .order("sort_order", {
+        ascending: true,
+      });
+
+
 
     if (error) {
-      throw new Error(`Failed to fetch hotel images: ${error.message}`);
+      throw new Error(
+        `Failed to fetch hotel images: ${error.message}`
+      );
     }
+
 
     return data || [];
   }
 
-  async insertHotelImageRow(image: HotelImageInsert): Promise<HotelImageRecord> {
+
+
+
+
+  async insertHotelImageRow(
+    image: HotelImageInsert
+  ): Promise<HotelImageRecord> {
+
+
     const { data, error } = await this.supabase
       .from("hotel_images")
       .insert(image)
       .select()
       .single();
 
+
+
     if (error) {
-      throw new Error(`Failed to insert hotel image: ${error.message}`);
+      throw new Error(
+        `Failed to insert hotel image: ${error.message}`
+      );
     }
+
 
     return data;
   }
 
-  async deleteHotelImageRow(imageId: string): Promise<void> {
+
+
+
+
+  async setPrimaryHotelImage(
+    hotelId: string,
+    imageId: string
+  ): Promise<void> {
+
+
+    const { error: clearError } = await this.supabase
+      .from("hotel_images")
+      .update({
+        is_primary: false,
+      })
+      .eq("hotel_id", hotelId);
+
+
+
+    if (clearError) {
+      throw new Error(
+        `Failed to clear primary hotel images: ${clearError.message}`
+      );
+    }
+
+
+
+
+    const { error: setError } = await this.supabase
+      .from("hotel_images")
+      .update({
+        is_primary: true,
+      })
+      .eq("id", imageId);
+
+
+
+    if (setError) {
+      throw new Error(
+        `Failed to set primary hotel image: ${setError.message}`
+      );
+    }
+  }
+
+
+
+
+
+  async updateHotelImageSortOrder(
+    imageId: string,
+    sortOrder: number
+  ): Promise<void> {
+
+
+    const { error } = await this.supabase
+      .from("hotel_images")
+      .update({
+        sort_order: sortOrder,
+      })
+      .eq("id", imageId);
+
+
+
+    if (error) {
+      throw new Error(
+        `Failed to update hotel image sort order: ${error.message}`
+      );
+    }
+  }
+
+
+
+
+
+  async deleteHotelImageRow(
+    imageId: string
+  ): Promise<void> {
+
+
     const { error } = await this.supabase
       .from("hotel_images")
       .delete()
       .eq("id", imageId);
 
+
+
     if (error) {
-      throw new Error(`Failed to delete hotel image: ${error.message}`);
+      throw new Error(
+        `Failed to delete hotel image: ${error.message}`
+      );
     }
   }
+
 }
