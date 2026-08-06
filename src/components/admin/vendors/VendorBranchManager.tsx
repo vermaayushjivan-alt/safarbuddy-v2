@@ -28,9 +28,21 @@ export function VendorBranchManager({ vendorId }: VendorBranchManagerProps) {
   }
 
   useEffect(() => {
-    refresh()
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load branches"))
-      .finally(() => setLoading(false));
+    let active = true;
+    async function load() {
+      try {
+        const data = await getVendorBranchesAdmin(vendorId);
+        if (active) setBranches(data);
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : "Failed to load branches");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      active = false;
+    };
   }, [vendorId]);
 
   function handleCreate(e: React.FormEvent) {
