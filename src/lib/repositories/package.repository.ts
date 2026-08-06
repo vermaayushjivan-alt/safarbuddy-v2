@@ -90,4 +90,37 @@ export class PackageRepository extends BaseRepository<PackageRecord> {
       return { ...pkg, thumbnail: DEFAULT_PACKAGE_PLACEHOLDER };
     });
   }
+
+  // --- ADMIN-04: minimal public exposure of BaseRepository ---
+  // Mirrors ADMIN-02's HotelRepository wrapper pattern. Package uses
+  // softDelete: false, so deletePackage() calls the hard delete() rather
+  // than softDeleteById().
+
+  async getAllPackages(page: number = 1, limit: number = 20) {
+    return this.findWithPagination({
+      sort: { column: 'created_at', ascending: false },
+      pagination: { page, limit },
+    });
+  }
+
+  async getPackageById(id: string): Promise<PackageRecord | null> {
+    return this.findById(id);
+  }
+
+  async createPackage(
+    data: Parameters<BaseRepository<PackageRecord>['create']>[0]
+  ) {
+    return this.create(data);
+  }
+
+  async updatePackage(
+    id: string,
+    data: Parameters<BaseRepository<PackageRecord>['update']>[1]
+  ) {
+    return this.update(id, data);
+  }
+
+  async deletePackage(id: string): Promise<boolean> {
+    return this.delete(id);
+  }
 }
