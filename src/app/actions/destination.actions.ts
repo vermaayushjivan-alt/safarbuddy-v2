@@ -17,7 +17,7 @@ export async function getFeaturedDestinations(): Promise<DestinationRecord[]> {
 export async function getAllPublicDestinations(page: number = 1, limit: number = 20) {
   const supabase = await createClient();
   const repo = new DestinationRepository(supabase);
-  return repo.getAllPublicDestinations(page, limit);
+ return repo.getAllDestinations(page, limit);
 }
 
 export async function getDestinationBySlug(slug: string): Promise<DestinationRecord | null> {
