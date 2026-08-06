@@ -274,7 +274,7 @@ export const footerLinkColumns: FooterLinkColumn[] = [
     title: "Explore",
     links: [
       { label: "Flights", href: "#" },
-      { label: "Hotels", href: "#" },
+      { label: "Hotels", href: "/hotels" },
       { label: "Bus", href: "#" },
       { label: "Train", href: "#" },
       { label: "Holiday Packages", href: "#" },
@@ -288,7 +288,7 @@ export const footerLinkColumns: FooterLinkColumn[] = [
     title: "Support",
     links: [
       { label: "Help Center", href: "#" },
-      { label: "Contact Us", href: "#" },
+      { label: "Contact Us", href: "/contact" },
       { label: "Cancellation Policy", href: "#" },
       { label: "Refund Policy", href: "#" },
       { label: "FAQ", href: "#" },
@@ -299,7 +299,7 @@ export const footerLinkColumns: FooterLinkColumn[] = [
     id: "company",
     title: "Company",
     links: [
-      { label: "About Us", href: "#" },
+      { label: "About Us", href: "/about" },
       { label: "Careers", href: "#" },
       { label: "Blog", href: "#" },
       { label: "Press", href: "#" },
