@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getOfferByIdAdmin } from "@/app/actions/offer.actions";
-import { OfferForm } from "@/components/admin/offers/OfferForm";
+import OfferForm from "@/components/admin/offers/OfferForm";
 
 export default async function EditOfferPage({
   params,
