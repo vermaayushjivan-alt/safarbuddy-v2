@@ -10,11 +10,6 @@ import {
 } from '@/lib/repositories/vendor.repository';
 
 // --- ADMIN-09: Vendor Management (CRUD) ---
-// Mirrors destination.actions.ts (ADMIN-06/07). vendors.user_id is a
-// required FK to public.users(id) (schema.ts, DB-01) — the admin UI
-// collects it as a UUID text field since no user-picker/search action
-// exists yet in this repository (see VendorForm). gst_number is kept
-// as an optional plain string (no format enum confirmed in schema.ts).
 
 const vendorInputSchema = z.object({
   user_id: z.string().uuid('A valid user ID (UUID) is required'),
@@ -62,10 +57,9 @@ export async function deleteVendorAdmin(id: string): Promise<boolean> {
   return repo.deleteVendor(id);
 }
 
-// --- ADMIN-09: Vendor Branch Management (CRUD) ---
-// vendor_branches table, scoped by vendor_id. Mirrors the
-// destination_images admin-action section shape (list/create/update/
-// delete) minus Storage, since vendor_branches has no file columns.
+// -----------------------------------------------------------------------------
+// Vendor Branch Management
+// -----------------------------------------------------------------------------
 
 const vendorBranchInputSchema = z.object({
   branch_name: z.string().min(1, 'Branch name is required'),
@@ -76,32 +70,54 @@ const vendorBranchInputSchema = z.object({
 
 export type VendorBranchInput = z.infer<typeof vendorBranchInputSchema>;
 
-export async function getVendorBranchesAdmin(vendorId: string): Promise<VendorBranchRecord[]> {
+export async function getVendorBranchesAdmin(
+  vendorId: string
+): Promise<VendorBranchRecord[]> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new VendorRepository(supabase);
+
   return repo.listVendorBranches(vendorId);
 }
 
-export async function createVendorBranchAdmin(vendorId: string, input: VendorBranchInput) {
+export async function createVendorBranchAdmin(
+  vendorId: string,
+  input: VendorBranchInput
+) {
   await requireRole(['admin', 'super_admin']);
+
   const parsed = vendorBranchInputSchema.parse(input);
+
   const supabase = await createClient();
   const repo = new VendorRepository(supabase);
+
   return repo.createVendorBranch(vendorId, parsed);
 }
 
-export async function updateVendorBranchAdmin(branchId: string, input: VendorBranchInput) {
+export async function updateVendorBranchAdmin(
+  branchId: string,
+  input: Partial<VendorBranchInput>
+) {
   await requireRole(['admin', 'super_admin']);
-  const parsed = vendorBranchInputSchema.parse(input);
+
+  const parsed = vendorBranchInputSchema
+    .partial()
+    .parse(input);
+
   const supabase = await createClient();
   const repo = new VendorRepository(supabase);
+
   return repo.updateVendorBranch(branchId, parsed);
 }
 
-export async function deleteVendorBranchAdmin(branchId: string): Promise<void> {
+export async function deleteVendorBranchAdmin(
+  branchId: string
+): Promise<void> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new VendorRepository(supabase);
+
   await repo.deleteVendorBranch(branchId);
 }
