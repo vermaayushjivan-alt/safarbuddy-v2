@@ -1,0 +1,160 @@
+// lib/repositories/vendor.repository.ts
+import { BaseRepository } from './base.repository';
+import { SupabaseClientType, DatabaseRecord } from './types';
+
+export interface VendorRecord extends DatabaseRecord {
+  id: string;
+  user_id: string;
+  business_name: string;
+  gst_number: string | null;
+  is_approved: boolean;
+  approved_at: string | null;
+}
+
+export interface VendorBranchRecord extends DatabaseRecord {
+  id: string;
+  vendor_id: string;
+  branch_name: string;
+  address: string | null;
+  city: string | null;
+  is_active: boolean;
+}
+
+// --- ADMIN-09: Vendor Management (CRUD) ---
+// Mirrors DestinationRepository (ADMIN-06/07): vendors table CRUD via
+// BaseRepository, vendor_branches as a related sub-resource scoped by
+// vendor_id, same shape as destination_images but without Storage
+// involvement (vendor_branches has no file/image columns per
+// DATABASE_BIBLE / schema.ts — DB-01). softDelete is true for both
+// tables, matching their `deleted_at` audit column in schema.ts.
+
+export class VendorRepository extends BaseRepository<VendorRecord> {
+  constructor(supabase: SupabaseClientType) {
+    super(supabase, {
+      tableName: 'vendors',
+      softDelete: true,
+      softDeleteColumn: 'deleted_at',
+    });
+  }
+
+  // --- Vendor CRUD ---
+
+  async getAllVendors(page: number = 1, limit: number = 20) {
+    return this.findWithPagination({
+      sort: { column: 'created_at', ascending: false },
+      pagination: { page, limit },
+    });
+  }
+
+  async getVendorById(id: string): Promise<VendorRecord | null> {
+    return this.findById(id);
+  }
+
+  async createVendor(
+    data: Parameters<BaseRepository<VendorRecord>['create']>[0]
+  ) {
+    return this.create(data);
+  }
+
+  async updateVendor(
+    id: string,
+    data: Parameters<BaseRepository<VendorRecord>['update']>[1]
+  ) {
+    return this.update(id, data);
+  }
+
+  async deleteVendor(id: string): Promise<boolean> {
+    return this.softDeleteById(id).then(() => true);
+  }
+
+  // --- Vendor Branch CRUD (vendor_branches table, scoped by vendor_id) ---
+  // Direct Supabase calls, same style as DestinationRepository's
+  // destination_images methods — vendor_branches is a separate table
+  // from `vendors`, so it can't go through this class's own
+  // BaseRepository instance (which is bound to the `vendors` table).
+
+  async listVendorBranches(vendorId: string): Promise<VendorBranchRecord[]> {
+    const { data, error } = await this.supabase
+      .from('vendor_branches')
+      .select('id, vendor_id, branch_name, address, city, is_active, created_at, updated_at, deleted_at')
+      .eq('vendor_id', vendorId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Failed to list vendor branches: ${error.message}`);
+    }
+
+    return (data ?? []) as VendorBranchRecord[];
+  }
+
+  async getVendorBranchById(branchId: string): Promise<VendorBranchRecord | null> {
+    const { data, error } = await this.supabase
+      .from('vendor_branches')
+      .select('id, vendor_id, branch_name, address, city, is_active, created_at, updated_at, deleted_at')
+      .eq('id', branchId)
+      .is('deleted_at', null)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get vendor branch: ${error.message}`);
+    }
+
+    return data as VendorBranchRecord;
+  }
+
+  async createVendorBranch(
+    vendorId: string,
+    data: { branch_name: string; address?: string | null; city?: string | null; is_active?: boolean }
+  ): Promise<VendorBranchRecord> {
+    const { data: result, error } = await this.supabase
+      .from('vendor_branches')
+      .insert({
+        vendor_id: vendorId,
+        branch_name: data.branch_name,
+        address: data.address ?? null,
+        city: data.city ?? null,
+        is_active: data.is_active ?? true,
+      })
+      .select('id, vendor_id, branch_name, address, city, is_active, created_at, updated_at, deleted_at')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create vendor branch: ${error.message}`);
+    }
+
+    return result as VendorBranchRecord;
+  }
+
+  async updateVendorBranch(
+    branchId: string,
+    data: Partial<{ branch_name: string; address: string | null; city: string | null; is_active: boolean }>
+  ): Promise<VendorBranchRecord> {
+    const { data: result, error } = await this.supabase
+      .from('vendor_branches')
+      .update(data)
+      .eq('id', branchId)
+      .is('deleted_at', null)
+      .select('id, vendor_id, branch_name, address, city, is_active, created_at, updated_at, deleted_at')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update vendor branch: ${error.message}`);
+    }
+
+    return result as VendorBranchRecord;
+  }
+
+  async deleteVendorBranch(branchId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('vendor_branches')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', branchId)
+      .is('deleted_at', null);
+
+    if (error) {
+      throw new Error(`Failed to delete vendor branch: ${error.message}`);
+    }
+  }
+}
