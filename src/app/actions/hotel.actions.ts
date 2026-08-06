@@ -11,6 +11,21 @@ export async function getTrendingHotels(): Promise<HotelRecord[]> {
   return repo.getTrendingHotels(6);
 }
 
+// --- PUBLIC-01: Public Marketing Pages (/hotels, /hotels/[slug]) ---
+// No requireRole — public read, same as getTrendingHotels() above.
+
+export async function getPublishedHotels(page: number = 1, limit: number = 20) {
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+  return repo.getPublishedHotels(page, limit);
+}
+
+export async function getHotelBySlug(slug: string): Promise<HotelRecord | null> {
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+  return repo.getHotelBySlug(slug);
+}
+
 // --- ADMIN-02: Hotel Management (CRUD) ---
 
 const hotelInputSchema = z.object({
