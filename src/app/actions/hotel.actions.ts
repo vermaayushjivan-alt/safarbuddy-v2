@@ -1,313 +1,108 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import {
-  HotelRepository,
-  HotelRecord,
-  HotelImageRow,
-} from "@/lib/repositories/hotel.repository";
-import { requireRole } from "@/lib/auth/session";
+import { createClient } from '@/lib/supabase/server';
+import { HotelRepository } from '@/lib/repositories/hotel.repository';
 
-
-// =========================
-// PUBLIC ACTIONS
-// =========================
-
-export async function getPublishedHotels(
-  page: number = 1,
-  limit: number = 10
-): Promise<{
-  data: HotelRecord[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}> {
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-  return repo.getPublishedHotels(page, limit);
-}
-
-
-export async function getHotelBySlug(
-  slug: string
-): Promise<HotelRecord | null> {
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-  return repo.getHotelBySlug(slug);
-}
-
-
-export async function getTrendingHotels(
-  limit: number = 6
-): Promise<HotelRecord[]> {
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-  const result = await repo.getPublishedHotels(1, limit);
-
-  return result.data;
-}
-
-
-
-// =========================
-// ADMIN HOTEL ACTIONS
-// =========================
-
-export async function getAllHotelsAdmin(
-  page: number = 1,
-  limit: number = 20
-): Promise<{
-  data: HotelRecord[];
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}> {
-
-  await requireRole(["admin", "super_admin"]);
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-  return repo.getAllHotelsPaginated(page, limit);
-}
-
-
-
-export async function getHotelByIdAdmin(
-  id: string
-): Promise<HotelRecord | null> {
-
-  await requireRole(["admin", "super_admin"]);
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-  return repo.getHotelById(id);
-}
-
-
-
-export async function createHotelAdmin(
-  formData: FormData
-) {
-
-  await requireRole(["admin", "super_admin"]);
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-
-  const hotel = await repo.createHotel({
-
-    name: String(formData.get("name") ?? ""),
-    slug: String(formData.get("slug") ?? ""),
-    description: String(formData.get("description") ?? ""),
-
-    city: String(formData.get("city") ?? ""),
-    state: String(formData.get("state") ?? ""),
-    country: String(formData.get("country") ?? ""),
-    address: String(formData.get("address") ?? ""),
-
-    star_rating:
-      Number(formData.get("star_rating")) || 0,
-
-    price_per_night:
-      Number(formData.get("price_per_night")) || 0,
-
-    is_published:
-      formData.get("is_published") === "true",
-
-  });
-
-
-  revalidatePath("/admin/hotels");
-
-  return hotel;
-}
-
-
-
-export async function updateHotelAdmin(
-  id: string,
-  formData: FormData
-) {
-
-  await requireRole(["admin", "super_admin"]);
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-
-  const hotel = await repo.updateHotel(id, {
-
-    name: String(formData.get("name") ?? ""),
-    slug: String(formData.get("slug") ?? ""),
-    description: String(formData.get("description") ?? ""),
-
-    city: String(formData.get("city") ?? ""),
-    state: String(formData.get("state") ?? ""),
-    country: String(formData.get("country") ?? ""),
-    address: String(formData.get("address") ?? ""),
-
-    star_rating:
-      Number(formData.get("star_rating")) || 0,
-
-    price_per_night:
-      Number(formData.get("price_per_night")) || 0,
-
-    is_published:
-      formData.get("is_published") === "true",
-
-  });
-
-
-  revalidatePath("/admin/hotels");
-  revalidatePath(`/admin/hotels/${id}/edit`);
-
-  return hotel;
-}
-
-
-
-export async function deleteHotelAdmin(
-  id: string
-) {
-
-  await requireRole(["admin", "super_admin"]);
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-  await repo.deleteHotel(id);
-
-  revalidatePath("/admin/hotels");
-}
-
-
-
-// =========================
-// HOTEL IMAGE ADMIN ACTIONS
-// =========================
-
-
-export async function getHotelImagesAdmin(
-  hotelId: string
-): Promise<HotelImageRow[]> {
-
-  await requireRole(["admin", "super_admin"]);
-
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-
-  return repo.listHotelImages(hotelId);
-}
-
-
-
-export async function uploadHotelImageAdmin(
+export async function addHotelImageAction(
   hotelId: string,
-  image_url: string
+  storagePath: string,
+  isPrimary: boolean = false,
+  sortOrder: number = 0
 ) {
-
-  await requireRole(["admin", "super_admin"]);
-
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
 
-
-  const image = await repo.insertHotelImageRow({
-
-    hotel_id: hotelId,
-    image_url,
-
-  });
-
-
-  revalidatePath(
-    `/admin/hotels/${hotelId}/images`
-  );
-
-
-  return image;
+  try {
+    const newImage = await repo.insertHotelImageRow(
+      hotelId,
+      storagePath,
+      isPrimary,
+      sortOrder
+    );
+    return { success: true, data: newImage };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
 
-
-
-export async function setPrimaryHotelImageAdmin(
+export async function createHotelImage(
   hotelId: string,
-  imageId: string
+  storagePath: string,
+  isPrimary: boolean = false,
+  sortOrder: number = 0
 ) {
-
-  await requireRole(["admin", "super_admin"]);
-
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
 
-
-  await repo.setPrimaryHotelImage(
-    hotelId,
-    imageId
-  );
-
-
-  revalidatePath(
-    `/admin/hotels/${hotelId}/images`
-  );
+  try {
+    const image = await repo.insertHotelImageRow(
+      hotelId,
+      storagePath,
+      isPrimary,
+      sortOrder
+    );
+    return { success: true, data: image };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
 
-
-
-export async function reorderHotelImageAdmin(
-  hotelId: string,
-  imageId: string,
-  sortOrder: number
-) {
-
-  await requireRole(["admin", "super_admin"]);
-
+export async function getHotelsAction(page: number = 1, limit: number = 20) {
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
 
-
-  await repo.updateHotelImageSortOrder(
-    imageId,
-    sortOrder
-  );
-
-
-  revalidatePath(
-    `/admin/hotels/${hotelId}/images`
-  );
+  try {
+    const result = await repo.getAllHotelsPaginated(page, limit);
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
 
-
-
-export async function deleteHotelImageAdmin(
-  hotelId: string,
-  imageId: string
-) {
-
-  await requireRole(["admin", "super_admin"]);
-
+export async function getPublishedHotelsAction(page: number = 1, limit: number = 20) {
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
 
+  try {
+    const result = await repo.getPublishedHotels(page, limit);
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
 
-  await repo.deleteHotelImageRow(imageId);
+export async function getHotelBySlugAction(slug: string) {
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
 
+  try {
+    const hotel = await repo.getHotelBySlug(slug);
+    return { success: true, data: hotel };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
 
-  revalidatePath(
-    `/admin/hotels/${hotelId}/images`
-  );
+export async function deleteHotelImageAction(imageId: string) {
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+
+  try {
+    await repo.deleteHotelImageRow(imageId);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function setPrimaryHotelImageAction(hotelId: string, imageId: string) {
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+
+  try {
+    await repo.setPrimaryHotelImage(hotelId, imageId);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
