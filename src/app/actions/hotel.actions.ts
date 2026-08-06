@@ -10,7 +10,7 @@ import {
 import { requireRole } from "@/lib/auth/session";
 
 // =========================
-// PUBLIC ACTIONS
+// Public Actions
 // =========================
 
 export async function getPublishedHotels(
@@ -27,6 +27,7 @@ export async function getPublishedHotels(
 export async function getHotelBySlug(
   slug: string
 ): Promise<HotelRecord | null> {
+
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
 
@@ -49,7 +50,7 @@ export async function getTrendingHotels(
 
 
 // =========================
-// ADMIN HOTEL CRUD
+// Admin Hotel Actions
 // =========================
 
 export async function getAllHotelsAdmin(): Promise<HotelRecord[]> {
@@ -99,11 +100,8 @@ export async function createHotelAdmin(
     country: String(formData.get("country") ?? ""),
     address: String(formData.get("address") ?? ""),
 
-    star_rating:
-      Number(formData.get("star_rating")) || 0,
-
-    price_per_night:
-      Number(formData.get("price_per_night")) || 0,
+    star_rating: Number(formData.get("star_rating")) || 0,
+    price_per_night: Number(formData.get("price_per_night")) || 0,
 
     is_published:
       formData.get("is_published") === "true",
@@ -126,7 +124,6 @@ export async function updateHotelAdmin(
 
   await requireRole(["admin", "super_admin"]);
 
-
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
 
@@ -143,17 +140,13 @@ export async function updateHotelAdmin(
     country: String(formData.get("country") ?? ""),
     address: String(formData.get("address") ?? ""),
 
-    star_rating:
-      Number(formData.get("star_rating")) || 0,
-
-    price_per_night:
-      Number(formData.get("price_per_night")) || 0,
+    star_rating: Number(formData.get("star_rating")) || 0,
+    price_per_night: Number(formData.get("price_per_night")) || 0,
 
     is_published:
       formData.get("is_published") === "true",
 
   });
-
 
 
   revalidatePath("/admin/hotels");
@@ -164,16 +157,14 @@ export async function updateHotelAdmin(
 
 
 
-
-
 export async function deleteHotelAdmin(
   id: string
 ) {
 
   await requireRole(["admin", "super_admin"]);
 
-
   const supabase = await createClient();
+
   const repo = new HotelRepository(supabase);
 
 
@@ -185,11 +176,8 @@ export async function deleteHotelAdmin(
 
 
 
-
-
 // =========================
-// HOTEL IMAGE MANAGEMENT
-// ADMIN-07
+// Hotel Image Actions ADMIN-07
 // =========================
 
 
@@ -197,9 +185,7 @@ export async function getHotelImagesAdmin(
   hotelId: string
 ): Promise<HotelImageRecord[]> {
 
-
   await requireRole(["admin", "super_admin"]);
-
 
   const supabase = await createClient();
 
@@ -207,9 +193,7 @@ export async function getHotelImagesAdmin(
 
 
   return repo.listHotelImages(hotelId);
-
 }
-
 
 
 
@@ -219,7 +203,6 @@ export async function uploadHotelImageAdmin(
   image_url: string
 ) {
 
-
   await requireRole(["admin", "super_admin"]);
 
 
@@ -228,15 +211,12 @@ export async function uploadHotelImageAdmin(
   const repo = new HotelRepository(supabase);
 
 
-
   const image = await repo.insertHotelImageRow({
 
     hotel_id: hotelId,
-
     image_url,
 
   });
-
 
 
   revalidatePath(
@@ -245,9 +225,7 @@ export async function uploadHotelImageAdmin(
 
 
   return image;
-
 }
-
 
 
 
@@ -257,15 +235,12 @@ export async function setPrimaryHotelImageAdmin(
   imageId: string
 ) {
 
-
   await requireRole(["admin", "super_admin"]);
 
 
   const supabase = await createClient();
 
-
   const repo = new HotelRepository(supabase);
-
 
 
   await repo.setPrimaryHotelImage(
@@ -274,13 +249,38 @@ export async function setPrimaryHotelImageAdmin(
   );
 
 
+  revalidatePath(
+    `/admin/hotels/${hotelId}/images`
+  );
+}
+
+
+
+
+export async function reorderHotelImageAdmin(
+  hotelId: string,
+  imageId: string,
+  sortOrder: number
+) {
+
+  await requireRole(["admin", "super_admin"]);
+
+
+  const supabase = await createClient();
+
+  const repo = new HotelRepository(supabase);
+
+
+  await repo.updateHotelImageSortOrder(
+    imageId,
+    sortOrder
+  );
+
 
   revalidatePath(
     `/admin/hotels/${hotelId}/images`
   );
-
 }
-
 
 
 
@@ -291,23 +291,18 @@ export async function deleteHotelImageAdmin(
   imageId: string
 ) {
 
-
   await requireRole(["admin", "super_admin"]);
 
 
   const supabase = await createClient();
 
-
   const repo = new HotelRepository(supabase);
-
 
 
   await repo.deleteHotelImageRow(imageId);
 
 
-
   revalidatePath(
     `/admin/hotels/${hotelId}/images`
   );
-
 }
