@@ -19,13 +19,19 @@ export class HotelRepository {
   ) {}
 
 
+  // =========================
+  // Public Hotel Queries
+  // =========================
+
 
   async getAllHotels(): Promise<HotelRecord[]> {
 
     const { data, error } = await this.supabase
       .from("hotels")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", {
+        ascending: false,
+      });
 
 
     if (error) {
@@ -41,22 +47,98 @@ export class HotelRepository {
 
 
 
-
-  async getPublishedHotels(
+  async getAllHotelsPaginated(
     page: number = 1,
-    limit: number = 10
-  ): Promise<{ data: HotelRecord[]; count: number }> {
+    limit: number = 20
+  ): Promise<{
+    data: HotelRecord[];
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  }> {
+
 
     const offset = (page - 1) * limit;
 
 
-    const { data, error, count } = await this.supabase
-      .from("hotels")
-      .select("*", { count: "exact" })
-      .eq("is_published", true)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    const { data, error, count } =
+      await this.supabase
+        .from("hotels")
+        .select("*", {
+          count: "exact",
+        })
+        .order("created_at", {
+          ascending: false,
+        })
+        .range(
+          offset,
+          offset + limit - 1
+        );
 
+
+    if (error) {
+      throw new Error(
+        `Failed to fetch hotels: ${error.message}`
+      );
+    }
+
+
+    const total = count ?? 0;
+
+    const totalPages = Math.ceil(
+      total / limit
+    );
+
+
+    return {
+      data: data || [],
+      total,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
+  }
+
+
+
+
+  async getPublishedHotels(
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    data: HotelRecord[];
+    count: number;
+  }> {
+
+
+    const offset =
+      (page - 1) * limit;
+
+
+    const {
+      data,
+      error,
+      count,
+    } = await this.supabase
+      .from("hotels")
+      .select("*", {
+        count: "exact",
+      })
+      .eq(
+        "is_published",
+        true
+      )
+      .order(
+        "created_at",
+        {
+          ascending: false,
+        }
+      )
+      .range(
+        offset,
+        offset + limit - 1
+      );
 
 
     if (error) {
@@ -75,15 +157,21 @@ export class HotelRepository {
 
 
 
-
   async getHotelById(
     id: string
   ): Promise<HotelRecord | null> {
 
-    const { data, error } = await this.supabase
+
+    const {
+      data,
+      error,
+    } = await this.supabase
       .from("hotels")
       .select("*")
-      .eq("id", id)
+      .eq(
+        "id",
+        id
+      )
       .maybeSingle();
 
 
@@ -100,16 +188,21 @@ export class HotelRepository {
 
 
 
-
   async getHotelBySlug(
     slug: string
   ): Promise<HotelRecord | null> {
 
 
-    const { data, error } = await this.supabase
+    const {
+      data,
+      error,
+    } = await this.supabase
       .from("hotels")
       .select("*")
-      .eq("slug", slug)
+      .eq(
+        "slug",
+        slug
+      )
       .maybeSingle();
 
 
@@ -126,13 +219,20 @@ export class HotelRepository {
 
 
 
+  // =========================
+  // Admin Hotel CRUD
+  // =========================
+
 
   async createHotel(
     hotel: HotelInsert
   ): Promise<HotelRecord> {
 
 
-    const { data, error } = await this.supabase
+    const {
+      data,
+      error,
+    } = await this.supabase
       .from("hotels")
       .insert(hotel)
       .select()
@@ -152,20 +252,24 @@ export class HotelRepository {
 
 
 
-
   async updateHotel(
     id: string,
     hotel: HotelUpdate
   ): Promise<HotelRecord> {
 
 
-    const { data, error } = await this.supabase
+    const {
+      data,
+      error,
+    } = await this.supabase
       .from("hotels")
       .update(hotel)
-      .eq("id", id)
+      .eq(
+        "id",
+        id
+      )
       .select()
       .single();
-
 
 
     if (error) {
@@ -181,17 +285,20 @@ export class HotelRepository {
 
 
 
-
   async deleteHotel(
     id: string
   ): Promise<void> {
 
 
-    const { error } = await this.supabase
+    const {
+      error,
+    } = await this.supabase
       .from("hotels")
       .delete()
-      .eq("id", id);
-
+      .eq(
+        "id",
+        id
+      );
 
 
     if (error) {
@@ -204,9 +311,8 @@ export class HotelRepository {
 
 
 
-
   // =========================
-  // HOTEL IMAGES ADMIN-07
+  // ADMIN-07 Hotel Images
   // =========================
 
 
@@ -215,14 +321,22 @@ export class HotelRepository {
   ): Promise<HotelImageRecord[]> {
 
 
-    const { data, error } = await this.supabase
+    const {
+      data,
+      error,
+    } = await this.supabase
       .from("hotel_images")
       .select("*")
-      .eq("hotel_id", hotelId)
-      .order("sort_order", {
-        ascending: true,
-      });
-
+      .eq(
+        "hotel_id",
+        hotelId
+      )
+      .order(
+        "sort_order",
+        {
+          ascending: true,
+        }
+      );
 
 
     if (error) {
@@ -238,18 +352,19 @@ export class HotelRepository {
 
 
 
-
   async insertHotelImageRow(
     image: HotelImageInsert
   ): Promise<HotelImageRecord> {
 
 
-    const { data, error } = await this.supabase
+    const {
+      data,
+      error,
+    } = await this.supabase
       .from("hotel_images")
       .insert(image)
       .select()
       .single();
-
 
 
     if (error) {
@@ -265,43 +380,49 @@ export class HotelRepository {
 
 
 
-
   async setPrimaryHotelImage(
     hotelId: string,
     imageId: string
   ): Promise<void> {
 
 
-    const { error: clearError } = await this.supabase
+    const {
+      error: resetError,
+    } = await this.supabase
       .from("hotel_images")
       .update({
         is_primary: false,
       })
-      .eq("hotel_id", hotelId);
+      .eq(
+        "hotel_id",
+        hotelId
+      );
 
 
-
-    if (clearError) {
+    if (resetError) {
       throw new Error(
-        `Failed to clear primary hotel images: ${clearError.message}`
+        `Failed to reset primary image: ${resetError.message}`
       );
     }
 
 
 
-
-    const { error: setError } = await this.supabase
+    const {
+      error,
+    } = await this.supabase
       .from("hotel_images")
       .update({
         is_primary: true,
       })
-      .eq("id", imageId);
+      .eq(
+        "id",
+        imageId
+      );
 
 
-
-    if (setError) {
+    if (error) {
       throw new Error(
-        `Failed to set primary hotel image: ${setError.message}`
+        `Failed to set primary image: ${error.message}`
       );
     }
   }
@@ -316,18 +437,22 @@ export class HotelRepository {
   ): Promise<void> {
 
 
-    const { error } = await this.supabase
+    const {
+      error,
+    } = await this.supabase
       .from("hotel_images")
       .update({
         sort_order: sortOrder,
       })
-      .eq("id", imageId);
-
+      .eq(
+        "id",
+        imageId
+      );
 
 
     if (error) {
       throw new Error(
-        `Failed to update hotel image sort order: ${error.message}`
+        `Failed to update image sort order: ${error.message}`
       );
     }
   }
@@ -341,11 +466,15 @@ export class HotelRepository {
   ): Promise<void> {
 
 
-    const { error } = await this.supabase
+    const {
+      error,
+    } = await this.supabase
       .from("hotel_images")
       .delete()
-      .eq("id", imageId);
-
+      .eq(
+        "id",
+        imageId
+      );
 
 
     if (error) {
