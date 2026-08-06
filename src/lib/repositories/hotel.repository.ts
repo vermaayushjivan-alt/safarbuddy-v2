@@ -23,7 +23,8 @@ export interface HotelRecord extends DatabaseRecord {
   status: string;
 }
 
-interface HotelImageRow {
+export interface HotelImageRow {
+  id: string;
   hotel_id: string;
   storage_path: string;
   is_primary: boolean;
@@ -95,7 +96,7 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     });
   }
 
-  // --- ADMIN-02: minimal public exposure of BaseRepository, no extra logic ---
+  // --- ADMIN-02: minimal public exposure of BaseRepository ---
 
   async getAllHotels(page: number = 1, limit: number = 20) {
     return this.findWithPagination({
@@ -121,5 +122,102 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
 
   async deleteHotel(id: string): Promise<boolean> {
     return this.softDeleteById(id).then(() => true);
+  }
+
+  // --- ADMIN-03: hotel_images table CRUD only. No Storage calls here. ---
+
+  async listHotelImages(hotelId: string): Promise<HotelImageRow[]> {
+    const { data, error } = await this.supabase
+      .from('hotel_images')
+      .select('id, hotel_id, storage_path, is_primary, sort_order')
+      .eq('hotel_id', hotelId)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to list hotel images: ${error.message}`);
+    }
+
+    return (data ?? []) as HotelImageRow[];
+  }
+
+  async getHotelImageById(imageId: string): Promise<HotelImageRow | null> {
+    const { data, error } = await this.supabase
+      .from('hotel_images')
+      .select('id, hotel_id, storage_path, is_primary, sort_order')
+      .eq('id', imageId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get hotel image: ${error.message}`);
+    }
+
+    return data as HotelImageRow;
+  }
+
+  async insertHotelImageRow(
+    hotelId: string,
+    storagePath: string,
+    isPrimary: boolean,
+    sortOrder: number
+  ): Promise<HotelImageRow> {
+    const { data, error } = await this.supabase
+      .from('hotel_images')
+      .insert({
+        hotel_id: hotelId,
+        storage_path: storagePath,
+        is_primary: isPrimary,
+        sort_order: sortOrder,
+      })
+      .select('id, hotel_id, storage_path, is_primary, sort_order')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to insert hotel image row: ${error.message}`);
+    }
+
+    return data as HotelImageRow;
+  }
+
+  async setPrimaryHotelImage(hotelId: string, imageId: string): Promise<void> {
+    const { error: clearError } = await this.supabase
+      .from('hotel_images')
+      .update({ is_primary: false })
+      .eq('hotel_id', hotelId);
+
+    if (clearError) {
+      throw new Error(`Failed to clear primary flags: ${clearError.message}`);
+    }
+
+    const { error: setError } = await this.supabase
+      .from('hotel_images')
+      .update({ is_primary: true })
+      .eq('id', imageId);
+
+    if (setError) {
+      throw new Error(`Failed to set primary image: ${setError.message}`);
+    }
+  }
+
+  async updateHotelImageSortOrder(imageId: string, sortOrder: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('hotel_images')
+      .update({ sort_order: sortOrder })
+      .eq('id', imageId);
+
+    if (error) {
+      throw new Error(`Failed to update sort order: ${error.message}`);
+    }
+  }
+
+  async deleteHotelImageRow(imageId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('hotel_images')
+      .delete()
+      .eq('id', imageId);
+
+    if (error) {
+      throw new Error(`Failed to delete hotel image row: ${error.message}`);
+    }
   }
 }
