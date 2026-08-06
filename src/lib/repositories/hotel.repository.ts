@@ -41,6 +41,8 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     });
   }
 
+  // --- Existing HOME-03 method (unchanged) ---
+
   async getTrendingHotels(limit: number = 6): Promise<HotelRecord[]> {
     const hotels = await this.findMany({
       filters: [
@@ -91,5 +93,33 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
 
       return { ...hotel, thumbnail: DEFAULT_HOTEL_PLACEHOLDER };
     });
+  }
+
+  // --- ADMIN-02: minimal public exposure of BaseRepository, no extra logic ---
+
+  async getAllHotels(page: number = 1, limit: number = 20) {
+    return this.findWithPagination({
+      sort: { column: 'created_at', ascending: false },
+      pagination: { page, limit },
+    });
+  }
+
+  async getHotelById(id: string): Promise<HotelRecord | null> {
+    return this.findById(id);
+  }
+
+  async createHotel(data: Parameters<BaseRepository<HotelRecord>['create']>[0]) {
+    return this.create(data);
+  }
+
+  async updateHotel(
+    id: string,
+    data: Parameters<BaseRepository<HotelRecord>['update']>[1]
+  ) {
+    return this.update(id, data);
+  }
+
+  async deleteHotel(id: string): Promise<boolean> {
+    return this.softDeleteById(id).then(() => true);
   }
 }
