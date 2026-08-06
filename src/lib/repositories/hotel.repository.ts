@@ -1,223 +1,158 @@
-// lib/repositories/hotel.repository.ts
-import { BaseRepository } from './base.repository';
-import { SupabaseClientType, DatabaseRecord } from './types';
+import { SupabaseClient } from "@supabase/supabase-js";
+import { Database } from "@/types/database.types";
 
-export interface HotelRecord extends DatabaseRecord {
-  id: string;
-  vendor_id: string | null;
-  hotel_name: string;
-  slug: string;
-  description: string | null;
-  city: string | null;
-  state: string | null;
-  country: string | null;
-  address: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  thumbnail: string | null;
-  gallery: string[] | null;
-  star_rating: number | null;
-  total_reviews: number | null;
-  starting_price: number | null;
-  is_featured: boolean;
-  status: string;
-}
+export type HotelRecord = Database["public"]["Tables"]["hotels"]["Row"];
+export type HotelInsert = Database["public"]["Tables"]["hotels"]["Insert"];
+export type HotelUpdate = Database["public"]["Tables"]["hotels"]["Update"];
 
-export interface HotelImageRow {
-  id: string;
-  hotel_id: string;
-  storage_path: string;
-  is_primary: boolean;
-  sort_order: number;
-}
+export type HotelImageRecord = Database["public"]["Tables"]["hotel_images"]["Row"];
+export type HotelImageInsert = Database["public"]["Tables"]["hotel_images"]["Insert"];
 
-const DEFAULT_HOTEL_PLACEHOLDER = '/images/placeholders/default-hotel.webp';
+export class HotelRepository {
+  constructor(private readonly supabase: SupabaseClient<Database>) {}
 
-export class HotelRepository extends BaseRepository<HotelRecord> {
-  constructor(supabase: SupabaseClientType) {
-    super(supabase, {
-      tableName: 'hotels',
-      softDelete: true,
-      softDeleteColumn: 'deleted_at',
-    });
-  }
+  async getAllHotels(): Promise<HotelRecord[]> {
+    const { data, error } = await this.supabase
+      .from("hotels")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  // --- Existing HOME-03 method (unchanged) ---
-
-  async getTrendingHotels(limit: number = 6): Promise<HotelRecord[]> {
-    const hotels = await this.findMany({
-      filters: [
-        { column: 'status', operator: 'eq', value: 'ACTIVE' },
-        { column: 'is_featured', operator: 'eq', value: true },
-      ],
-      sort: { column: 'star_rating', ascending: false },
-      pagination: { page: 1, limit },
-    });
-
-    return this.resolveImages(hotels);
-  }
-
-  private async resolveImages(hotels: HotelRecord[]): Promise<HotelRecord[]> {
-    if (hotels.length === 0) return hotels;
-
-    const hotelIds = hotels.map((h) => h.id);
-
-    const { data: images, error } = await this.supabase
-      .from('hotel_images')
-      .select('hotel_id, storage_path, is_primary, sort_order')
-      .in('hotel_id', hotelIds)
-      .order('sort_order', { ascending: true });
-
-    const primaryPathByHotelId = new Map<string, string>();
-    if (!error && images) {
-      for (const img of images as HotelImageRow[]) {
-        const current = primaryPathByHotelId.get(img.hotel_id);
-        if (!current || img.is_primary) {
-          primaryPathByHotelId.set(img.hotel_id, img.storage_path);
-        }
-      }
+    if (error) {
+      throw new Error(`Failed to fetch hotels: ${error.message}`);
     }
 
-    return hotels.map((hotel) => {
-      const storagePath = primaryPathByHotelId.get(hotel.id);
-      if (storagePath) {
-        const normalizedPath = storagePath.startsWith('hotel-images/')
-          ? storagePath.slice('hotel-images/'.length)
-          : storagePath;
-
-        const { data: publicUrlData } = this.supabase.storage
-          .from('hotel-images')
-          .getPublicUrl(normalizedPath);
-
-        return { ...hotel, thumbnail: publicUrlData.publicUrl };
-      }
-
-      return { ...hotel, thumbnail: DEFAULT_HOTEL_PLACEHOLDER };
-    });
+    return data || [];
   }
 
-  // --- ADMIN-02: minimal public exposure of BaseRepository ---
+  async getPublishedHotels(
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{ data: HotelRecord[]; count: number }> {
+    const offset = (page - 1) * limit;
 
-  async getAllHotels(page: number = 1, limit: number = 20) {
-    return this.findWithPagination({
-      sort: { column: 'created_at', ascending: false },
-      pagination: { page, limit },
-    });
+    const { data, error, count } = await this.supabase
+      .from("hotels")
+      .select("*", { count: "exact" })
+      .eq("is_published", true)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch published hotels: ${error.message}`);
+    }
+
+    return {
+      data: data || [],
+      count: count ?? 0,
+    };
   }
 
   async getHotelById(id: string): Promise<HotelRecord | null> {
-    return this.findById(id);
-  }
-
-  async createHotel(data: Parameters<BaseRepository<HotelRecord>['create']>[0]) {
-    return this.create(data);
-  }
-
-  async updateHotel(
-    id: string,
-    data: Parameters<BaseRepository<HotelRecord>['update']>[1]
-  ) {
-    return this.update(id, data);
-  }
-
-  async deleteHotel(id: string): Promise<boolean> {
-    return this.softDeleteById(id).then(() => true);
-  }
-
-  // --- ADMIN-03: hotel_images table CRUD only. No Storage calls here. ---
-
-  async listHotelImages(hotelId: string): Promise<HotelImageRow[]> {
     const { data, error } = await this.supabase
-      .from('hotel_images')
-      .select('id, hotel_id, storage_path, is_primary, sort_order')
-      .eq('hotel_id', hotelId)
-      .order('sort_order', { ascending: true });
+      .from("hotels")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
 
     if (error) {
-      throw new Error(`Failed to list hotel images: ${error.message}`);
+      throw new Error(`Failed to fetch hotel by id: ${error.message}`);
     }
 
-    return (data ?? []) as HotelImageRow[];
+    return data;
   }
 
-  async getHotelImageById(imageId: string): Promise<HotelImageRow | null> {
+  async getHotelBySlug(slug: string): Promise<HotelRecord | null> {
     const { data, error } = await this.supabase
-      .from('hotel_images')
-      .select('id, hotel_id, storage_path, is_primary, sort_order')
-      .eq('id', imageId)
+      .from("hotels")
+      .select("*")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to fetch hotel by slug: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async createHotel(hotel: HotelInsert): Promise<HotelRecord> {
+    const { data, error } = await this.supabase
+      .from("hotels")
+      .insert(hotel)
+      .select()
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw new Error(`Failed to get hotel image: ${error.message}`);
+      throw new Error(`Failed to create hotel: ${error.message}`);
     }
 
-    return data as HotelImageRow;
+    return data;
   }
 
-  async insertHotelImageRow(
-    hotelId: string,
-    storagePath: string,
-    isPrimary: boolean,
-    sortOrder: number
-  ): Promise<HotelImageRow> {
+  async updateHotel(id: string, hotel: HotelUpdate): Promise<HotelRecord> {
     const { data, error } = await this.supabase
-      .from('hotel_images')
-      .insert({
-        hotel_id: hotelId,
-        storage_path: storagePath,
-        is_primary: isPrimary,
-        sort_order: sortOrder,
-      })
-      .select('id, hotel_id, storage_path, is_primary, sort_order')
+      .from("hotels")
+      .update(hotel)
+      .eq("id", id)
+      .select()
       .single();
 
     if (error) {
-      throw new Error(`Failed to insert hotel image row: ${error.message}`);
+      throw new Error(`Failed to update hotel: ${error.message}`);
     }
 
-    return data as HotelImageRow;
+    return data;
   }
 
-  async setPrimaryHotelImage(hotelId: string, imageId: string): Promise<void> {
-    const { error: clearError } = await this.supabase
-      .from('hotel_images')
-      .update({ is_primary: false })
-      .eq('hotel_id', hotelId);
-
-    if (clearError) {
-      throw new Error(`Failed to clear primary flags: ${clearError.message}`);
-    }
-
-    const { error: setError } = await this.supabase
-      .from('hotel_images')
-      .update({ is_primary: true })
-      .eq('id', imageId);
-
-    if (setError) {
-      throw new Error(`Failed to set primary image: ${setError.message}`);
-    }
-  }
-
-  async updateHotelImageSortOrder(imageId: string, sortOrder: number): Promise<void> {
+  async deleteHotel(id: string): Promise<void> {
     const { error } = await this.supabase
-      .from('hotel_images')
-      .update({ sort_order: sortOrder })
-      .eq('id', imageId);
+      .from("hotels")
+      .delete()
+      .eq("id", id);
 
     if (error) {
-      throw new Error(`Failed to update sort order: ${error.message}`);
+      throw new Error(`Failed to delete hotel: ${error.message}`);
     }
+  }
+
+  // --- Hotel Images ---
+
+  async listHotelImages(hotelId: string): Promise<HotelImageRecord[]> {
+    const { data, error } = await this.supabase
+      .from("hotel_images")
+      .select("*")
+      .eq("hotel_id", hotelId)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch hotel images: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  async insertHotelImageRow(image: HotelImageInsert): Promise<HotelImageRecord> {
+    const { data, error } = await this.supabase
+      .from("hotel_images")
+      .insert(image)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to insert hotel image: ${error.message}`);
+    }
+
+    return data;
   }
 
   async deleteHotelImageRow(imageId: string): Promise<void> {
     const { error } = await this.supabase
-      .from('hotel_images')
+      .from("hotel_images")
       .delete()
-      .eq('id', imageId);
+      .eq("id", imageId);
 
     if (error) {
-      throw new Error(`Failed to delete hotel image row: ${error.message}`);
+      throw new Error(`Failed to delete hotel image: ${error.message}`);
     }
   }
 }
