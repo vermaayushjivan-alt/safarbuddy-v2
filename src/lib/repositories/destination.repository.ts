@@ -11,6 +11,14 @@ export interface DestinationRecord extends DatabaseRecord {
   is_featured: boolean;
   status: string;
 }
+export interface DestinationImageRow {
+  id: string;
+  destination_id: string;
+  storage_path: string;
+  is_primary: boolean;
+  sort_order: number;
+}
+
 export class DestinationRepository extends BaseRepository<DestinationRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
@@ -62,5 +70,103 @@ export class DestinationRepository extends BaseRepository<DestinationRecord> {
 
   async deleteDestination(id: string): Promise<boolean> {
     return this.delete(id);
+  }
+
+  // --- ADMIN-07: destination_images table CRUD only. No Storage calls
+  // here — mirrors PackageRepository's ADMIN-05 section. ---
+
+  async listDestinationImages(destinationId: string): Promise<DestinationImageRow[]> {
+    const { data, error } = await this.supabase
+      .from('destination_images')
+      .select('id, destination_id, storage_path, is_primary, sort_order')
+      .eq('destination_id', destinationId)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to list destination images: ${error.message}`);
+    }
+
+    return (data ?? []) as DestinationImageRow[];
+  }
+
+  async getDestinationImageById(imageId: string): Promise<DestinationImageRow | null> {
+    const { data, error } = await this.supabase
+      .from('destination_images')
+      .select('id, destination_id, storage_path, is_primary, sort_order')
+      .eq('id', imageId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get destination image: ${error.message}`);
+    }
+
+    return data as DestinationImageRow;
+  }
+
+  async insertDestinationImageRow(
+    destinationId: string,
+    storagePath: string,
+    isPrimary: boolean,
+    sortOrder: number
+  ): Promise<DestinationImageRow> {
+    const { data, error } = await this.supabase
+      .from('destination_images')
+      .insert({
+        destination_id: destinationId,
+        storage_path: storagePath,
+        is_primary: isPrimary,
+        sort_order: sortOrder,
+      })
+      .select('id, destination_id, storage_path, is_primary, sort_order')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to insert destination image row: ${error.message}`);
+    }
+
+    return data as DestinationImageRow;
+  }
+
+  async setPrimaryDestinationImage(destinationId: string, imageId: string): Promise<void> {
+    const { error: clearError } = await this.supabase
+      .from('destination_images')
+      .update({ is_primary: false })
+      .eq('destination_id', destinationId);
+
+    if (clearError) {
+      throw new Error(`Failed to clear primary flags: ${clearError.message}`);
+    }
+
+    const { error: setError } = await this.supabase
+      .from('destination_images')
+      .update({ is_primary: true })
+      .eq('id', imageId);
+
+    if (setError) {
+      throw new Error(`Failed to set primary image: ${setError.message}`);
+    }
+  }
+
+  async updateDestinationImageSortOrder(imageId: string, sortOrder: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('destination_images')
+      .update({ sort_order: sortOrder })
+      .eq('id', imageId);
+
+    if (error) {
+      throw new Error(`Failed to update sort order: ${error.message}`);
+    }
+  }
+
+  async deleteDestinationImageRow(imageId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('destination_images')
+      .delete()
+      .eq('id', imageId);
+
+    if (error) {
+      throw new Error(`Failed to delete destination image row: ${error.message}`);
+    }
   }
 }
