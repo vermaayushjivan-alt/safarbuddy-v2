@@ -5,21 +5,14 @@ import {
   MapPin,
   Tag,
   Store,
-  ImageIcon,
 } from "lucide-react";
 
 const sections = [
   {
     href: "/admin/hotels",
     label: "Hotel Management",
-    description: "Create, edit, and manage hotel listings.",
+    description: "Create, edit, and manage hotel listings. Images are managed per-hotel from the edit page.",
     icon: Building2,
-  },
-  {
-    href: "/admin/hotels/images",
-    label: "Hotel Image Upload",
-    description: "Upload and manage hotel images.",
-    icon: ImageIcon,
   },
   {
     href: "/admin/packages",
