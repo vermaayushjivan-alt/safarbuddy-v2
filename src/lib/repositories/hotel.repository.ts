@@ -1,4 +1,3 @@
-// lib/repositories/hotel.repository.ts
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
@@ -140,6 +139,10 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       sort: { column: 'created_at', ascending: false },
       pagination: { page, limit },
     });
+  }
+
+  async getAllHotelsPaginated(page: number = 1, limit: number = 20) {
+    return this.getAllHotels(page, limit);
   }
 
   async getHotelById(id: string): Promise<HotelRecord | null> {
