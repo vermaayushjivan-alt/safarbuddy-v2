@@ -1,17 +1,16 @@
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { LoadingScreen } from '@/components/auth/LoadingScreen';
+import { redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth/session";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <ProtectedRoute 
-      allowedRoles={['admin', 'super_admin']}
-      fallback={<LoadingScreen />}
-    >
-      {children}
-    </ProtectedRoute>
-  );
+  try {
+    await requireRole(["admin", "super_admin"]);
+  } catch {
+    redirect("/");
+  }
+
+  return <>{children}</>;
 }
