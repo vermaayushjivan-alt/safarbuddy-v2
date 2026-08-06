@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   HotelRepository,
   HotelRecord,
-  HotelImageRecord,
+  HotelImageRow,
 } from "@/lib/repositories/hotel.repository";
 import { requireRole } from "@/lib/auth/session";
 
@@ -195,7 +195,7 @@ export async function deleteHotelAdmin(
 
 export async function getHotelImagesAdmin(
   hotelId: string
-): Promise<HotelImageRecord[]> {
+): Promise<HotelImageRow[]> {
 
   await requireRole(["admin", "super_admin"]);
 
