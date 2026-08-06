@@ -26,7 +26,7 @@ export default function ContactPage() {
         <ul className="mt-8 space-y-4">
           <li className="flex items-center gap-3 text-[14px] text-ink/80">
             <Mail size={16} className="shrink-0 text-orange" aria-hidden />
-            
+            <a
               href={`mailto:${footerContact.supportEmail}`}
               className="focus-ring rounded hover:text-deep"
             >
@@ -35,7 +35,7 @@ export default function ContactPage() {
           </li>
           <li className="flex items-center gap-3 text-[14px] text-ink/80">
             <Phone size={16} className="shrink-0 text-orange" aria-hidden />
-            
+            <a
               href={`tel:${footerContact.supportPhone.replace(/\s+/g, "")}`}
               className="focus-ring rounded hover:text-deep"
             >
