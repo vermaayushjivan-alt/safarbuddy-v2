@@ -5,15 +5,15 @@ import { Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ProfileMenu from "@/components/layout/ProfileMenu";
 
-const links = [
-  "Flights",
-  "Hotels",
-  "Bus",
-  "Train",
-  "Holiday",
-  "Visa",
-  "Forex",
-  "Offers",
+const links: { label: string; href: string }[] = [
+  { label: "Flights", href: "#" },
+  { label: "Hotels", href: "/hotels" },
+  { label: "Bus", href: "#" },
+  { label: "Train", href: "#" },
+  { label: "Holiday", href: "#" },
+  { label: "Visa", href: "#" },
+  { label: "Forex", href: "#" },
+  { label: "Offers", href: "#" },
 ];
 
 export default function Navbar() {
@@ -23,19 +23,19 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/40 bg-white/70 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-        <a href="#" className="focus-ring flex items-center gap-2 rounded-md">
+        <Link href="/" className="focus-ring flex items-center gap-2 rounded-md">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-deep font-heading text-sm font-semibold text-cream">
             SB
           </span>
           <span className="font-heading text-lg font-semibold text-deep">
             Safar<span className="text-orange">Buddy</span>
           </span>
-        </a>
+        </Link>
         <nav aria-label="Primary" className="hidden items-center gap-7 lg:flex">
           {links.map((l) => (
-            <a key={l} href="#" className="focus-ring relative rounded-md py-1 font-heading text-[14px] font-medium text-ink/70 transition after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-0 after:bg-orange after:transition-all after:duration-200 hover:text-deep hover:after:w-full">
-              {l}
-            </a>
+            <Link key={l.label} href={l.href} className="focus-ring relative rounded-md py-1 font-heading text-[14px] font-medium text-ink/70 transition after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-0 after:bg-orange after:transition-all after:duration-200 hover:text-deep hover:after:w-full">
+              {l.label}
+            </Link>
           ))}
         </nav>
         <div className="flex items-center gap-3">
@@ -60,10 +60,10 @@ export default function Navbar() {
         <div className="min-h-0">
           <ul className="flex flex-col gap-1 px-6 py-3">
             {links.map((l) => (
-              <li key={l}>
-                <a href="#" onClick={() => setOpen(false)} className="focus-ring block rounded-md px-2 py-2.5 font-heading text-[15px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
-                  {l}
-                </a>
+              <li key={l.label}>
+                <Link href={l.href} onClick={() => setOpen(false)} className="focus-ring block rounded-md px-2 py-2.5 font-heading text-[15px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
+                  {l.label}
+                </Link>
               </li>
             ))}
             <li className="mt-1 border-t border-deep/10 pt-3 sm:hidden">
