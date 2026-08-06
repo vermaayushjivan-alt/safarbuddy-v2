@@ -15,7 +15,8 @@ export interface PackageRecord extends DatabaseRecord {
   status: string;
 }
 
-interface PackageImageRow {
+export interface PackageImageRow {
+  id: string;
   package_id: string;
   storage_path: string;
   is_primary: boolean;
@@ -122,5 +123,102 @@ export class PackageRepository extends BaseRepository<PackageRecord> {
 
   async deletePackage(id: string): Promise<boolean> {
     return this.delete(id);
+  }
+
+  // --- ADMIN-05: package_images table CRUD only. No Storage calls here. ---
+
+  async listPackageImages(packageId: string): Promise<PackageImageRow[]> {
+    const { data, error } = await this.supabase
+      .from('package_images')
+      .select('id, package_id, storage_path, is_primary, sort_order')
+      .eq('package_id', packageId)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to list package images: ${error.message}`);
+    }
+
+    return (data ?? []) as PackageImageRow[];
+  }
+
+  async getPackageImageById(imageId: string): Promise<PackageImageRow | null> {
+    const { data, error } = await this.supabase
+      .from('package_images')
+      .select('id, package_id, storage_path, is_primary, sort_order')
+      .eq('id', imageId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw new Error(`Failed to get package image: ${error.message}`);
+    }
+
+    return data as PackageImageRow;
+  }
+
+  async insertPackageImageRow(
+    packageId: string,
+    storagePath: string,
+    isPrimary: boolean,
+    sortOrder: number
+  ): Promise<PackageImageRow> {
+    const { data, error } = await this.supabase
+      .from('package_images')
+      .insert({
+        package_id: packageId,
+        storage_path: storagePath,
+        is_primary: isPrimary,
+        sort_order: sortOrder,
+      })
+      .select('id, package_id, storage_path, is_primary, sort_order')
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to insert package image row: ${error.message}`);
+    }
+
+    return data as PackageImageRow;
+  }
+
+  async setPrimaryPackageImage(packageId: string, imageId: string): Promise<void> {
+    const { error: clearError } = await this.supabase
+      .from('package_images')
+      .update({ is_primary: false })
+      .eq('package_id', packageId);
+
+    if (clearError) {
+      throw new Error(`Failed to clear primary flags: ${clearError.message}`);
+    }
+
+    const { error: setError } = await this.supabase
+      .from('package_images')
+      .update({ is_primary: true })
+      .eq('id', imageId);
+
+    if (setError) {
+      throw new Error(`Failed to set primary image: ${setError.message}`);
+    }
+  }
+
+  async updatePackageImageSortOrder(imageId: string, sortOrder: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('package_images')
+      .update({ sort_order: sortOrder })
+      .eq('id', imageId);
+
+    if (error) {
+      throw new Error(`Failed to update sort order: ${error.message}`);
+    }
+  }
+
+  async deletePackageImageRow(imageId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('package_images')
+      .delete()
+      .eq('id', imageId);
+
+    if (error) {
+      throw new Error(`Failed to delete package image row: ${error.message}`);
+    }
   }
 }
