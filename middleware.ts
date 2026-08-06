@@ -18,6 +18,12 @@ const PUBLIC_ROUTES = [
 function isPublicRoute(pathname: string) {
   return (
     PUBLIC_ROUTES.includes(pathname) ||
+    // Public listing pages have their own dynamic detail routes
+    // (e.g. /hotels/[slug], /destinations/[slug]) which are also
+    // unauthenticated. An exact-match-only check here sent those to
+    // /login even though the pages themselves require no session.
+    pathname.startsWith("/hotels/") ||
+    pathname.startsWith("/destinations/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/public") ||
     /\.(svg|png|jpg|jpeg|ico|webp)$/.test(pathname)
