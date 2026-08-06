@@ -17,7 +17,15 @@ import { requireRole } from "@/lib/auth/session";
 export async function getPublishedHotels(
   page: number = 1,
   limit: number = 10
-): Promise<{ data: HotelRecord[]; count: number }> {
+): Promise<{
+  data: HotelRecord[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}> {
 
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
