@@ -11,6 +11,21 @@ export async function getFeaturedDestinations(): Promise<DestinationRecord[]> {
   return repo.getFeaturedDestinations(8);
 }
 
+// --- PUBLIC-01: Public Marketing Pages (/destinations, /destinations/[slug]) ---
+// No requireRole — public read, same as getFeaturedDestinations() above.
+
+export async function getAllPublicDestinations(page: number = 1, limit: number = 20) {
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  return repo.getAllPublicDestinations(page, limit);
+}
+
+export async function getDestinationBySlug(slug: string): Promise<DestinationRecord | null> {
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  return repo.getDestinationBySlug(slug);
+}
+
 // --- ADMIN-06: Destination Management (CRUD) ---
 // Mirrors hotel.actions.ts (ADMIN-02). status kept as a validated
 // non-empty string (not a hardcoded enum) — same caution as
