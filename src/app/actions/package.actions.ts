@@ -3,12 +3,29 @@
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/session';
-import { PackageRepository, PackageRecord, PackageImageRow } from '@/lib/repositories/package.repository';
+import {
+  PackageRepository,
+  PackageRecord,
+  PackageImageRow,
+} from '@/lib/repositories/package.repository';
 
 export async function getFeaturedPackages(): Promise<PackageRecord[]> {
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
   return repo.getFeaturedPackages(8);
+}
+
+// --- BOOKING-01: Customer Package Booking Lookup ---
+// Read-only package lookup for an authenticated customer booking.
+// Intentionally does NOT use requireRole(['admin', 'super_admin']),
+// because normal authenticated customers must be able to create
+// bookings for packages.
+export async function getPackageForBooking(
+  id: string
+): Promise<PackageRecord | null> {
+  const supabase = await createClient();
+  const repo = new PackageRepository(supabase);
+  return repo.getPackageById(id);
 }
 
 // --- ADMIN-04: Package Management (CRUD) ---
@@ -29,14 +46,19 @@ const packageInputSchema = z.object({
 
 export type PackageInput = z.infer<typeof packageInputSchema>;
 
-export async function getAllPackagesAdmin(page: number = 1, limit: number = 20) {
+export async function getAllPackagesAdmin(
+  page: number = 1,
+  limit: number = 20
+) {
   await requireRole(['admin', 'super_admin']);
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
   return repo.getAllPackages(page, limit);
 }
 
-export async function getPackageByIdAdmin(id: string): Promise<PackageRecord | null> {
+export async function getPackageByIdAdmin(
+  id: string
+): Promise<PackageRecord | null> {
   await requireRole(['admin', 'super_admin']);
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
@@ -51,7 +73,10 @@ export async function createPackageAdmin(input: PackageInput) {
   return repo.createPackage(parsed);
 }
 
-export async function updatePackageAdmin(id: string, input: PackageInput) {
+export async function updatePackageAdmin(
+  id: string,
+  input: PackageInput
+) {
   await requireRole(['admin', 'super_admin']);
   const parsed = packageInputSchema.parse(input);
   const supabase = await createClient();
@@ -59,7 +84,7 @@ export async function updatePackageAdmin(id: string, input: PackageInput) {
   return repo.updatePackage(id, parsed);
 }
 
-export async function deletePackageAdmin(id: string): Promise<boolean> {
+export async function deletePackageAdmin(id: string): Promise<void> {
   await requireRole(['admin', 'super_admin']);
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
@@ -70,7 +95,13 @@ export async function deletePackageAdmin(id: string): Promise<boolean> {
 // All Supabase Storage calls (upload/remove/getPublicUrl) live here.
 // PackageRepository performs package_images table CRUD only.
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+];
+
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
 export interface PackageImageWithUrl extends PackageImageRow {
@@ -103,8 +134,11 @@ function extensionFromMimeType(mimeType: string): string {
   }
 }
 
-export async function getPackageImagesAdmin(packageId: string): Promise<PackageImageWithUrl[]> {
+export async function getPackageImagesAdmin(
+  packageId: string
+): Promise<PackageImageWithUrl[]> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
 
@@ -112,11 +146,15 @@ export async function getPackageImagesAdmin(packageId: string): Promise<PackageI
 
   return rows.map((row) => {
     const normalizedPath = normalizeStoragePath(row.storage_path);
+
     const { data: publicUrlData } = supabase.storage
       .from('package-images')
       .getPublicUrl(normalizedPath);
 
-    return { ...row, publicUrl: publicUrlData.publicUrl };
+    return {
+      ...row,
+      publicUrl: publicUrlData.publicUrl,
+    };
   });
 }
 
@@ -128,8 +166,11 @@ export async function uploadPackageImageAdmin(
   await requireRole(['admin', 'super_admin']);
 
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+    throw new Error(
+      'Only jpg, jpeg, png, and webp files are allowed.'
+    );
   }
+
   if (file.size > MAX_IMAGE_SIZE_BYTES) {
     throw new Error('Image must be 5MB or smaller.');
   }
@@ -137,24 +178,31 @@ export async function uploadPackageImageAdmin(
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
 
-  // Stable path: package-images/{packageId}/{uuid}.{ext} — never uses
-  // package slug, since slugs can change.
+  // Stable path: package-images/{packageId}/{uuid}.{ext}
+  // Never uses package slug, since slugs can change.
   const ext = extensionFromMimeType(file.type);
   const objectKey = `${packageId}/${crypto.randomUUID()}.${ext}`;
-  const storedPath = `package-images/${objectKey}`; // stored in DB, matches existing convention
+  const storedPath = `package-images/${objectKey}`;
 
   const { error: uploadError } = await supabase.storage
     .from('package-images')
-    .upload(objectKey, file, { contentType: file.type, upsert: false });
+    .upload(objectKey, file, {
+      contentType: file.type,
+      upsert: false,
+    });
 
   if (uploadError) {
-    throw new Error(`Failed to upload image: ${uploadError.message}`);
+    throw new Error(
+      `Failed to upload image: ${uploadError.message}`
+    );
   }
 
   const existing = await repo.listPackageImages(packageId);
-  const nextSortOrder = existing.length > 0
-    ? Math.max(...existing.map((img) => img.sort_order)) + 1
-    : 0;
+
+  const nextSortOrder =
+    existing.length > 0
+      ? Math.max(...existing.map((img) => img.sort_order)) + 1
+      : 0;
 
   const shouldBePrimary = isPrimary || existing.length === 0;
 
@@ -173,7 +221,10 @@ export async function uploadPackageImageAdmin(
     .from('package-images')
     .getPublicUrl(objectKey);
 
-  return { ...row, publicUrl: publicUrlData.publicUrl };
+  return {
+    ...row,
+    publicUrl: publicUrlData.publicUrl,
+  };
 }
 
 export async function setPrimaryPackageImageAdmin(
@@ -181,8 +232,10 @@ export async function setPrimaryPackageImageAdmin(
   imageId: string
 ): Promise<void> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   await repo.setPrimaryPackageImage(packageId, imageId);
 }
 
@@ -191,18 +244,24 @@ export async function reorderPackageImageAdmin(
   sortOrder: number
 ): Promise<void> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   await repo.updatePackageImageSortOrder(imageId, sortOrder);
 }
 
-export async function deletePackageImageAdmin(imageId: string): Promise<void> {
+export async function deletePackageImageAdmin(
+  imageId: string
+): Promise<void> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
 
   // Delete order: fetch row -> Storage.remove() -> only then delete DB row.
   const row = await repo.getPackageImageById(imageId);
+
   if (!row) {
     throw new Error('Image not found.');
   }
@@ -214,7 +273,9 @@ export async function deletePackageImageAdmin(imageId: string): Promise<void> {
     .remove([normalizedPath]);
 
   if (removeError) {
-    throw new Error(`Failed to delete image from storage: ${removeError.message}`);
+    throw new Error(
+      `Failed to delete image from storage: ${removeError.message}`
+    );
   }
 
   await repo.deletePackageImageRow(imageId);
