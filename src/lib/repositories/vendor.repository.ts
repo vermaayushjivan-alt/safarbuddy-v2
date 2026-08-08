@@ -2,13 +2,23 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
+// Field names reflect the live public.vendors table (verified against
+// production columns during VENDOR-01 audit), not the src/db/schema.ts
+// Drizzle definition, which diverged from the live table outside the
+// tracked migration history. owner_user_id nullability is unverified,
+// so it is typed nullable rather than assumed NOT NULL. status enum
+// values are unverified beyond the column existing, so it stays a
+// loose string rather than an invented union type (Bible Rule 8).
 export interface VendorRecord extends DatabaseRecord {
   id: string;
-  user_id: string;
-  business_name: string;
-  gst_number: string | null;
-  is_approved: boolean;
-  approved_at: string | null;
+  vendor_name: string;
+  vendor_type: string | null;
+  owner_user_id: string | null;
+  business_email: string | null;
+  business_phone: string | null;
+  gstin: string | null;
+  pan_number: string | null;
+  status: string;
 }
 
 export interface VendorBranchRecord extends DatabaseRecord {
