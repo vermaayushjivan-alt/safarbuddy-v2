@@ -30,12 +30,14 @@ function bookingDates(booking: BookingRecord): string {
 export default async function MyBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; created?: string }>;
 }) {
   const params = await searchParams;
   const page = Number(params.page ?? '1') || 1;
+  const justCreated = params.created ?? null;
 
-  const { data: bookings, total, totalPages, hasNext, hasPrev } = await getMyBookings(page, 20);
+  const { data: bookings, total, totalPages, hasNext, hasPrev } =
+    await getMyBookings(page, 20);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -46,6 +48,14 @@ export default async function MyBookingsPage({
         </p>
       </div>
 
+      {/* Success banner shown after createBooking() redirect */}
+      {justCreated && (
+        <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-[13px] text-green-700">
+          Booking placed successfully. Complete your payment below to confirm
+          your booking.
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-deep/15 bg-white">
         <table className="w-full text-left text-[13px]">
           <thead className="border-b border-deep/10 bg-mist text-[11px] uppercase tracking-wide text-ink/50">
@@ -55,24 +65,39 @@ export default async function MyBookingsPage({
               <th className="px-4 py-3 font-heading font-semibold">Guests</th>
               <th className="px-4 py-3 font-heading font-semibold">Price</th>
               <th className="px-4 py-3 font-heading font-semibold">Status</th>
-              <th className="px-4 py-3 font-heading font-semibold text-right">Actions</th>
+              <th className="px-4 py-3 font-heading font-semibold text-right">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
             {bookings.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-ink/50">
+                <td
+                  colSpan={6}
+                  className="px-4 py-10 text-center text-ink/50"
+                >
                   No bookings yet.
                 </td>
               </tr>
             ) : (
               bookings.map((booking) => (
-                <tr key={booking.id} className="border-b border-deep/10 last:border-0">
-                  <td className="px-4 py-3 font-medium text-deep capitalize">{booking.booking_type}</td>
-                  <td className="px-4 py-3 text-ink/70">{bookingDates(booking)}</td>
-                  <td className="px-4 py-3 text-ink/70">{booking.num_guests}</td>
+                <tr
+                  key={booking.id}
+                  className="border-b border-deep/10 last:border-0"
+                >
+                  <td className="px-4 py-3 font-medium capitalize text-deep">
+                    {booking.booking_type}
+                  </td>
                   <td className="px-4 py-3 text-ink/70">
-                    {booking.currency} {Number(booking.price_snapshot).toLocaleString('en-IN')}
+                    {bookingDates(booking)}
+                  </td>
+                  <td className="px-4 py-3 text-ink/70">
+                    {booking.num_guests}
+                  </td>
+                  <td className="px-4 py-3 text-ink/70">
+                    {booking.currency}{' '}
+                    {Number(booking.price_snapshot).toLocaleString('en-IN')}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -84,8 +109,27 @@ export default async function MyBookingsPage({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end">
-                      {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                    <div className="flex items-center justify-end gap-2">
+                      {/* PAY NOW — only for pending bookings */}
+                      {booking.status === 'pending' && (
+                        <Link
+                          href={`/dashboard/bookings/${booking.id}/pay`}
+                          className="focus-ring rounded-lg bg-orange px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-orange/90"
+                        >
+                          Pay Now
+                        </Link>
+                      )}
+
+                      {/* VIEW PAYMENT STATUS — for confirmed bookings */}
+                      {booking.status === 'confirmed' && (
+                        <span className="rounded-lg bg-green-50 px-3 py-1.5 text-[12px] font-semibold text-green-700">
+                          Paid ✓
+                        </span>
+                      )}
+
+                      {/* CANCEL — for pending or confirmed bookings */}
+                      {(booking.status === 'pending' ||
+                        booking.status === 'confirmed') && (
                         <CancelBookingButton bookingId={booking.id} />
                       )}
                     </div>
@@ -103,7 +147,9 @@ export default async function MyBookingsPage({
             href={`/dashboard/bookings?page=${page - 1}`}
             aria-disabled={!hasPrev}
             className={`focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep ${
-              hasPrev ? 'hover:bg-mist' : 'pointer-events-none opacity-40'
+              hasPrev
+                ? 'hover:bg-mist'
+                : 'pointer-events-none opacity-40'
             }`}
           >
             Previous
@@ -115,7 +161,9 @@ export default async function MyBookingsPage({
             href={`/dashboard/bookings?page=${page + 1}`}
             aria-disabled={!hasNext}
             className={`focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep ${
-              hasNext ? 'hover:bg-mist' : 'pointer-events-none opacity-40'
+              hasNext
+                ? 'hover:bg-mist'
+                : 'pointer-events-none opacity-40'
             }`}
           >
             Next
