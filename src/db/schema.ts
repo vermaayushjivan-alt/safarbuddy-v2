@@ -1,5 +1,6 @@
 // SafarBuddy — Drizzle ORM Schema
-// DB-01 Core Foundation (roles, permissions, users, vendors, app_settings, otp_verifications)
+// DB-01 Core Foundation (roles, permissions, users, vendors, app_settings,
+// otp_verifications) plus BOOKING-01 (bookings) and PAY-01 (payments).
 //
 // GLOBAL RULES followed (per DATABASE_BIBLE):
 // - UUID primary keys via gen_random_uuid()
@@ -235,21 +236,15 @@ export const otpVerifications = pgTable(
 /* -------------------------------------------------------------------------- */
 /* bookings (BOOKING-01)                                                      */
 /*                                                                            */
-/* NOTE on placement: unlike hotels/packages/destinations/offers (which are   */
-/* "content" tables accessed directly via the Supabase client through        */
-/* BaseRepository per DATABASE_BIBLE.md), `bookings` is defined here in       */
-/* Drizzle per explicit BOOKING-01 approval. The repository layer            */
-/* (BookingRepository) still uses the same BaseRepository + hand-written     */
-/* BookingRecord interface pattern as HotelRepository/PackageRepository —    */
-/* this Drizzle definition exists as the schema source of truth / migration  */
-/* reference only, matching the SQL in                                       */
-/* src/db/sql/003_booking01_schema.sql.                                      */
+/* NOTE: unlike hotels/packages/destinations/offers (content tables accessed  */
+/* via BaseRepository), bookings is defined here in Drizzle per explicit     */
+/* BOOKING-01 approval. BookingRepository still uses the same BaseRepository */
+/* + hand-written BookingRecord interface pattern. This Drizzle definition   */
+/* exists as the schema source of truth / migration reference only,          */
+/* matching src/db/sql/003_booking01_schema.sql.                             */
 /*                                                                            */
-/* hotel_id / package_id reference tables (hotels, packages) that are not    */
-/* part of the Drizzle schema, so no drizzle .references() is declared for   */
-/* those two columns — the FK constraint itself is created in raw SQL        */
-/* (003_booking01_schema.sql), consistent with hotels/packages living        */
-/* outside Drizzle's managed schema.                                         */
+/* hotel_id / package_id reference tables not in Drizzle schema, so no      */
+/* .references() declared — FK constraint is in raw SQL migration.           */
 /* -------------------------------------------------------------------------- */
 
 export const bookings = pgTable(
@@ -266,4 +261,202 @@ export const bookings = pgTable(
     checkOutDate: date("check_out_date"),
     travelDate: date("travel_date"),
     numGuests: integer("num_guests").notNull().default(1),
-    
+    priceSnapshot: numeric("price_snapshot", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("INR"),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    cancellationReason: text("cancellation_reason"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    ...auditColumns,
+  },
+  (table) => ({
+    userIdx: index("bookings_user_id_idx").on(table.userId),
+    hotelIdx: index("bookings_hotel_id_idx").on(table.hotelId),
+    packageIdx: index("bookings_package_id_idx").on(table.packageId),
+    statusIdx: index("bookings_status_idx").on(table.status),
+  })
+);
+
+export type Booking = typeof bookings.$inferSelect;
+export type NewBooking = typeof bookings.$inferInsert;
+
+export type BookingType = "hotel" | "package";
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "cancelled"
+  | "completed";
+
+/* -------------------------------------------------------------------------- */
+/* payments (PAY-01)                                                          */
+/*                                                                            */
+/* Separate table — payments.booking_id → bookings.id                        */
+/* Multiple payment attempts per booking supported (retry model).            */
+/* Refunds are out of scope for PAY-01.                                      */
+/* bookings table is not modified — BOOKING-01 remains frozen.               */
+/*                                                                            */
+/* booking_id references bookings (in Drizzle schema) so .references() is    */
+/* declared. user_id references users (in Drizzle schema) likewise.          */
+/* Both use onDelete: "restrict" — payment records are financial audit data. */
+/* -------------------------------------------------------------------------- */
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "restrict" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    cfOrderId: varchar("cf_order_id", { length: 100 }).notNull(),
+    cfPaymentId: varchar("cf_payment_id", { length: 100 }),
+    paymentSessionId: text("payment_session_id"),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("INR"),
+    status: varchar("status", { length: 30 }).notNull().default("initiated"),
+    cfPaymentStatus: varchar("cf_payment_status", { length: 50 }),
+    paymentMethod: varchar("payment_method", { length: 50 }),
+    failureReason: text("failure_reason"),
+    initiatedAt: timestamp("initiated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    ...auditColumns,
+  },
+  (table) => ({
+    bookingIdx: index("payments_booking_id_idx").on(table.bookingId),
+    userIdx: index("payments_user_id_idx").on(table.userId),
+    statusIdx: index("payments_status_idx").on(table.status),
+    cfOrderIdIdx: index("payments_cf_order_id_idx").on(table.cfOrderId),
+    cfPaymentIdIdx: index("payments_cf_payment_id_idx").on(table.cfPaymentId),
+    cfOrderIdUnique: uniqueIndex("payments_cf_order_id_unique").on(
+      table.cfOrderId
+    ),
+  })
+);
+
+export type Payment = typeof payments.$inferSelect;
+export type NewPayment = typeof payments.$inferInsert;
+
+export type PaymentStatus =
+  | "initiated"
+  | "processing"
+  | "paid"
+  | "failed"
+  | "flagged";
+
+/* -------------------------------------------------------------------------- */
+/* Relations                                                                  */
+/* -------------------------------------------------------------------------- */
+
+export const usersRelations = relations(users, ({ many, one }) => ({
+  userRoles: many(userRoles),
+  vendor: one(vendors, {
+    fields: [users.id],
+    references: [vendors.userId],
+  }),
+  bookings: many(bookings),
+  payments: many(payments),
+}));
+
+export const userRolesRelations = relations(userRoles, ({ one }) => ({
+  user: one(users, {
+    fields: [userRoles.userId],
+    references: [users.id],
+  }),
+  role: one(roles, {
+    fields: [userRoles.roleId],
+    references: [roles.id],
+  }),
+}));
+
+export const rolesRelations = relations(roles, ({ many }) => ({
+  userRoles: many(userRoles),
+  rolePermissions: many(rolePermissions),
+}));
+
+export const permissionsRelations = relations(permissions, ({ many }) => ({
+  rolePermissions: many(rolePermissions),
+}));
+
+export const rolePermissionsRelations = relations(
+  rolePermissions,
+  ({ one }) => ({
+    role: one(roles, {
+      fields: [rolePermissions.roleId],
+      references: [roles.id],
+    }),
+    permission: one(permissions, {
+      fields: [rolePermissions.permissionId],
+      references: [permissions.id],
+    }),
+  })
+);
+
+export const vendorsRelations = relations(vendors, ({ one, many }) => ({
+  user: one(users, {
+    fields: [vendors.userId],
+    references: [users.id],
+  }),
+  branches: many(vendorBranches),
+}));
+
+export const vendorBranchesRelations = relations(vendorBranches, ({ one }) => ({
+  vendor: one(vendors, {
+    fields: [vendorBranches.vendorId],
+    references: [vendors.id],
+  }),
+}));
+
+export const bookingsRelations = relations(bookings, ({ one, many }) => ({
+  user: one(users, {
+    fields: [bookings.userId],
+    references: [users.id],
+  }),
+  payments: many(payments),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  booking: one(bookings, {
+    fields: [payments.bookingId],
+    references: [bookings.id],
+  }),
+  user: one(users, {
+    fields: [payments.userId],
+    references: [users.id],
+  }),
+}));
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type Role = typeof roles.$inferSelect;
+export type NewRole = typeof roles.$inferInsert;
+
+export type Permission = typeof permissions.$inferSelect;
+export type NewPermission = typeof permissions.$inferInsert;
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+
+export type Vendor = typeof vendors.$inferSelect;
+export type NewVendor = typeof vendors.$inferInsert;
+
+export type VendorBranch = typeof vendorBranches.$inferSelect;
+export type NewVendorBranch = typeof vendorBranches.$inferInsert;
+
+export type AppSetting = typeof appSettings.$inferSelect;
+export type OtpVerification = typeof otpVerifications.$inferSelect;
+
+export type AppRole =
+  | "admin"
+  | "vendor"
+  | "user"
+  | "hotel_owner"
+  | "travel_agent"
+  | "super_admin";
