@@ -20,7 +20,9 @@ import {
   varchar,
   boolean,
   timestamp,
+  date,
   integer,
+  numeric,
   uniqueIndex,
   index,
   primaryKey,
@@ -231,6 +233,61 @@ export const otpVerifications = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* bookings (BOOKING-01)                                                      */
+/*                                                                            */
+/* NOTE on placement: unlike hotels/packages/destinations/offers (which are   */
+/* "content" tables accessed directly via the Supabase client through        */
+/* BaseRepository per DATABASE_BIBLE.md), `bookings` is defined here in       */
+/* Drizzle per explicit BOOKING-01 approval. The repository layer            */
+/* (BookingRepository) still uses the same BaseRepository + hand-written     */
+/* BookingRecord interface pattern as HotelRepository/PackageRepository —    */
+/* this Drizzle definition exists as the schema source of truth / migration  */
+/* reference only, matching the SQL in                                      */
+/* src/db/sql/003_booking01_schema.sql.                                      */
+/*                                                                            */
+/* hotel_id / package_id reference tables (hotels, packages) that are not    */
+/* part of the Drizzle schema, so no drizzle .references() is declared for   */
+/* those two columns — the FK constraint itself is created in raw SQL        */
+/* (003_booking01_schema.sql), consistent with hotels/packages living        */
+/* outside Drizzle's managed schema.                                         */
+/* -------------------------------------------------------------------------- */
+
+export const bookings = pgTable(
+  "bookings",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    bookingType: varchar("booking_type", { length: 20 }).notNull(), // 'hotel' | 'package'
+    hotelId: uuid("hotel_id"), // FK -> public.hotels.id (raw SQL), nullable
+    packageId: uuid("package_id"), // FK -> public.packages.id (raw SQL), nullable
+    checkInDate: date("check_in_date"),
+    checkOutDate: date("check_out_date"),
+    travelDate: date("travel_date"),
+    numGuests: integer("num_guests").notNull().default(1),
+    priceSnapshot: numeric("price_snapshot", { precision: 10, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("INR"),
+    status: varchar("status", { length: 20 }).notNull().default("pending"), // pending | confirmed | cancelled | completed
+    cancellationReason: text("cancellation_reason"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    ...auditColumns,
+  },
+  (table) => ({
+    userIdx: index("bookings_user_id_idx").on(table.userId),
+    hotelIdx: index("bookings_hotel_id_idx").on(table.hotelId),
+    packageIdx: index("bookings_package_id_idx").on(table.packageId),
+    statusIdx: index("bookings_status_idx").on(table.status),
+  })
+);
+
+export type Booking = typeof bookings.$inferSelect;
+export type NewBooking = typeof bookings.$inferInsert;
+
+export type BookingType = "hotel" | "package";
+export type BookingStatus = "pending" | "confirmed" | "cancelled" | "completed";
+
+/* -------------------------------------------------------------------------- */
 /* Relations                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -239,6 +296,14 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   vendor: one(vendors, {
     fields: [users.id],
     references: [vendors.userId],
+  }),
+  bookings: many(bookings),
+}));
+
+export const bookingsRelations = relations(bookings, ({ one }) => ({
+  user: one(users, {
+    fields: [bookings.userId],
+    references: [users.id],
   }),
 }));
 
