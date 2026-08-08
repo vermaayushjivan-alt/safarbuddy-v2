@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDestinationByIdAdmin } from "@/app/actions/destination.actions";
 import { DestinationForm } from "@/components/admin/destinations/DestinationForm";
+import { isValidUuid } from "@/lib/utils/uuid";
 
 export default async function EditDestinationPage({
   params,
@@ -9,6 +10,11 @@ export default async function EditDestinationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  if (!isValidUuid(id)) {
+    notFound();
+  }
+
   const destination = await getDestinationByIdAdmin(id);
 
   if (!destination) {
