@@ -17,7 +17,7 @@ export default async function VendorBranchesPage({
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       <h1 className="mb-2 font-display text-3xl text-deep">
-        {vendor.business_name} — Branches
+        {vendor.vendor_name} — Branches
       </h1>
       <p className="mb-8 text-[14px] text-ink/60">
         Manage branch locations for this vendor.
