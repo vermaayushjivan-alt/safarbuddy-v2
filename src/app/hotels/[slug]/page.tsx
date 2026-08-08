@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MapPin, Star } from "lucide-react";
 import Navbar from "@/components/home/Navbar";
@@ -103,14 +104,13 @@ export default async function HotelDetailPage({
             <p className="mt-1 font-display text-2xl text-orange">
               ₹{formatPrice(hotel.starting_price)}
             </p>
-            <button
-              type="button"
-              disabled
-              className="mt-5 w-full cursor-not-allowed rounded-xl bg-deep/40 py-2.5 text-center font-heading text-[13px] font-semibold text-cream"
-              title="Booking is not available yet"
+            {/* BOOKING-01: was a disabled "Booking coming soon" button. */}
+            <Link
+              href={`/hotels/${hotel.slug}/book`}
+              className="focus-ring mt-5 block w-full rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2"
             >
-              Booking coming soon
-            </button>
+              Book Now
+            </Link>
           </aside>
         </div>
       </section>
