@@ -267,20 +267,4 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // -------------------------------------------------------------------------
-  // STEP 11 — Update payment status.
-  // payment_method is NOT passed — UpdatePaymentStatusData does not
-  // include that field. The field remains null in the DB for PAY-01 scope.
-  // -------------------------------------------------------------------------
-
-  const isTerminal =
-    applicationStatus === 'paid' || applicationStatus === 'failed';
-
-  try {
-    await paymentRepo.updatePaymentStatus(payment.id, {
-      status: applicationStatus,
-      cf_payment_id:
-        typeof cfPaymentId === 'string' ? cfPaymentId : undefined,
-      cf_payment_status: rawPaymentStatus,
-      failure_reason:
-        applicationStatus === 'failed' || applicationStatus === 'flagged'
-          ? typeof paymentMessage 
+  // STEP 11 — Update payment 
