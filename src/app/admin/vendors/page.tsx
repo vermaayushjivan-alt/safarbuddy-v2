@@ -41,9 +41,9 @@ export default async function AdminVendorsListPage({
         <table className="w-full text-left text-[13px]">
           <thead className="border-b border-deep/10 bg-mist text-[11px] uppercase tracking-wide text-ink/50">
             <tr>
-              <th className="px-4 py-3 font-heading font-semibold">Business Name</th>
-              <th className="px-4 py-3 font-heading font-semibold">GST Number</th>
-              <th className="px-4 py-3 font-heading font-semibold">Approved</th>
+              <th className="px-4 py-3 font-heading font-semibold">Vendor Name</th>
+              <th className="px-4 py-3 font-heading font-semibold">GSTIN</th>
+              <th className="px-4 py-3 font-heading font-semibold">Status</th>
               <th className="px-4 py-3 font-heading font-semibold text-right">
                 Actions
               </th>
@@ -60,12 +60,12 @@ export default async function AdminVendorsListPage({
               vendors.map((vendor) => (
                 <tr key={vendor.id} className="border-b border-deep/10 last:border-0">
                   <td className="px-4 py-3 font-medium text-deep">
-                    {vendor.business_name}
+                    {vendor.vendor_name}
                   </td>
-                  <td className="px-4 py-3 text-ink/70">{vendor.gst_number ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink/70">{vendor.gstin ?? "—"}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex rounded-full bg-mist px-2 py-0.5 text-[11px] font-semibold text-deep">
-                      {vendor.is_approved ? "Yes" : "No"}
+                      {vendor.status}
                     </span>
                   </td>
                   <td className="px-4 py-3">
