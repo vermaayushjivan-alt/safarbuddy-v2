@@ -5,6 +5,7 @@ import {
   MapPin,
   Tag,
   Store,
+  CalendarCheck,
 } from "lucide-react";
 
 const sections = [
@@ -37,6 +38,12 @@ const sections = [
     label: "Vendors",
     description: "Manage vendor accounts and approvals.",
     icon: Store,
+  },
+  {
+    href: "/admin/bookings",
+    label: "Bookings",
+    description: "View, confirm, cancel, and complete hotel and package bookings.",
+    icon: CalendarCheck,
   },
 ];
 
