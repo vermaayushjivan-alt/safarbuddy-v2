@@ -133,7 +133,17 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       const { data, error } = await query.single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
+        // PGRST116 = no matching row. 22P02 = Postgres
+        // invalid_text_representation, e.g. an id that isn't a valid
+        // UUID at all (a stale link, a bookmarked/hand-typed URL, or a
+        // literal unresolved route segment like "[id]" reaching this
+        // far). Both mean "no such record" from the caller's
+        // perspective — surfacing 22P02 as a raw DatabaseError instead
+        // turns any malformed id into an unhandled 500 ("An error
+        // occurred in the Server Components render") instead of the
+        // clean notFound() every admin edit/images page already
+        // handles for the PGRST116 case.
+        if (error.code === 'PGRST116' || error.code === '22P02') {
           return null;
         }
         throw handleDatabaseError(error);
@@ -169,7 +179,9 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       const { data, error } = await query.single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
+        // See findById() above for why 22P02 (invalid UUID syntax) is
+        // treated the same as PGRST116 (no matching row) here.
+        if (error.code === 'PGRST116' || error.code === '22P02') {
           return null;
         }
         throw handleDatabaseError(error);
@@ -528,54 +540,4 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       if (error instanceof DatabaseError) {
         throw error;
       }
-      throw new DatabaseError('Failed to restore record');
-    }
-  }
-
-  /**
-   * Count records matching filters
-   */
-  protected async count(filters?: FilterOptions[]): Promise<number> {
-    try {
-      let queryBuilder = this.supabase
-        .from(this.tableName)
-        .select('*', { count: 'exact', head: true });
-
-      if (this.softDelete) {
-        queryBuilder = queryBuilder.is(this.softDeleteColumn, null);
-      }
-
-      if (filters) {
-        queryBuilder = this.applyFilters(queryBuilder, filters);
-      }
-
-      const { count, error } = await queryBuilder;
-
-      if (error) {
-        throw handleDatabaseError(error);
-      }
-
-      return count ?? 0;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to count records');
-    }
-  }
-
-  /**
-   * Check if a record exists
-   */
-  protected async exists(filters: FilterOptions[]): Promise<boolean> {
-    try {
-      const count = await this.count(filters);
-      return count > 0;
-    } catch (error) {
-      if (error instanceof DatabaseError) {
-        throw error;
-      }
-      throw new DatabaseError('Failed to check record existence');
-    }
-  }
-}
+      throw new
