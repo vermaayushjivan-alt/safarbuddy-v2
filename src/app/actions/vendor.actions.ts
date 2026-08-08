@@ -11,11 +11,21 @@ import {
 
 // --- ADMIN-09: Vendor Management (CRUD) ---
 
+// Field names reflect the live public.vendors table (see VENDOR-01
+// audit/plan). owner_user_id nullability is unverified (existing live
+// rows currently have it null), so it stays optional/nullable rather
+// than a required uuid. status enum values are unverified beyond the
+// column existing, so it is validated as a non-empty string only —
+// no enum is invented (Bible Rule 8).
 const vendorInputSchema = z.object({
-  user_id: z.string().uuid('A valid user ID (UUID) is required'),
-  business_name: z.string().min(1, 'Business name is required'),
-  gst_number: z.string().nullable().optional(),
-  is_approved: z.boolean().optional(),
+  vendor_name: z.string().min(1, 'Vendor name is required'),
+  vendor_type: z.string().nullable().optional(),
+  owner_user_id: z.string().uuid('Owner user ID must be a valid UUID').nullable().optional(),
+  business_email: z.string().email('Must be a valid email').nullable().optional(),
+  business_phone: z.string().nullable().optional(),
+  gstin: z.string().nullable().optional(),
+  pan_number: z.string().nullable().optional(),
+  status: z.string().min(1, 'Status is required'),
 });
 
 export type VendorInput = z.infer<typeof vendorInputSchema>;
