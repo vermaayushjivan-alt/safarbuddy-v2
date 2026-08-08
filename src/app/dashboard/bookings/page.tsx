@@ -51,7 +51,8 @@ export default async function MyBookingsPage({
       {/* Success banner shown after createBooking() redirect */}
       {justCreated && (
         <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-[13px] text-green-700">
-          Booking placed successfully. Complete your payment below to confirm
+          ✓ Booking placed successfully. Click{' '}
+          <strong>Pay Now</strong> below to complete your payment and confirm
           your booking.
         </div>
       )}
@@ -110,7 +111,8 @@ export default async function MyBookingsPage({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
-                      {/* PAY NOW — only for pending bookings */}
+
+                      {/* PAY NOW — pending bookings only */}
                       {booking.status === 'pending' && (
                         <Link
                           href={`/dashboard/bookings/${booking.id}/pay`}
@@ -120,14 +122,14 @@ export default async function MyBookingsPage({
                         </Link>
                       )}
 
-                      {/* VIEW PAYMENT STATUS — for confirmed bookings */}
+                      {/* PAID indicator — confirmed bookings */}
                       {booking.status === 'confirmed' && (
                         <span className="rounded-lg bg-green-50 px-3 py-1.5 text-[12px] font-semibold text-green-700">
                           Paid ✓
                         </span>
                       )}
 
-                      {/* CANCEL — for pending or confirmed bookings */}
+                      {/* CANCEL — pending or confirmed only */}
                       {(booking.status === 'pending' ||
                         booking.status === 'confirmed') && (
                         <CancelBookingButton bookingId={booking.id} />
