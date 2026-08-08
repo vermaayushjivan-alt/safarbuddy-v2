@@ -42,6 +42,9 @@ export interface PaymentRecord extends DatabaseRecord {
   // Matches BookingRecord pattern exactly.
 }
 
+type PaymentUpdateData =
+  Parameters<BaseRepository<PaymentRecord>['update']>[1];
+
 // ---------------------------------------------------------------------------
 // UpdatePaymentStatusData
 // Exact fields the webhook handler and action layer are permitted to update.
@@ -176,10 +179,27 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     id: string,
     data: UpdatePaymentStatusData
   ): Promise<PaymentRecord> {
-    return this.update(
-      id,
-      data as Parameters<BaseRepository<PaymentRecord>['update']>[1]
-    );
+    const updateData: PaymentUpdateData = {
+      status: data.status,
+    };
+
+    if (data.cf_payment_id !== undefined) {
+      updateData.cf_payment_id = data.cf_payment_id;
+    }
+
+    if (data.cf_payment_status !== undefined) {
+      updateData.cf_payment_status = data.cf_payment_status;
+    }
+
+    if (data.failure_reason !== undefined) {
+      updateData.failure_reason = data.failure_reason;
+    }
+
+    if (data.completed_at !== undefined) {
+      updateData.completed_at = data.completed_at;
+    }
+
+    return this.update(id, updateData);
   }
 
   // --- Admin ---
