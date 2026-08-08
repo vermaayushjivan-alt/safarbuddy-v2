@@ -267,4 +267,89 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // -------------------------------------------------------------------------
-  // STEP 11 — Update payment 
+  // STEP 11 — Update payment status.
+  // payment_method is NOT passed — UpdatePaymentStatusData does not
+  // include that field. The field remains null in the DB for PAY-01 scope.
+  // failure_reason ternary is fully parenthesised to prevent parser errors.
+  // -------------------------------------------------------------------------
+
+  const isTerminal =
+    applicationStatus === 'paid' || applicationStatus === 'failed';
+
+  const failureReason: string | undefined =
+    applicationStatus === 'failed' || applicationStatus === 'flagged'
+      ? typeof paymentMessage === 'string'
+        ? paymentMessage
+        : `Payment ${rawPaymentStatus}`
+      : undefined;
+
+  try {
+    await paymentRepo.updatePaymentStatus(payment.id, {
+      status: applicationStatus,
+      cf_payment_id:
+        typeof cfPaymentId === 'string' ? cfPaymentId : undefined,
+      cf_payment_status: rawPaymentStatus,
+      failure_reason: failureReason,
+      completed_at: isTerminal ? new Date().toISOString() : undefined,
+    });
+  } catch {
+    console.error(
+      `[Webhook] Failed to update payment status for ${payment.id}`
+    );
+    return serverError();
+  }
+
+  // -------------------------------------------------------------------------
+  // STEP 12 — Confirm booking (SUCCESS ONLY).
+  // -------------------------------------------------------------------------
+
+  if (applicationStatus === 'paid') {
+    let booking: Awaited<ReturnType<typeof bookingRepo.getBookingById>>;
+
+    try {
+      booking = await bookingRepo.getBookingById(payment.booking_id);
+    } catch {
+      console.error(
+        `[Webhook] Failed to fetch booking ${payment.booking_id}`
+      );
+      return serverError();
+    }
+
+    if (!booking) {
+      console.error(
+        `[Webhook] Booking ${payment.booking_id} not found after payment update`
+      );
+      return ok();
+    }
+
+    if (booking.status === 'pending') {
+      try {
+        await bookingRepo.confirmBooking(payment.booking_id);
+        console.log(
+          `[Webhook] Booking ${payment.booking_id} confirmed after payment ${payment.id}`
+        );
+      } catch {
+        console.error(
+          `[Webhook] Failed to confirm booking ${payment.booking_id}`
+        );
+        return serverError();
+      }
+    } else if (booking.status === 'confirmed') {
+      console.log(
+        `[Webhook] Booking ${payment.booking_id} already confirmed — idempotent`
+      );
+    } else {
+      console.warn(
+        `[Webhook] Booking ${payment.booking_id} is in status ` +
+          `'${booking.status}' — cannot confirm. Payment marked paid. ` +
+          `Admin review required.`
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // STEP 13 — Return 200 for all successfully processed events.
+  // -------------------------------------------------------------------------
+
+  return ok();
+}
