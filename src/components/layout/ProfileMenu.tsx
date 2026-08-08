@@ -69,6 +69,9 @@ export default function ProfileMenu() {
           <a href="/dashboard" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
             Dashboard
           </a>
+          <a href="/dashboard/bookings" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
+            My Bookings
+          </a>
           <button type="button" role="menuitem" onClick={() => { setOpen(false); signOut(); }} className="focus-ring block w-full px-4 py-2.5 text-left font-heading text-[14px] font-medium text-orange hover:bg-mist">
             Logout
           </button>
