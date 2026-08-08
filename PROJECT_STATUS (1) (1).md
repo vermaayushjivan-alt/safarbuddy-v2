@@ -203,7 +203,15 @@ After booking architecture is established:
 
 ### 2. Dedicated Architecture Cleanup
 
-After feature milestones are complete:
+After feature milestones are complete:    
+
+### ADMIN-09 (Vendor Management) — COMPLETE — Frozen
+
+Features: `VendorRepository` extends `BaseRepository` for vendor CRUD (`getAllVendors`, `getVendorById`, `createVendor`, `updateVendor`, `deleteVendor` with soft-delete via `deleted_at`), direct Supabase calls for `vendor_branches` (`listVendorBranches`, `getVendorBranchById`, `createVendorBranch`, `updateVendorBranch`, `deleteVendorBranch`), `vendor.actions.ts` with role protection and validation, `VendorForm`, `VendorBranchManager`, `/admin/vendors`, `/admin/vendors/new`, `/admin/vendors/[id]/edit`, `/admin/vendors/[id]/branches`.
+
+**Stability hardening:** `src/lib/repositories/base.repository.ts` was corrected after a production/build parsing failure so the repository layer can be imported safely by vendor and other repository consumers.
+
+**2026-08-09 — VENDOR-01 field-mapping correction:** An audit proved `VendorRecord`, `vendorInputSchema`, and the vendor admin UI were reading/writing column names (`business_name`, `user_id`, `gst_number`, `is_approved`, `approved_at`) that never existed on the live `public.vendors` table, which uses `vendor_name`, `vendor_type`, `owner_user_id`, `business_email`, `business_phone`, `gstin`, `pan_number`, `status`. The live table was queried correctly and all 3 existing vendor rows were always returned — only the field mapping was wrong, which is why business names rendered blank while the count was correct. Reconciled `src/lib/repositories/vendor.repository.ts` (`VendorRecord`), `src/app/actions/vendor.actions.ts` (`vendorInputSchema`), `src/components/admin/vendors/VendorForm.tsx`, `src/app/admin/vendors/page.tsx`, and `src/app/admin/vendors/[id]/branches/page.tsx` to the real live column names. No schema/SQL change, no data migration — application-layer mapping only. `owner_user_id` is kept nullable/optional (nullability unverified beyond existing rows having it null) and `status` is validated as a non-empty string with no invented enum (its allowed values are unverified). Existing vendor UUIDs (Golden Sands Hospitality, Grand Palace Hospitality Group, SafarBuddy Holidays Pvt Ltd) untouched. `vendor_branches` and its table/columns were not touched — out of scope for this fix. Hotel `vendor_id` creation gap, `findWithPagination` error, and Google OAuth issue remain separate, unfixed, and intentionally out of scope for this milestone.
 
 - Remove confirmed dead repository tree.
 - Remove unused legacy auth helpers.
