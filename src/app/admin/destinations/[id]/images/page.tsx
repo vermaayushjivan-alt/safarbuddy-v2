@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getDestinationByIdAdmin } from "@/app/actions/destination.actions";
 import { DestinationImageManager } from "@/components/admin/destinations/DestinationImageManager";
+import { isValidUuid } from "@/lib/utils/uuid";
 
 export default async function DestinationImagesPage({
   params,
@@ -8,6 +9,11 @@ export default async function DestinationImagesPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  if (!isValidUuid(id)) {
+    notFound();
+  }
+
   const destination = await getDestinationByIdAdmin(id);
 
   if (!destination) {
