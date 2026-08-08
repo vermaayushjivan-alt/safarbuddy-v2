@@ -64,16 +64,33 @@ Features: `VendorRepository` extends `BaseRepository` for vendor CRUD (`getAllVe
 
 **Stability hardening:** `src/lib/repositories/base.repository.ts` was corrected after a production/build parsing failure so the repository layer can be imported safely by vendor and other repository consumers.
 
+### BOOKING-01 (Hotel + Package Bookings) — COMPLETE — Frozen
+
+Authenticated-customer booking for hotels and packages, decoupled from payment. Approved schema: single `bookings` table (`booking_type` discriminator, mutually-exclusive `hotel_id`/`package_id`, `price_snapshot` captured at creation from the hotel/package's current `starting_price`, lifecycle `pending → confirmed/cancelled → completed`). No room/departure inventory, no availability engine, no guest checkout, no payment, no vendor access — all deferred per approved scope.
+
+Features:
+- DB: `bookings` table added to `src/db/schema.ts` (Drizzle — schema/type source of truth only, per BOOKING-01 approval; the repository itself uses the same Supabase-client `BaseRepository` pattern as `hotels`/`packages`, consistent with `DATABASE_BIBLE.md`) and `src/db/sql/003_booking01_schema.sql` (raw SQL, additive only, includes CHECK constraints for `booking_type`, `status`, `num_guests > 0`, and the hotel/package XOR rule).
+- Repository: `BookingRepository` (`createBooking`, `getBookingById`, `getMyBookings`, `getAllBookings`, `cancelBooking`, `confirmBooking`, `completeBooking`).
+- Server Actions (`booking.actions.ts`): customer (`createBooking`, `getMyBookings`, `getMyBookingById`, `cancelMyBooking` — ownership-checked, auth-derived `user_id`, never trusted from client) and admin (`getAllBookingsAdmin`, `getBookingByIdAdmin`, `confirmBookingAdmin`, `cancelBookingAdmin`, `completeBookingAdmin` — `requireRole(['admin','super_admin'])`), full Zod validation including hotel/package cross-field rules.
+- One additive public action, `getPackageForBooking(id)`, added to `package.actions.ts` — no public `/packages/[slug]` page exists yet, so package booking is addressed by id, not slug.
+- UI: `/hotels/[slug]/book`, `/packages/[id]/book` (customer booking forms), `/dashboard/bookings` (customer "My Bookings", with cancel), `/admin/bookings` (admin list with status filter, confirm/cancel/complete). Hotel detail page's previously-disabled "Booking coming soon" button now links to `/hotels/[slug]/book`. Admin dashboard and `ProfileMenu` link to the new pages. No existing UI/design system changed — new pages reuse existing Tailwind tokens and component patterns (mirrors `OfferForm`/admin list pages).
+- Auth note: `/hotels/*` is in `middleware.ts`'s public allowlist (AUTH-06, frozen — not modified), so the hotel booking page adds its own explicit `getAuthUser()` guard rather than touching that frozen rule. The package booking page is naturally covered by middleware's default-protected behavior, with the same explicit guard for consistency.
+
+**Verification:** TypeScript PASS, ESLint PASS (0 errors; 1 pre-existing unrelated warning). Production build blocked by the same environment-only Google Fonts network restriction documented in the 2026-08-08 stabilization pass above — not a code error.
+
 ---
 
 ## Pending
 
-### Booking & Payments
+### Payments
 
-- Booking tables / booking flow — Pending.
 - Payment tables / payment flow — Pending.
 
-These must not be invented or implemented until the database architecture is explicitly defined according to `DATABASE_BIBLE.md`.
+Must not be invented or implemented until the database architecture is explicitly defined according to `DATABASE_BIBLE.md`. Booking (BOOKING-01) intentionally creates bookings independent of payment so this can follow as its own milestone.
+
+### Booking — deferred to a later milestone
+
+Room/departure inventory, availability calendars, coupons, commissions, invoices, vouchers, notifications, guest checkout, and vendor-facing booking access were explicitly out of scope for BOOKING-01 and remain unbuilt.
 
 ### Architecture Cleanup
 
@@ -173,21 +190,7 @@ If image uploads continue to fail after deployment, the exact Supabase/Storage e
 
 ## Next Development Phase
 
-### 1. Booking Flow
-
-Build the booking system only after the required database schema is explicitly defined and approved according to `DATABASE_BIBLE.md`.
-
-Scope will include:
-
-- Booking database design
-- Booking repository
-- Server Actions
-- Validation
-- Role/access rules
-- Booking UI
-- Booking lifecycle/status handling
-
-### 2. Payment Flow
+### 1. Payment Flow
 
 After booking architecture is established:
 
@@ -196,9 +199,9 @@ After booking architecture is established:
 - Payment actions
 - Payment status handling
 - Success/failure handling
-- Booking/payment relationship
+- Booking/payment relationship (linking a `bookings` row to its payment once the payment schema exists)
 
-### 3. Dedicated Architecture Cleanup
+### 2. Dedicated Architecture Cleanup
 
 After feature milestones are complete:
 
@@ -208,7 +211,7 @@ After feature milestones are complete:
 - Reconcile documentation and source definitions.
 - Verify no active imports depend on the files before deletion.
 
-### 4. Final Production Hardening
+### 3. Final Production Hardening
 
 At the end of the feature roadmap, perform one dedicated final pass covering:
 
@@ -239,3 +242,5 @@ At the end of the feature roadmap, perform one dedicated final pass covering:
 - **v4 (2026-08-08 auth/database stabilization)** — Fixed role-name normalization in `src/lib/auth/session.ts`, verified live Super Admin access to `/admin`, investigated the live `public.users` schema mismatch, and confirmed that legacy user columns were not part of the active authentication path.
 
 - **v5 (2026-08-08 admin routing/repository hardening)** — Added UUID boundary validation for destination edit/images routes, added reusable UUID validation utility, corrected `base.repository.ts` after a parsing/build failure, and documented image Storage/RLS live verification as remaining production-hardening work. Updated this status file to make Booking/Payment the next major development phase while retaining technical debt and stability items for the final hardening pass.
+
+- **v6 (2026-08-08 BOOKING-01)** — Implemented BOOKING-01: `bookings` table (schema + SQL migration), `BookingRepository`, `booking.actions.ts`, one additive public `getPackageForBooking()` action, customer booking pages (`/hotels/[slug]/book`, `/packages/[id]/book`), customer "My Bookings" (`/dashboard/bookings`), admin bookings management (`/admin/bookings`). Moved Booking from Pending to Completed/Frozen; Payment remains the next milestone.
