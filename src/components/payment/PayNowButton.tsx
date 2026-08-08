@@ -7,6 +7,9 @@
 // No Cashfree credentials are used here.
 // Amount and currency are NOT accepted from props or user input.
 // paymentSessionId is a short-lived session token — not a secret.
+//
+// Return URL points to /payment/pending which shows a neutral
+// "verifying payment" state. The webhook is the authoritative processor.
 
 'use client';
 
@@ -18,8 +21,6 @@ interface PayNowButtonProps {
 }
 
 // Cashfree JS SDK type — loaded from CDN at runtime.
-// We declare a minimal interface so TypeScript is satisfied
-// without installing the Cashfree npm package.
 declare global {
   interface Window {
     Cashfree?: (config: { mode: string }) => {
@@ -48,14 +49,12 @@ export function PayNowButton({ bookingId }: PayNowButtonProps) {
       await loadCashfreeScript();
 
       if (!window.Cashfree) {
-        throw new Error('Cashfree checkout could not be loaded. Please try again.');
+        throw new Error(
+          'Cashfree checkout could not be loaded. Please try again.'
+        );
       }
 
-      // 3. Initialise Cashfree SDK in sandbox or production mode.
-      //    Mode is derived server-side — client always uses 'sandbox'
-      //    during testing; production switch is controlled via CASHFREE_ENV.
-      //    We use a separate NEXT_PUBLIC variable so the client knows the mode
-      //    without exposing credentials.
+      // 3. Initialise Cashfree SDK mode from public env variable.
       const mode =
         process.env.NEXT_PUBLIC_CASHFREE_MODE === 'production'
           ? 'production'
@@ -63,11 +62,17 @@ export function PayNowButton({ bookingId }: PayNowButtonProps) {
 
       const cashfree = window.Cashfree({ mode });
 
-      // 4. Redirect to Cashfree hosted checkout using the paymentSessionId.
-      //    returnUrl matches the server-side order_meta.return_url.
+      // 4. Return URL points to /payment/pending — a neutral verification
+      //    page. The webhook is the authoritative payment processor.
+      //    We do NOT claim success or failure from the return URL alone.
+      const returnUrl =
+        `${window.location.origin}/payment/pending` +
+        `?order_id=${result.cfOrderId}` +
+        `&booking_id=${bookingId}`;
+
       const checkoutResult = await cashfree.checkout({
         paymentSessionId: result.paymentSessionId,
-        returnUrl: `${window.location.origin}/payment/success?order_id=${result.cfOrderId}`,
+        returnUrl,
       });
 
       if (checkoutResult?.error?.message) {
@@ -82,9 +87,7 @@ export function PayNowButton({ bookingId }: PayNowButtonProps) {
       setError(message);
       setLoading(false);
     }
-    // Note: setLoading(false) is intentionally NOT called on success
-    // because Cashfree redirects the page — keeping the button in
-    // loading state prevents double-clicks during the redirect.
+    // setLoading(false) not called on success — Cashfree redirects the page.
   }
 
   return (
@@ -106,12 +109,6 @@ export function PayNowButton({ bookingId }: PayNowButtonProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// loadCashfreeScript
-// Loads the Cashfree JS SDK from CDN if not already present.
-// Resolves immediately if the script is already loaded.
-// ---------------------------------------------------------------------------
-
 function loadCashfreeScript(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (window.Cashfree) {
@@ -121,7 +118,6 @@ function loadCashfreeScript(): Promise<void> {
 
     const existing = document.getElementById('cashfree-js-sdk');
     if (existing) {
-      // Script tag exists but SDK not ready yet — wait for load.
       existing.addEventListener('load', () => resolve());
       existing.addEventListener('error', () =>
         reject(new Error('Failed to load Cashfree SDK'))
