@@ -1,80 +1,70 @@
-# CHANGELOG
+# SafarBuddy V2 — Changelog
 
-v1 — HOME-01 completed
-v2 — HOME-02 completed
-v3 — HOME-03 completed
-  Added: Storage fallback, Image fallback, Placeholder logic
-v4 — ADMIN-01 — Admin Dashboard
-v5 — ADMIN-02 — Hotel CRUD
-v6 — ADMIN-03 — Hotel Image Upload, Storage Upload, Primary Image, Gallery, Sort Order, Delete
-v7 — ADMIN-04 — Package CRUD
-v8 — ADMIN-05 — Package Image Management
-v9 — AUTH-05 — Role Based Authentication, Middleware, Protected Routes, Dashboard Guards
-v10 — ADMIN-06 — Destination CRUD
-  Added: DestinationRepository admin methods (getAllDestinations,
-  getDestinationById, createDestination, updateDestination,
-  deleteDestination), destination.actions.ts admin actions (Zod +
-  requireRole), DestinationForm, /admin/destinations list/new/edit pages.
+## PAY-01 Step 6 — Payment Server Actions + Cashfree Client
+**Date:** 2026-08-09
 
-v11 — Documentation sync (AUTH-05, AUTH-06, ADMIN-07, ADMIN-08 partial)
-  This entry groups completed work found in the repository that had not
-  yet been recorded in this changelog.
-  Added:
-  - AUTH-05 — Role Based Authentication: `requireRole()` and session
-    helpers (`src/lib/auth/session.ts`, `server.ts`, `client.ts`,
-    `route-guards.ts`, `api-guard.ts`); middleware session refresh
-    (`middleware.ts`); role-guard layout shells for `dashboard`,
-    `hotel-owner`, `travel-agent`, `super-admin`, `vendor`;
-    `/unauthorized` page; DB role seed
-    (`src/db/sql/002_role_seed_auth05.sql`).
-  - AUTH-06 — Public route allowlist in `middleware.ts` for `/hotels`,
-    `/destinations`, `/about`, `/contact` (page files for these routes
-    do not exist yet — allowlist only).
-  - ADMIN-07 — Destination Image Management: `DestinationRepository`
-    image methods (list/get/insert/setPrimary/reorder/delete), matching
-    admin actions in `destination.actions.ts`,
-    `DestinationImageManager` component,
-    `/admin/destinations/[id]/images` page.
-  - ADMIN-08 (partial) — Offers: `OfferRepository` (full CRUD +
-    getActiveOffers), `offer.actions.ts` (Zod + requireRole),
-    `OfferForm` (create/edit modes), `/admin/offers` list page,
-    `/admin/offers/new` page, homepage `Offers` section wired to
-    `getActiveOffers()`.
-  Known gap carried into next version:
-  - `/admin/offers/[id]/edit/page.tsx` does not exist yet, even though
-    the list page links to it and `OfferForm` already supports edit
-    mode. See PROJECT_STATUS.md "In Progress".
+### Created
+- `src/lib/cashfree/cashfree.client.ts` — Cashfree PG v3 REST client (server-only).
+  - `getCashfreeBaseUrl()` — reads `CASHFREE_ENV`, returns sandbox or production base URL.
+  - `getCashfreeHeaders()` — reads `CASHFREE_APP_ID` + `CASHFREE_SECRET_KEY`, returns v3 request headers.
+  - `createCashfreeOrder(payload)` — POST `/orders` to Cashfree v3; returns `{ cf_order_id, payment_session_id }`.
+  - `verifyWebhookSignature(timestamp, rawBody, signature)` — HMAC-SHA256 + Base64 verification helper for Step 7 webhook handler.
+  - No Cashfree SDK installed; uses native `fetch` per PAY-01 Decision 1.
+  - Credentials never exposed to client or error messages.
 
-v12 — ADMIN-08 completion — Offers edit page
-v13 — ADMIN-09 — Vendor Management
-v14 — BOOKING-01 — Hotel + Package Bookings
-  Added:
-  - `bookings` table: `src/db/schema.ts` (Drizzle schema/type source of
-    truth) + `src/db/sql/003_booking01_schema.sql` (raw SQL, additive,
-    CHECK constraints for booking_type/status/num_guests/hotel-package
-    XOR rule).
-  - `BookingRepository` (`src/lib/repositories/booking.repository.ts`) —
-    createBooking, getBookingById, getMyBookings, getAllBookings,
-    cancelBooking, confirmBooking, completeBooking. Follows the existing
-    BaseRepository + hand-written *Record interface pattern used by
-    HotelRepository/PackageRepository.
-  - `booking.actions.ts` — Zod-validated Server Actions. Customer:
-    createBooking, getMyBookings, getMyBookingById, cancelMyBooking
-    (ownership-checked, auth-derived user_id). Admin:
-    getAllBookingsAdmin, getBookingByIdAdmin, confirmBookingAdmin,
-    cancelBookingAdmin, completeBookingAdmin (requireRole).
-  - One additive public action `getPackageForBooking(id)` in
-    `package.actions.ts` (no public /packages/[slug] page exists yet,
-    so package booking is id-addressed).
-  - UI: `/hotels/[slug]/book`, `/packages/[id]/book`,
-    `/dashboard/bookings`, `/admin/bookings`. Hotel detail page's
-    disabled "Booking coming soon" button now links to the booking
-    page. Admin dashboard and ProfileMenu link to the new pages.
-  - price_snapshot captured from hotel/package starting_price at
-    creation time only, never recalculated afterward. Payment
-    explicitly out of scope — booking exists independent of payment.
+- `src/lib/actions/payment.actions.ts` — Payment Server Actions (`'use server'`).
+  - `initiatePayment(bookingId)` — authenticated customer initiates payment for a pending booking. Verifies ownership, status, paid-guard, phone server-side, creates Cashfree order, persists `payments` row with `status: 'initiated'`.
+  - `retryPayment(bookingId)` — authenticated customer retries a failed/abandoned payment. Always creates a NEW Cashfree order and NEW payment row. Previous rows unchanged.
+  - `getMyPaymentForBooking(bookingId)` — returns latest payment for customer's own booking.
+  - `getMyBookingPayments(bookingId)` — returns all payment attempts for customer's own booking.
+  - `getAllPaymentsAdmin(page, limit, status?)` — `requireRole(['admin','super_admin'])`, paginated payment list.
+  - `getPaymentByIdAdmin(id)` — `requireRole(['admin','super_admin'])`, single payment detail.
+  - Amount, currency, user_id, phone always sourced server-side — never from client.
+  - `BookingRepository.confirmBooking()` NOT called here — reserved for Step 7 webhook handler.
 
-## Future versions
-- Payment flow
-- Architecture cleanup (dead `src/lib/repository/` duplicate, stray
-  `hotel.repository.ts ts` file)
+### Frozen files untouched
+- `src/lib/repositories/payment.repository.ts` (PAY-01 Step 5)
+- `src/lib/repositories/booking.repository.ts` (BOOKING-01)
+- `src/lib/actions/booking.actions.ts` (BOOKING-01)
+- `src/db/schema.ts` (PAY-01 Step 3)
+- `src/db/sql/004_payment_schema.sql` (PAY-01 Step 2)
+- `src/db/sql/003_booking01_schema.sql` (BOOKING-01)
+- `middleware.ts` (AUTH-06)
+- `src/lib/auth/session.ts` (AUTH-05)
+- `.env` (PAY-01 Step 4)
+- `package.json`
+
+---
+
+## PAY-01 Step 5 TypeScript Fix
+**Date:** 2026-08-09
+
+### Modified
+- `src/lib/repositories/payment.repository.ts` — resolved `UpdatePaymentStatusData` cast error.
+  Replaced force-cast `as Parameters<...>` with a genuinely typed `PaymentUpdateData` intermediate object.
+  No `any` introduced. `BaseRepository` untouched.
+
+---
+
+## PAY-01 Steps 1–5
+**Date:** 2026-08-09
+
+- Step 1: Payment architecture design approved (decisions A–I).
+- Step 2: `src/db/sql/004_payment_schema.sql` — `payments` table migration.
+- Step 3: `src/db/schema.ts` — `payments` Drizzle definition + relations + types.
+- Step 4: `.env` + `.env.example` — Cashfree environment variables.
+- Step 5: `src/lib/repositories/payment.repository.ts` — `PaymentRepository`.
+
+---
+
+## BOOKING-01 — Hotel + Package Bookings
+*(previously recorded — entry preserved)*
+
+---
+
+## Build Baseline Repair
+**Date:** 2026-08-09
+
+- Restored `userRoles` export in `src/db/schema.ts` after PAY-01 Step 3 regression.
+- Fixed `src/db/schema.ts` parser error (line 270) — duplicate/malformed block removed.
+- Confirmed `hotel.actions.ts` already used correct 4-argument `insertHotelImageRow()` — no change needed.
