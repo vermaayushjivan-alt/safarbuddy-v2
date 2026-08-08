@@ -20,10 +20,10 @@ export function VendorForm({ mode, vendor }: VendorFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState<VendorInput>({
-    user_id: vendor?.user_id ?? "",
-    business_name: vendor?.business_name ?? "",
-    gst_number: vendor?.gst_number ?? "",
-    is_approved: vendor?.is_approved ?? false,
+    vendor_name: vendor?.vendor_name ?? "",
+    owner_user_id: vendor?.owner_user_id ?? "",
+    gstin: vendor?.gstin ?? "",
+    status: vendor?.status ?? "",
   });
 
   function handleChange<K extends keyof VendorInput>(
@@ -60,49 +60,48 @@ export function VendorForm({ mode, vendor }: VendorFormProps) {
         </div>
       )}
 
-      <Field label="Business Name" required>
+      <Field label="Vendor Name" required>
         <input
           type="text"
           required
-          value={form.business_name}
-          onChange={(e) => handleChange("business_name", e.target.value)}
+          value={form.vendor_name}
+          onChange={(e) => handleChange("vendor_name", e.target.value)}
           className={inputClass}
         />
       </Field>
 
-      <Field label="User ID" required>
+      <Field label="Owner User ID">
         <input
           type="text"
-          required
           placeholder="00000000-0000-0000-0000-000000000000"
-          value={form.user_id}
-          onChange={(e) => handleChange("user_id", e.target.value)}
+          value={form.owner_user_id ?? ""}
+          onChange={(e) => handleChange("owner_user_id", e.target.value)}
           disabled={mode === "edit"}
           className={`${inputClass} ${mode === "edit" ? "opacity-60" : ""} font-mono`}
         />
         <p className="mt-1 text-[12px] text-ink/45">
-          The Supabase user ID (UUID) this vendor account belongs to.
+          The Supabase user ID (UUID) this vendor account belongs to, if any.
         </p>
       </Field>
 
-      <Field label="GST Number">
+      <Field label="GSTIN">
         <input
           type="text"
-          value={form.gst_number ?? ""}
-          onChange={(e) => handleChange("gst_number", e.target.value)}
+          value={form.gstin ?? ""}
+          onChange={(e) => handleChange("gstin", e.target.value)}
           className={inputClass}
         />
       </Field>
 
-      <label className="flex items-center gap-2 text-[13px] text-deep">
+      <Field label="Status" required>
         <input
-          type="checkbox"
-          checked={form.is_approved ?? false}
-          onChange={(e) => handleChange("is_approved", e.target.checked)}
-          className="h-4 w-4 rounded border-deep/30"
+          type="text"
+          required
+          value={form.status}
+          onChange={(e) => handleChange("status", e.target.value)}
+          className={inputClass}
         />
-        Approved
-      </label>
+      </Field>
 
       <div className="flex gap-3 pt-2">
         <button
