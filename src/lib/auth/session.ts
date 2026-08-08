@@ -28,6 +28,51 @@ export async function getAuthUser() {
 }
 
 /**
+ * Canonical AppRole values the application code actually checks against
+ * (see AppRole in src/db/schema.ts). Kept as a runtime list here so
+ * normalizeRoleName() below can validate against it.
+ */
+const KNOWN_APP_ROLES: readonly AppRole[] = [
+  "admin",
+  "vendor",
+  "user",
+  "hotel_owner",
+  "travel_agent",
+  "super_admin",
+];
+
+/**
+ * ONE normalization layer for turning a raw `roles.name` DB value into
+ * an AppRole (Development Bible Rule 9 — no scattered string conversions).
+ *
+ * The seeded data (001_auth_sync_trigger.sql, 002_role_seed_auth05.sql)
+ * uses lowercase snake_case names ("admin", "super_admin", ...), which is
+ * what requireRole() calls throughout the app expect. If `roles.name`
+ * ever contains a differently-cased/spaced display value (e.g.
+ * "Super Admin"), this still resolves it to the correct AppRole instead
+ * of silently failing every requireRole() check.
+ *
+ * Returns null for any role name with no known AppRole equivalent
+ * (e.g. a role added directly in the DB that the app doesn't model yet)
+ * rather than guessing/inventing a new AppRole — see Rule 8.
+ */
+function normalizeRoleName(rawName: string): AppRole | null {
+  const key = rawName.trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+  // Explicit aliases where the display name doesn't case-fold onto the
+  // matching AppRole directly.
+  const ALIASES: Record<string, AppRole> = {
+    customer: "user",
+  };
+
+  const candidate = ALIASES[key] ?? (key as AppRole);
+
+  return (KNOWN_APP_ROLES as readonly string[]).includes(candidate)
+    ? candidate
+    : null;
+}
+
+/**
  * Returns application roles assigned to the authenticated user.
  *
  * IMPORTANT:
@@ -44,7 +89,9 @@ export async function getUserRoles(userId: string): Promise<AppRole[]> {
     .innerJoin(roles, eq(userRoles.roleId, roles.id))
     .where(eq(userRoles.userId, userId));
 
-  return rows.map((row) => row.name as AppRole);
+  return rows
+    .map((row) => normalizeRoleName(row.name))
+    .filter((role): role is AppRole => role !== null);
 }
 
 /**
