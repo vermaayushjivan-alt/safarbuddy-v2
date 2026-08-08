@@ -1,33 +1,40 @@
 // src/app/dashboard/bookings/[id]/pay/page.tsx
 // PAY-01 — Customer payment initiation page.
 //
-// Flow:
-//   1. Server component fetches booking (ownership enforced in action).
-//   2. Client component calls initiatePayment() on user action.
-//   3. Server action returns paymentSessionId.
-//   4. Cashfree JS SDK (CDN) redirects to hosted checkout.
+// Fetches booking directly via BookingRepository (Server Component).
+// This avoids any import path ambiguity around booking.actions.ts
+// while preserving full ownership verification server-side.
 //
-// No credentials are passed to the client.
-// Amount and currency come exclusively from the server action.
+// Auth: getAuthUser() — redirect to /login if unauthenticated.
+// Ownership: booking.user_id === authUser.id checked server-side.
+// Amount/currency: derived from booking record — never from client.
 
-import { getAuthUser } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
-import { getMyBookingById } from '@/lib/actions/booking.actions';
+import { getAuthUser } from '@/lib/auth/session';
+import { createClient } from '@/lib/supabase/server';
+import { BookingRepository } from '@/lib/repositories/booking.repository';
 import { PayNowButton } from '@/components/payment/PayNowButton';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default async function BookingPayPage({ params }: PageProps) {
+  const { id } = await params;
+
+  // 1. Auth check — redirect unauthenticated users
   const authUser = await getAuthUser();
   if (!authUser) {
     redirect('/login');
   }
 
-  const booking = await getMyBookingById(params.id);
+  // 2. Fetch booking via repository — Server Component pattern
+  const supabase = await createClient();
+  const bookingRepo = new BookingRepository(supabase);
+  const booking = await bookingRepo.getBookingById(id);
 
-  if (!booking) {
+  // 3. Ownership check — server-side, never trusted from client
+  if (!booking || booking.user_id !== authUser.id) {
     return (
       <main className="mx-auto max-w-lg px-4 py-16 text-center">
         <h1 className="font-heading text-xl font-bold text-deep">
@@ -40,6 +47,7 @@ export default async function BookingPayPage({ params }: PageProps) {
     );
   }
 
+  // 4. Status check — only pending bookings are payable
   if (booking.status !== 'pending') {
     return (
       <main className="mx-auto max-w-lg px-4 py-16 text-center">
@@ -55,6 +63,7 @@ export default async function BookingPayPage({ params }: PageProps) {
     );
   }
 
+  // 5. Render payment page — amount/currency from server record only
   return (
     <main className="mx-auto max-w-lg px-4 py-16">
       <h1 className="font-heading text-2xl font-bold text-deep">
