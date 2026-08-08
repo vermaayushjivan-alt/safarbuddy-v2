@@ -1,36 +1,37 @@
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 
 export function redirectToLogin(returnUrl?: string) {
   const url = returnUrl
-    ? `/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`
-    : '/auth/login';
-  
+    ? `/login?returnUrl=${encodeURIComponent(returnUrl)}`
+    : "/login";
+
   redirect(url);
 }
 
 export function redirectToUnauthorized() {
-  redirect('/unauthorized');
+  redirect("/unauthorized");
 }
 
 export function redirectToDashboard(role?: string) {
   if (!role) {
-    redirect('/dashboard');
+    redirect("/dashboard");
     return;
   }
 
   const roleRoutes: Record<string, string> = {
-    super_admin: '/admin/super',
-    admin: '/admin',
-    hotel_owner: '/dashboard/hotel-owner',
-    travel_agent: '/dashboard/travel-agent',
-    customer: '/dashboard',
-    vendor: '/dashboard/vendor',
+    super_admin: "/super-admin",
+    admin: "/admin",
+    hotel_owner: "/hotel-owner",
+    travel_agent: "/travel-agent",
+    customer: "/dashboard",
+    user: "/dashboard",
+    vendor: "/vendor",
   };
 
-  const route = roleRoutes[role] || '/dashboard';
+  const route = roleRoutes[role] || "/dashboard";
   redirect(route);
 }
 
 export function redirectToHome() {
-  redirect('/');
+  redirect("/");
 }
