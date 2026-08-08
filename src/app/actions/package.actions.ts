@@ -12,19 +12,20 @@ import {
 export async function getFeaturedPackages(): Promise<PackageRecord[]> {
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   return repo.getFeaturedPackages(8);
 }
 
-// --- BOOKING-01: Customer Package Booking Lookup ---
-// Read-only package lookup for an authenticated customer booking.
-// Intentionally does NOT use requireRole(['admin', 'super_admin']),
-// because normal authenticated customers must be able to create
-// bookings for packages.
+// --- BOOKING-01: Package lookup for customer booking ---
+// Read-only lookup used by /packages/[id]/book.
+// This is intentionally not admin-only because authenticated customers
+// need to load the package before creating a booking.
 export async function getPackageForBooking(
   id: string
 ): Promise<PackageRecord | null> {
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   return repo.getPackageById(id);
 }
 
@@ -51,8 +52,10 @@ export async function getAllPackagesAdmin(
   limit: number = 20
 ) {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   return repo.getAllPackages(page, limit);
 }
 
@@ -60,16 +63,21 @@ export async function getPackageByIdAdmin(
   id: string
 ): Promise<PackageRecord | null> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   return repo.getPackageById(id);
 }
 
 export async function createPackageAdmin(input: PackageInput) {
   await requireRole(['admin', 'super_admin']);
+
   const parsed = packageInputSchema.parse(input);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   return repo.createPackage(parsed);
 }
 
@@ -78,17 +86,22 @@ export async function updatePackageAdmin(
   input: PackageInput
 ) {
   await requireRole(['admin', 'super_admin']);
+
   const parsed = packageInputSchema.parse(input);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
+
   return repo.updatePackage(id, parsed);
 }
 
 export async function deletePackageAdmin(id: string): Promise<void> {
   await requireRole(['admin', 'super_admin']);
+
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
-  return repo.deletePackage(id);
+
+  await repo.deletePackage(id);
 }
 
 // --- ADMIN-05: Package Image Upload / Management ---
@@ -125,10 +138,13 @@ function extensionFromMimeType(mimeType: string): string {
     case 'image/jpeg':
     case 'image/jpg':
       return 'jpg';
+
     case 'image/png':
       return 'png';
+
     case 'image/webp':
       return 'webp';
+
     default:
       return 'webp';
   }
@@ -182,6 +198,8 @@ export async function uploadPackageImageAdmin(
   // Never uses package slug, since slugs can change.
   const ext = extensionFromMimeType(file.type);
   const objectKey = `${packageId}/${crypto.randomUUID()}.${ext}`;
+
+  // Stored in DB, matching the existing convention.
   const storedPath = `package-images/${objectKey}`;
 
   const { error: uploadError } = await supabase.storage
@@ -259,7 +277,8 @@ export async function deletePackageImageAdmin(
   const supabase = await createClient();
   const repo = new PackageRepository(supabase);
 
-  // Delete order: fetch row -> Storage.remove() -> only then delete DB row.
+  // Delete order:
+  // fetch row -> Storage.remove() -> only then delete DB row.
   const row = await repo.getPackageImageById(imageId);
 
   if (!row) {
