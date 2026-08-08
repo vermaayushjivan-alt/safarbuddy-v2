@@ -45,11 +45,36 @@ v11 — Documentation sync (AUTH-05, AUTH-06, ADMIN-07, ADMIN-08 partial)
     the list page links to it and `OfferForm` already supports edit
     mode. See PROJECT_STATUS.md "In Progress".
 
+v12 — ADMIN-08 completion — Offers edit page
+v13 — ADMIN-09 — Vendor Management
+v14 — BOOKING-01 — Hotel + Package Bookings
+  Added:
+  - `bookings` table: `src/db/schema.ts` (Drizzle schema/type source of
+    truth) + `src/db/sql/003_booking01_schema.sql` (raw SQL, additive,
+    CHECK constraints for booking_type/status/num_guests/hotel-package
+    XOR rule).
+  - `BookingRepository` (`src/lib/repositories/booking.repository.ts`) —
+    createBooking, getBookingById, getMyBookings, getAllBookings,
+    cancelBooking, confirmBooking, completeBooking. Follows the existing
+    BaseRepository + hand-written *Record interface pattern used by
+    HotelRepository/PackageRepository.
+  - `booking.actions.ts` — Zod-validated Server Actions. Customer:
+    createBooking, getMyBookings, getMyBookingById, cancelMyBooking
+    (ownership-checked, auth-derived user_id). Admin:
+    getAllBookingsAdmin, getBookingByIdAdmin, confirmBookingAdmin,
+    cancelBookingAdmin, completeBookingAdmin (requireRole).
+  - One additive public action `getPackageForBooking(id)` in
+    `package.actions.ts` (no public /packages/[slug] page exists yet,
+    so package booking is id-addressed).
+  - UI: `/hotels/[slug]/book`, `/packages/[id]/book`,
+    `/dashboard/bookings`, `/admin/bookings`. Hotel detail page's
+    disabled "Booking coming soon" button now links to the booking
+    page. Admin dashboard and ProfileMenu link to the new pages.
+  - price_snapshot captured from hotel/package starting_price at
+    creation time only, never recalculated afterward. Payment
+    explicitly out of scope — booking exists independent of payment.
+
 ## Future versions
-- v12 — ADMIN-08 completion — Offers edit page
-- ADMIN-09 — Vendor Management
-- Public marketing pages (/hotels, /destinations, /about, /contact)
-- Booking flow
 - Payment flow
 - Architecture cleanup (dead `src/lib/repository/` duplicate, stray
   `hotel.repository.ts ts` file)
