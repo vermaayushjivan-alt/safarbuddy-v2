@@ -41,9 +41,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     starting_price: hotel?.starting_price ?? undefined,
     is_featured: hotel?.is_featured ?? false,
     status: (hotel?.status as HotelInput["status"]) ?? "DRAFT",
-    // STABILIZATION-01: vendor_id — preselected from existing hotel when
-    // editing; empty string as initial create state (form submit will
-    // fail Zod uuid() validation if not selected, surfacing the error).
+    // vendor_id — preselected from existing hotel when editing; empty
+    // string as initial create state. hotels.vendor_id is nullable, so a
+    // blank selection is valid and is normalized to null server-side.
     vendor_id: hotel?.vendor_id ?? "",
   });
 
@@ -77,17 +77,22 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     setError(null);
 
     startTransition(async () => {
-      try {
-        if (mode === "create") {
-          await createHotelAdmin(form);
-        } else if (hotel) {
-          await updateHotelAdmin(hotel.id, form);
-        }
-        router.push("/admin/hotels");
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+      const result =
+        mode === "create"
+          ? await createHotelAdmin(form)
+          : hotel
+            ? await updateHotelAdmin(hotel.id, form)
+            : null;
+
+      if (!result) return;
+
+      if (!result.success) {
+        setError(result.error);
+        return;
       }
+
+      router.push("/admin/hotels");
+      router.refresh();
     });
   }
 
@@ -248,29 +253,20 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
 
       {/* STABILIZATION-01: Vendor selector — admin selects by name,
           UUID is submitted internally. Never manually typed. */}
-      <Field label="Vendor" required>
+      <Field label="Vendor">
         {vendorsLoading ? (
           <p className="text-[13px] text-ink/50">Loading vendors…</p>
         ) : vendorsError ? (
           <p className="text-[13px] text-red-600">{vendorsError}</p>
-        ) : vendors.length === 0 ? (
-          <p className="text-[13px] text-red-600">
-            No vendors found. Please{" "}
-            <a href="/admin/vendors/new" className="underline">
-              create a vendor
-            </a>{" "}
-            first.
-          </p>
         ) : (
           <select
-            required
-            value={form.vendor_id}
-            onChange={(e) => handleChange("vendor_id", e.target.value)}
+            value={form.vendor_id ?? ""}
+            onChange={(e) =>
+              handleChange("vendor_id", e.target.value === "" ? null : e.target.value)
+            }
             className={inputClass}
           >
-            <option value="" disabled>
-              — Select a vendor —
-            </option>
+            <option value="">— No vendor —</option>
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.vendor_name}
