@@ -16,7 +16,12 @@ export default async function AdminOffersListPage({
   async function handleDelete(formData: FormData) {
     "use server";
     const id = formData.get("id") as string;
-    await deleteOfferAdmin(id);
+    const result = await deleteOfferAdmin(id);
+    if (!result.success) {
+      // No client-side error UI in this fire-and-forget delete form;
+      // log server-side so a failed delete is diagnosable.
+      console.error("[deleteOfferAdmin]", result.error);
+    }
   }
 
   return (
