@@ -8,6 +8,10 @@ import {
   PackageRecord,
   PackageImageRow,
 } from '@/lib/repositories/package.repository';
+import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
+
+// bookings.price_snapshot is numeric(10,2) — max representable value.
+const MAX_BOOKING_AMOUNT = 99_999_999.99;
 
 export async function getFeaturedPackages(): Promise<PackageRecord[]> {
   const supabase = await createClient();
@@ -37,10 +41,18 @@ export async function getPackageForBooking(
 const packageInputSchema = z.object({
   package_name: z.string().min(1, 'Package name is required'),
   slug: z.string().min(1, 'Slug is required'),
-  description: z.string().nullable().optional(),
-  city: z.string().nullable().optional(),
-  duration: z.string().nullable().optional(),
-  starting_price: z.number().min(0).nullable().optional(),
+  description: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  city: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  duration: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  starting_price: z.preprocess(
+    emptyToNull,
+    z
+      .number()
+      .min(0)
+      .max(MAX_BOOKING_AMOUNT, 'The amount is too large. Please enter a smaller value.')
+      .nullable()
+      .optional()
+  ),
   is_featured: z.boolean().optional(),
   status: z.string().min(1, 'Status is required'),
 });
@@ -70,38 +82,38 @@ export async function getPackageByIdAdmin(
   return repo.getPackageById(id);
 }
 
-export async function createPackageAdmin(input: PackageInput) {
-  await requireRole(['admin', 'super_admin']);
-
-  const parsed = packageInputSchema.parse(input);
-
-  const supabase = await createClient();
-  const repo = new PackageRepository(supabase);
-
-  return repo.createPackage(parsed);
+export async function createPackageAdmin(
+  input: PackageInput
+): Promise<ActionResult<PackageRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = packageInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new PackageRepository(supabase);
+    return repo.createPackage(parsed);
+  });
 }
 
 export async function updatePackageAdmin(
   id: string,
   input: PackageInput
-) {
-  await requireRole(['admin', 'super_admin']);
-
-  const parsed = packageInputSchema.parse(input);
-
-  const supabase = await createClient();
-  const repo = new PackageRepository(supabase);
-
-  return repo.updatePackage(id, parsed);
+): Promise<ActionResult<PackageRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = packageInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new PackageRepository(supabase);
+    return repo.updatePackage(id, parsed);
+  });
 }
 
-export async function deletePackageAdmin(id: string): Promise<void> {
-  await requireRole(['admin', 'super_admin']);
-
-  const supabase = await createClient();
-  const repo = new PackageRepository(supabase);
-
-  await repo.deletePackage(id);
+export async function deletePackageAdmin(id: string): Promise<ActionResult<void>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new PackageRepository(supabase);
+    await repo.deletePackage(id);
+  });
 }
 
 // --- ADMIN-05: Package Image Upload / Management ---
