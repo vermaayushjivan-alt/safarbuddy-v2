@@ -61,9 +61,24 @@ export function handleDatabaseError(error: PostgrestError): DatabaseError {
     );
   }
 
-  // Generic database error
+  // Numeric field overflow (value doesn't fit the column's precision/scale) —
+  // e.g. bookings.price_snapshot is numeric(10,2), max 99,999,999.99.
+  // Message is intentionally generic and safe to show to end users; the
+  // actual offending column is not always derivable from the Postgres
+  // message, so we don't guess at it.
+  if (error.code === '22003') {
+    return new ValidationError(
+      'The amount is too large. Please enter a smaller value.',
+      { code: '22003' }
+    );
+  }
+
+  // Generic database error. The safe/human message never includes the raw
+  // Postgres message (which can contain SQL, column/table names, or other
+  // internal details) — that raw text is kept in `details` for server-side
+  // logging only and must never be forwarded to the client as-is.
   return new DatabaseError(
-    error.message || 'Database operation failed',
+    'A database error occurred while processing your request.',
     error.code,
     {
       code: error.code,
