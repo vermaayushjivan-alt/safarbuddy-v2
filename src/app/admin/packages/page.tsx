@@ -16,7 +16,12 @@ export default async function AdminPackagesListPage({
   async function handleDelete(formData: FormData) {
     "use server";
     const id = formData.get("id") as string;
-    await deletePackageAdmin(id);
+    const result = await deletePackageAdmin(id);
+    if (!result.success) {
+      // No client-side error UI in this fire-and-forget delete form;
+      // log server-side so a failed delete is diagnosable.
+      console.error("[deletePackageAdmin]", result.error);
+    }
   }
 
   return (
