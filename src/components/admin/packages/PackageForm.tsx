@@ -39,17 +39,22 @@ export function PackageForm({ mode, pkg }: PackageFormProps) {
     setError(null);
 
     startTransition(async () => {
-      try {
-        if (mode === "create") {
-          await createPackageAdmin(form);
-        } else if (pkg) {
-          await updatePackageAdmin(pkg.id, form);
-        }
-        router.push("/admin/packages");
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+      const result =
+        mode === "create"
+          ? await createPackageAdmin(form)
+          : pkg
+            ? await updatePackageAdmin(pkg.id, form)
+            : null;
+
+      if (!result) return;
+
+      if (!result.success) {
+        setError(result.error);
+        return;
       }
+
+      router.push("/admin/packages");
+      router.refresh();
     });
   }
 
