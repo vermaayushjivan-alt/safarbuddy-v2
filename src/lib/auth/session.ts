@@ -1,7 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { db } from "@/db";
+import { db, DatabaseConfigError } from "@/db";
 import { roles, userRoles } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/db/schema";
@@ -81,17 +81,32 @@ function normalizeRoleName(rawName: string): AppRole | null {
  * do not require the user profile row.
  */
 export async function getUserRoles(userId: string): Promise<AppRole[]> {
-  const rows = await db
-    .select({
-      name: roles.name,
-    })
-    .from(userRoles)
-    .innerJoin(roles, eq(userRoles.roleId, roles.id))
-    .where(eq(userRoles.userId, userId));
+  try {
+    const rows = await db
+      .select({
+        name: roles.name,
+      })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, userId));
 
-  return rows
-    .map((row) => normalizeRoleName(row.name))
-    .filter((role): role is AppRole => role !== null);
+    return rows
+      .map((row) => normalizeRoleName(row.name))
+      .filter((role): role is AppRole => role !== null);
+  } catch (error) {
+    // A missing DATABASE_URL (DatabaseConfigError) or any other Drizzle/DB
+    // failure here must not crash the app with an opaque error, and must
+    // not be treated as "no roles" (which would silently deny access in a
+    // way that's hard to diagnose) — it's surfaced as a distinct,
+    // catchable failure so requireRole() can report it safely instead of
+    // bypassing the role check.
+    if (error instanceof DatabaseConfigError) {
+      console.error("[getUserRoles] database is not configured:", error.message);
+    } else {
+      console.error("[getUserRoles] failed to load roles:", error);
+    }
+    throw new Error("SERVICE_UNAVAILABLE");
+  }
 }
 
 /**
