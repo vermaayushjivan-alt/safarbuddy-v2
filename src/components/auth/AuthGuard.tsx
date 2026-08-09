@@ -15,7 +15,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
 
   React.useEffect(() => {
     if (!loading && !user) {
-      router.push('/auth/login');
+      router.push('/login');
     }
   }, [user, loading, router]);
 
