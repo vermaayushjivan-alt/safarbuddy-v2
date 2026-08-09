@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+
+  // STABILIZATION-01 fix: read "next" param correctly.
+  // Previous code read "redirectTo" for both variables, silently
+  // ignoring Supabase's "next" param and the original "redirectTo".
+  // Safe: origin is already the verified request origin — no open redirect.
   const redirectTo = searchParams.get("redirectTo") ?? "/";
   const next = searchParams.get("next") ?? redirectTo;
 
