@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(null);
       setSession(null);
-      router.push('/auth/login');
+      router.push('/login');
       router.refresh();
     } catch (err) {
       console.error('Sign out error:', err);
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setSession(null);
-        router.push('/auth/login');
+        router.push('/login');
         router.refresh();
       }
 
