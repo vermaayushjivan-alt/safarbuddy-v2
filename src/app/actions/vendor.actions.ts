@@ -8,17 +8,27 @@ import {
   VendorRecord,
   VendorBranchRecord,
 } from '@/lib/repositories/vendor.repository';
+import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 
 // --- ADMIN-09: Vendor Management (CRUD) ---
 
 const vendorInputSchema = z.object({
   vendor_name: z.string().min(1, 'Vendor name is required'),
-  vendor_type: z.string().nullable().optional(),
-  owner_user_id: z.string().uuid('Owner user ID must be a valid UUID').nullable().optional(),
-  business_email: z.string().email('Must be a valid email').nullable().optional(),
-  business_phone: z.string().nullable().optional(),
-  gstin: z.string().nullable().optional(),
-  pan_number: z.string().nullable().optional(),
+  vendor_type: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  // P1 fix: blank input ("") is neither null nor undefined, so it used to
+  // fail optional UUID validation. Normalize blank -> null first.
+  owner_user_id: z.preprocess(
+    emptyToNull,
+    z.string().uuid('Owner user ID must be a valid UUID').nullable().optional()
+  ),
+  business_email: z.preprocess(
+    emptyToNull,
+    z.string().email('Must be a valid email').nullable().optional()
+  ),
+  business_phone: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  // GSTIN stays optional at the application level — see P1 findings.
+  gstin: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  pan_number: z.preprocess(emptyToNull, z.string().nullable().optional()),
   status: z.string().min(1, 'Status is required'),
 });
 
@@ -62,27 +72,38 @@ export async function getVendorByIdAdmin(id: string): Promise<VendorRecord | nul
   return repo.getVendorById(id);
 }
 
-export async function createVendorAdmin(input: VendorInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = vendorInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new VendorRepository(supabase);
-  return repo.createVendor(parsed);
+export async function createVendorAdmin(
+  input: VendorInput
+): Promise<ActionResult<VendorRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = vendorInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new VendorRepository(supabase);
+    return repo.createVendor(parsed);
+  });
 }
 
-export async function updateVendorAdmin(id: string, input: VendorInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = vendorInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new VendorRepository(supabase);
-  return repo.updateVendor(id, parsed);
+export async function updateVendorAdmin(
+  id: string,
+  input: VendorInput
+): Promise<ActionResult<VendorRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = vendorInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new VendorRepository(supabase);
+    return repo.updateVendor(id, parsed);
+  });
 }
 
-export async function deleteVendorAdmin(id: string): Promise<boolean> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new VendorRepository(supabase);
-  return repo.deleteVendor(id);
+export async function deleteVendorAdmin(id: string): Promise<ActionResult<boolean>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new VendorRepository(supabase);
+    return repo.deleteVendor(id);
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -91,8 +112,8 @@ export async function deleteVendorAdmin(id: string): Promise<boolean> {
 
 const vendorBranchInputSchema = z.object({
   branch_name: z.string().min(1, 'Branch name is required'),
-  address: z.string().nullable().optional(),
-  city: z.string().nullable().optional(),
+  address: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  city: z.preprocess(emptyToNull, z.string().nullable().optional()),
   is_active: z.boolean().optional(),
 });
 
@@ -110,28 +131,36 @@ export async function getVendorBranchesAdmin(
 export async function createVendorBranchAdmin(
   vendorId: string,
   input: VendorBranchInput
-) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = vendorBranchInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new VendorRepository(supabase);
-  return repo.createVendorBranch(vendorId, parsed);
+): Promise<ActionResult<VendorBranchRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = vendorBranchInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new VendorRepository(supabase);
+    return repo.createVendorBranch(vendorId, parsed);
+  });
 }
 
 export async function updateVendorBranchAdmin(
   branchId: string,
   input: Partial<VendorBranchInput>
-) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = vendorBranchInputSchema.partial().parse(input);
-  const supabase = await createClient();
-  const repo = new VendorRepository(supabase);
-  return repo.updateVendorBranch(branchId, parsed);
+): Promise<ActionResult<VendorBranchRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = vendorBranchInputSchema.partial().parse(input);
+    const supabase = await createClient();
+    const repo = new VendorRepository(supabase);
+    return repo.updateVendorBranch(branchId, parsed);
+  });
 }
 
-export async function deleteVendorBranchAdmin(branchId: string): Promise<void> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new VendorRepository(supabase);
-  await repo.deleteVendorBranch(branchId);
+export async function deleteVendorBranchAdmin(
+  branchId: string
+): Promise<ActionResult<void>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new VendorRepository(supabase);
+    await repo.deleteVendorBranch(branchId);
+  });
 }
