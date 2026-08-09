@@ -1,167 +1,242 @@
-"use client";
+'use server';
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import {
-  createDestinationAdmin,
-  updateDestinationAdmin,
-  type DestinationInput,
-} from "@/app/actions/destination.actions";
-import type { DestinationRecord } from "@/lib/repositories/destination.repository";
+import { z } from 'zod';
+import { createClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/auth/session';
+import { DestinationRepository, DestinationRecord, DestinationImageRow } from '@/lib/repositories/destination.repository';
+import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 
-const STATUS_OPTIONS = ["DRAFT", "ACTIVE", "INACTIVE"] as const;
-
-interface DestinationFormProps {
-  mode: "create" | "edit";
-  destination?: DestinationRecord;
+export async function getFeaturedDestinations(): Promise<DestinationRecord[]> {
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  return repo.getFeaturedDestinations(8);
 }
 
-export function DestinationForm({ mode, destination }: DestinationFormProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+// --- PUBLIC-01: Public Marketing Pages (/destinations, /destinations/[slug]) ---
+// No requireRole — public read, same as getFeaturedDestinations() above.
 
-  const [form, setForm] = useState<DestinationInput>({
-    name: destination?.name ?? "",
-    slug: destination?.slug ?? "",
-    state: destination?.state ?? "",
-    description: destination?.description ?? "",
-    is_featured: destination?.is_featured ?? false,
-    status: destination?.status ?? "DRAFT",
+export async function getAllPublicDestinations(page: number = 1, limit: number = 20) {
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+ return repo.getAllDestinations(page, limit);
+}
+
+export async function getDestinationBySlug(slug: string): Promise<DestinationRecord | null> {
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  return repo.getDestinationBySlug(slug);
+}
+
+// --- ADMIN-06: Destination Management (CRUD) ---
+// Mirrors hotel.actions.ts (ADMIN-02). status kept as a validated
+// non-empty string (not a hardcoded enum) — same caution as
+// package.actions.ts, since destinations.status has no DB-verified
+// enum values on record.
+
+const destinationInputSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  slug: z.string().min(1, 'Slug is required'),
+  state: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  description: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  is_featured: z.boolean().optional(),
+  status: z.string().min(1, 'Status is required'),
+});
+
+export type DestinationInput = z.infer<typeof destinationInputSchema>;
+
+export async function getAllDestinationsAdmin(page: number = 1, limit: number = 20) {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  return repo.getAllDestinations(page, limit);
+}
+
+export async function getDestinationByIdAdmin(id: string): Promise<DestinationRecord | null> {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  return repo.getDestinationById(id);
+}
+
+export async function createDestinationAdmin(
+  input: DestinationInput
+): Promise<ActionResult<DestinationRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = destinationInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new DestinationRepository(supabase);
+    return repo.createDestination(parsed);
   });
-
-  function handleChange<K extends keyof DestinationInput>(
-    key: K,
-    value: DestinationInput[K]
-  ) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    startTransition(async () => {
-      try {
-        if (mode === "create") {
-          await createDestinationAdmin(form);
-        } else if (destination) {
-          await updateDestinationAdmin(destination.id, form);
-        }
-        router.push("/admin/destinations");
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      }
-    });
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-5">
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
-          {error}
-        </div>
-      )}
-
-      <Field label="Name" required>
-        <input
-          type="text"
-          required
-          value={form.name}
-          onChange={(e) => handleChange("name", e.target.value)}
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="Slug" required>
-        <input
-          type="text"
-          required
-          value={form.slug}
-          onChange={(e) => handleChange("slug", e.target.value)}
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="Description">
-        <textarea
-          value={form.description ?? ""}
-          onChange={(e) => handleChange("description", e.target.value)}
-          rows={4}
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="State">
-        <input
-          type="text"
-          value={form.state ?? ""}
-          onChange={(e) => handleChange("state", e.target.value)}
-          className={inputClass}
-        />
-      </Field>
-
-      <Field label="Status">
-        <select
-          value={form.status}
-          onChange={(e) => handleChange("status", e.target.value)}
-          className={inputClass}
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <label className="flex items-center gap-2 text-[13px] text-deep">
-        <input
-          type="checkbox"
-          checked={form.is_featured ?? false}
-          onChange={(e) => handleChange("is_featured", e.target.checked)}
-          className="h-4 w-4 rounded border-deep/30"
-        />
-        Featured on homepage
-      </label>
-
-      <div className="flex gap-3 pt-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="focus-ring rounded-xl bg-deep px-5 py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 disabled:opacity-50"
-        >
-          {isPending
-            ? "Saving..."
-            : mode === "create"
-              ? "Create Destination"
-              : "Save Changes"}
-        </button>
-      </div>
-    </form>
-  );
 }
 
-const inputClass =
-  "focus-ring w-full rounded-xl border border-deep/15 px-3.5 py-2.5 text-[14px] text-deep outline-none transition focus:border-deep/40";
+export async function updateDestinationAdmin(
+  id: string,
+  input: DestinationInput
+): Promise<ActionResult<DestinationRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = destinationInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new DestinationRepository(supabase);
+    return repo.updateDestination(id, parsed);
+  });
+}
 
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-1.5 block font-heading text-[13px] font-semibold text-deep">
-        {label}
-        {required && <span className="text-orange"> *</span>}
-      </label>
-      {children}
-    </div>
+export async function deleteDestinationAdmin(id: string): Promise<ActionResult<boolean>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new DestinationRepository(supabase);
+    return repo.deleteDestination(id);
+  });
+}
+
+// --- ADMIN-07: Destination Image Upload / Management ---
+// All Supabase Storage calls (upload/remove/getPublicUrl) live here.
+// DestinationRepository performs destination_images table CRUD only.
+// Mirrors package.actions.ts's ADMIN-05 section exactly.
+
+const DESTINATION_ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const DESTINATION_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+export interface DestinationImageWithUrl extends DestinationImageRow {
+  publicUrl: string;
+}
+
+function normalizeDestinationStoragePath(storagePath: string): string {
+  return storagePath.startsWith('destination-images/')
+    ? storagePath.slice('destination-images/'.length)
+    : storagePath;
+}
+
+function destinationExtensionFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    default:
+      return 'webp';
+  }
+}
+
+export async function getDestinationImagesAdmin(destinationId: string): Promise<DestinationImageWithUrl[]> {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+
+  const rows = await repo.listDestinationImages(destinationId);
+
+  return rows.map((row) => {
+    const normalizedPath = normalizeDestinationStoragePath(row.storage_path);
+    const { data: publicUrlData } = supabase.storage
+      .from('destination-images')
+      .getPublicUrl(normalizedPath);
+
+    return { ...row, publicUrl: publicUrlData.publicUrl };
+  });
+}
+
+export async function uploadDestinationImageAdmin(
+  destinationId: string,
+  file: File,
+  isPrimary: boolean
+): Promise<DestinationImageWithUrl> {
+  await requireRole(['admin', 'super_admin']);
+
+  if (!DESTINATION_ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+  }
+  if (file.size > DESTINATION_MAX_IMAGE_SIZE_BYTES) {
+    throw new Error('Image must be 5MB or smaller.');
+  }
+
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+
+  // Stable path: destination-images/{destinationId}/{uuid}.{ext} — never
+  // uses destination slug, since slugs can change.
+  const ext = destinationExtensionFromMimeType(file.type);
+  const objectKey = `${destinationId}/${crypto.randomUUID()}.${ext}`;
+  const storedPath = `destination-images/${objectKey}`; // stored in DB, matches existing convention
+
+  const { error: uploadError } = await supabase.storage
+    .from('destination-images')
+    .upload(objectKey, file, { contentType: file.type, upsert: false });
+
+  if (uploadError) {
+    throw new Error(`Failed to upload image: ${uploadError.message}`);
+  }
+
+  const existing = await repo.listDestinationImages(destinationId);
+  const nextSortOrder = existing.length > 0
+    ? Math.max(...existing.map((img) => img.sort_order)) + 1
+    : 0;
+
+  const shouldBePrimary = isPrimary || existing.length === 0;
+
+  const row = await repo.insertDestinationImageRow(
+    destinationId,
+    storedPath,
+    shouldBePrimary,
+    nextSortOrder
   );
+
+  if (shouldBePrimary && existing.length > 0) {
+    await repo.setPrimaryDestinationImage(destinationId, row.id);
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from('destination-images')
+    .getPublicUrl(objectKey);
+
+  return { ...row, publicUrl: publicUrlData.publicUrl };
+}
+
+export async function setPrimaryDestinationImageAdmin(
+  destinationId: string,
+  imageId: string
+): Promise<void> {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  await repo.setPrimaryDestinationImage(destinationId, imageId);
+}
+
+export async function reorderDestinationImageAdmin(
+  imageId: string,
+  sortOrder: number
+): Promise<void> {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+  await repo.updateDestinationImageSortOrder(imageId, sortOrder);
+}
+
+export async function deleteDestinationImageAdmin(imageId: string): Promise<void> {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new DestinationRepository(supabase);
+
+  // Delete order: fetch row -> Storage.remove() -> only then delete DB row.
+  const row = await repo.getDestinationImageById(imageId);
+  if (!row) {
+    throw new Error('Image not found.');
+  }
+
+  const normalizedPath = normalizeDestinationStoragePath(row.storage_path);
+
+  const { error: removeError } = await supabase.storage
+    .from('destination-images')
+    .remove([normalizedPath]);
+
+  if (removeError) {
+    throw new Error(`Failed to delete image from storage: ${removeError.message}`);
+  }
+
+  await repo.deleteDestinationImageRow(imageId);
 }
