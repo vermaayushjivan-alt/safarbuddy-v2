@@ -16,7 +16,12 @@ export default async function AdminHotelsListPage({
   async function handleDelete(formData: FormData) {
     "use server";
     const id = formData.get("id") as string;
-    await deleteHotelAdmin(id);
+    const result = await deleteHotelAdmin(id);
+    if (!result.success) {
+      // No client-side error UI in this fire-and-forget delete form;
+      // log server-side so a failed delete is diagnosable.
+      console.error("[deleteHotelAdmin]", result.error);
+    }
   }
 
   return (
