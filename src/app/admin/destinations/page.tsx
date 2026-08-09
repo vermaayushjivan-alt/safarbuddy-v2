@@ -19,7 +19,12 @@ export default async function AdminDestinationsListPage({
   async function handleDelete(formData: FormData) {
     "use server";
     const id = formData.get("id") as string;
-    await deleteDestinationAdmin(id);
+    const result = await deleteDestinationAdmin(id);
+    if (!result.success) {
+      // No client-side error UI in this fire-and-forget delete form;
+      // log server-side so a failed delete is diagnosable.
+      console.error("[deleteDestinationAdmin]", result.error);
+    }
   }
 
   return (
