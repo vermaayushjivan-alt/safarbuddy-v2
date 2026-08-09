@@ -50,37 +50,39 @@ export function VendorBranchManager({ vendorId }: VendorBranchManagerProps) {
     setError(null);
 
     startTransition(async () => {
-      try {
-        await createVendorBranchAdmin(vendorId, newBranch);
-        setNewBranch(emptyBranchForm);
-        await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to add branch");
+      const result = await createVendorBranchAdmin(vendorId, newBranch);
+      if (!result.success) {
+        setError(result.error);
+        return;
       }
+      setNewBranch(emptyBranchForm);
+      await refresh();
     });
   }
 
   function handleToggleActive(branch: VendorBranchRecord) {
     setError(null);
     startTransition(async () => {
-      try {
-        await updateVendorBranchAdmin(branch.id, { is_active: !branch.is_active });
-        await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update branch");
+      const result = await updateVendorBranchAdmin(branch.id, {
+        is_active: !branch.is_active,
+      });
+      if (!result.success) {
+        setError(result.error);
+        return;
       }
+      await refresh();
     });
   }
 
   function handleDelete(branchId: string) {
     setError(null);
     startTransition(async () => {
-      try {
-        await deleteVendorBranchAdmin(branchId);
-        await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete branch");
+      const result = await deleteVendorBranchAdmin(branchId);
+      if (!result.success) {
+        setError(result.error);
+        return;
       }
+      await refresh();
     });
   }
 
