@@ -4,6 +4,12 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/session';
 import { HotelRepository, HotelRecord, HotelImageRow } from '@/lib/repositories/hotel.repository';
+import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
+
+// bookings.price_snapshot is numeric(10,2) — max representable value.
+// hotel/package starting_price is copied into price_snapshot at booking
+// time, so it must never be allowed to exceed this bound upstream.
+const MAX_BOOKING_AMOUNT = 99_999_999.99;
 
 // --- HOME-03: Trending Hotels (public, homepage) ---
 
@@ -32,21 +38,32 @@ export async function getHotelBySlug(slug: string): Promise<HotelRecord | null> 
 const hotelInputSchema = z.object({
   hotel_name: z.string().min(1, 'Hotel name is required'),
   slug: z.string().min(1, 'Slug is required'),
-  description: z.string().nullable().optional(),
-  city: z.string().nullable().optional(),
-  state: z.string().nullable().optional(),
-  country: z.string().nullable().optional(),
-  address: z.string().nullable().optional(),
-  latitude: z.number().nullable().optional(),
-  longitude: z.number().nullable().optional(),
-  star_rating: z.number().min(0).max(5).nullable().optional(),
-  starting_price: z.number().min(0).nullable().optional(),
+  description: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  city: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  state: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  country: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  address: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  latitude: z.preprocess(emptyToNull, z.number().nullable().optional()),
+  longitude: z.preprocess(emptyToNull, z.number().nullable().optional()),
+  star_rating: z.preprocess(emptyToNull, z.number().min(0).max(5).nullable().optional()),
+  starting_price: z.preprocess(
+    emptyToNull,
+    z
+      .number()
+      .min(0)
+      .max(MAX_BOOKING_AMOUNT, 'The amount is too large. Please enter a smaller value.')
+      .nullable()
+      .optional()
+  ),
   is_featured: z.boolean().optional(),
   status: z.string().min(1, 'Status is required'),
-  // STABILIZATION-01: vendor_id required per business rule —
-  // every hotel must have a vendor relationship. Admin selects
-  // from the existing vendor list; UUID is never manually typed.
-  vendor_id: z.string().uuid('A valid vendor must be selected'),
+  // P1 fix: hotels.vendor_id MUST remain nullable — a hotel is not
+  // required to have a vendor attached. A previous stabilization change
+  // incorrectly made this required; restored to nullable/optional here.
+  vendor_id: z.preprocess(
+    emptyToNull,
+    z.string().uuid('Vendor must be a valid selection').nullable().optional()
+  ),
 });
 
 export type HotelInput = z.infer<typeof hotelInputSchema>;
@@ -65,27 +82,36 @@ export async function getHotelByIdAdmin(id: string): Promise<HotelRecord | null>
   return repo.getHotelById(id);
 }
 
-export async function createHotelAdmin(input: HotelInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = hotelInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  return repo.createHotel(parsed);
+export async function createHotelAdmin(input: HotelInput): Promise<ActionResult<HotelRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = hotelInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    return repo.createHotel(parsed);
+  });
 }
 
-export async function updateHotelAdmin(id: string, input: HotelInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = hotelInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  return repo.updateHotel(id, parsed);
+export async function updateHotelAdmin(
+  id: string,
+  input: HotelInput
+): Promise<ActionResult<HotelRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = hotelInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    return repo.updateHotel(id, parsed);
+  });
 }
 
-export async function deleteHotelAdmin(id: string): Promise<boolean> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  return repo.deleteHotel(id);
+export async function deleteHotelAdmin(id: string): Promise<ActionResult<boolean>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    return repo.deleteHotel(id);
+  });
 }
 
 // --- ADMIN-03: Hotel Image Upload / Management ---
