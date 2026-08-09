@@ -13,7 +13,7 @@ interface UseAuthGuardOptions {
 export function useAuthGuard(options: UseAuthGuardOptions = {}) {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { allowedRoles, requireVerified = false, redirectTo = '/auth/login' } = options;
+  const { allowedRoles, requireVerified = false, redirectTo = '/login' } = options;
 
   useEffect(() => {
     if (loading) return;
