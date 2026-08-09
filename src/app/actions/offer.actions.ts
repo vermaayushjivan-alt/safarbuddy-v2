@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/session';
 import { OfferRepository, OfferRecord } from '@/lib/repositories/offer.repository';
+import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 
 export async function getActiveOffers(): Promise<OfferRecord[]> {
   const supabase = await createClient();
@@ -21,12 +22,12 @@ export async function getActiveOffers(): Promise<OfferRecord[]> {
 
 const offerInputSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  description: z.string().nullable().optional(),
-  discount: z.string().nullable().optional(),
-  start_date: z.string().nullable().optional(),
-  end_date: z.string().nullable().optional(),
+  description: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  discount: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  start_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  end_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
   status: z.string().min(1, 'Status is required'),
-  image: z.string().nullable().optional(),
+  image: z.preprocess(emptyToNull, z.string().nullable().optional()),
 });
 
 export type OfferInput = z.infer<typeof offerInputSchema>;
@@ -45,25 +46,34 @@ export async function getOfferByIdAdmin(id: string): Promise<OfferRecord | null>
   return repo.getOfferById(id);
 }
 
-export async function createOfferAdmin(input: OfferInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = offerInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new OfferRepository(supabase);
-  return repo.createOffer(parsed);
+export async function createOfferAdmin(input: OfferInput): Promise<ActionResult<OfferRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = offerInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new OfferRepository(supabase);
+    return repo.createOffer(parsed);
+  });
 }
 
-export async function updateOfferAdmin(id: string, input: OfferInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = offerInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new OfferRepository(supabase);
-  return repo.updateOffer(id, parsed);
+export async function updateOfferAdmin(
+  id: string,
+  input: OfferInput
+): Promise<ActionResult<OfferRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = offerInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new OfferRepository(supabase);
+    return repo.updateOffer(id, parsed);
+  });
 }
 
-export async function deleteOfferAdmin(id: string): Promise<boolean> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new OfferRepository(supabase);
-  return repo.deleteOffer(id);
+export async function deleteOfferAdmin(id: string): Promise<ActionResult<boolean>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new OfferRepository(supabase);
+    return repo.deleteOffer(id);
+  });
 }
