@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/session';
 import { DestinationRepository, DestinationRecord, DestinationImageRow } from '@/lib/repositories/destination.repository';
+import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 
 export async function getFeaturedDestinations(): Promise<DestinationRecord[]> {
   const supabase = await createClient();
@@ -35,8 +36,8 @@ export async function getDestinationBySlug(slug: string): Promise<DestinationRec
 const destinationInputSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   slug: z.string().min(1, 'Slug is required'),
-  state: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
+  state: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  description: z.preprocess(emptyToNull, z.string().nullable().optional()),
   is_featured: z.boolean().optional(),
   status: z.string().min(1, 'Status is required'),
 });
@@ -57,27 +58,38 @@ export async function getDestinationByIdAdmin(id: string): Promise<DestinationRe
   return repo.getDestinationById(id);
 }
 
-export async function createDestinationAdmin(input: DestinationInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = destinationInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new DestinationRepository(supabase);
-  return repo.createDestination(parsed);
+export async function createDestinationAdmin(
+  input: DestinationInput
+): Promise<ActionResult<DestinationRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = destinationInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new DestinationRepository(supabase);
+    return repo.createDestination(parsed);
+  });
 }
 
-export async function updateDestinationAdmin(id: string, input: DestinationInput) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = destinationInputSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new DestinationRepository(supabase);
-  return repo.updateDestination(id, parsed);
+export async function updateDestinationAdmin(
+  id: string,
+  input: DestinationInput
+): Promise<ActionResult<DestinationRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const parsed = destinationInputSchema.parse(input);
+    const supabase = await createClient();
+    const repo = new DestinationRepository(supabase);
+    return repo.updateDestination(id, parsed);
+  });
 }
 
-export async function deleteDestinationAdmin(id: string): Promise<boolean> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new DestinationRepository(supabase);
-  return repo.deleteDestination(id);
+export async function deleteDestinationAdmin(id: string): Promise<ActionResult<boolean>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new DestinationRepository(supabase);
+    return repo.deleteDestination(id);
+  });
 }
 
 // --- ADMIN-07: Destination Image Upload / Management ---
