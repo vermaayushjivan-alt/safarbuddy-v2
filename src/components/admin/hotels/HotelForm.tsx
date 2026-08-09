@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   createHotelAdmin,
   updateHotelAdmin,
   type HotelInput,
 } from "@/app/actions/hotel.actions";
+import { getAllVendorsForDropdown } from "@/app/actions/vendor.actions";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
 
 const STATUS_OPTIONS = ["DRAFT", "ACTIVE", "INACTIVE"] as const;
@@ -20,6 +21,11 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Vendor dropdown state
+  const [vendors, setVendors] = useState<{ id: string; vendor_name: string }[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(true);
+  const [vendorsError, setVendorsError] = useState<string | null>(null);
 
   const [form, setForm] = useState<HotelInput>({
     hotel_name: hotel?.hotel_name ?? "",
@@ -35,7 +41,32 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     starting_price: hotel?.starting_price ?? undefined,
     is_featured: hotel?.is_featured ?? false,
     status: (hotel?.status as HotelInput["status"]) ?? "DRAFT",
+    // STABILIZATION-01: vendor_id — preselected from existing hotel when
+    // editing; empty string as initial create state (form submit will
+    // fail Zod uuid() validation if not selected, surfacing the error).
+    vendor_id: hotel?.vendor_id ?? "",
   });
+
+  // Load vendor list on mount — admin never types a UUID
+  useEffect(() => {
+    let active = true;
+    async function loadVendors() {
+      try {
+        const data = await getAllVendorsForDropdown();
+        if (active) setVendors(data);
+      } catch (err) {
+        if (active) {
+          setVendorsError(
+            err instanceof Error ? err.message : "Failed to load vendors"
+          );
+        }
+      } finally {
+        if (active) setVendorsLoading(false);
+      }
+    }
+    loadVendors();
+    return () => { active = false; };
+  }, []);
 
   function handleChange<K extends keyof HotelInput>(key: K, value: HotelInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -215,6 +246,43 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
         </select>
       </Field>
 
+      {/* STABILIZATION-01: Vendor selector — admin selects by name,
+          UUID is submitted internally. Never manually typed. */}
+      <Field label="Vendor" required>
+        {vendorsLoading ? (
+          <p className="text-[13px] text-ink/50">Loading vendors…</p>
+        ) : vendorsError ? (
+          <p className="text-[13px] text-red-600">{vendorsError}</p>
+        ) : vendors.length === 0 ? (
+          <p className="text-[13px] text-red-600">
+            No vendors found. Please{" "}
+            <a href="/admin/vendors/new" className="underline">
+              create a vendor
+            </a>{" "}
+            first.
+          </p>
+        ) : (
+          <select
+            required
+            value={form.vendor_id}
+            onChange={(e) => handleChange("vendor_id", e.target.value)}
+            className={inputClass}
+          >
+            <option value="" disabled>
+              — Select a vendor —
+            </option>
+            {vendors.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.vendor_name}
+              </option>
+            ))}
+          </select>
+        )}
+        <p className="mt-1 text-[12px] text-ink/45">
+          Select the vendor that owns or manages this hotel.
+        </p>
+      </Field>
+
       <label className="flex items-center gap-2 text-[13px] text-deep">
         <input
           type="checkbox"
@@ -228,10 +296,14 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
       <div className="flex gap-3 pt-2">
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || vendorsLoading}
           className="focus-ring rounded-xl bg-deep px-5 py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 disabled:opacity-50"
         >
-          {isPending ? "Saving..." : mode === "create" ? "Create Hotel" : "Save Changes"}
+          {isPending
+            ? "Saving..."
+            : mode === "create"
+              ? "Create Hotel"
+              : "Save Changes"}
         </button>
       </div>
     </form>
