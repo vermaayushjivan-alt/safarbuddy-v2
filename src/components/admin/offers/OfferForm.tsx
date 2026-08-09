@@ -44,25 +44,22 @@ function OfferForm({ mode, offer }: OfferFormProps) {
     setError(null);
 
     startTransition(async () => {
-      try {
-        if (mode === "create") {
-          await createOfferAdmin(form);
-        } else if (offer) {
-          await updateOfferAdmin(offer.id, form);
-        }
+      const result =
+        mode === "create"
+          ? await createOfferAdmin(form)
+          : offer
+            ? await updateOfferAdmin(offer.id, form)
+            : null;
 
-        router.push("/admin/offers");
-        router.refresh();
+      if (!result) return;
 
-      } catch (err) {
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Something went wrong"
-        );
-
+      if (!result.success) {
+        setError(result.error);
+        return;
       }
+
+      router.push("/admin/offers");
+      router.refresh();
     });
   }
 
