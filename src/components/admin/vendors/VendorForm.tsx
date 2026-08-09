@@ -38,17 +38,22 @@ export function VendorForm({ mode, vendor }: VendorFormProps) {
     setError(null);
 
     startTransition(async () => {
-      try {
-        if (mode === "create") {
-          await createVendorAdmin(form);
-        } else if (vendor) {
-          await updateVendorAdmin(vendor.id, form);
-        }
-        router.push("/admin/vendors");
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+      const result =
+        mode === "create"
+          ? await createVendorAdmin(form)
+          : vendor
+            ? await updateVendorAdmin(vendor.id, form)
+            : null;
+
+      if (!result) return;
+
+      if (!result.success) {
+        setError(result.error);
+        return;
       }
+
+      router.push("/admin/vendors");
+      router.refresh();
     });
   }
 
