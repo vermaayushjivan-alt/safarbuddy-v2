@@ -7,8 +7,8 @@ import { SupabaseClientType, DatabaseRecord } from "./types";
  * IMPORTANT:
  * - Only real public.hotels columns are queried from the database.
  * - thumbnail is a computed read-time field.
- * - total_reviews and gallery are legacy compatibility fields.
- *   They are NOT queried from public.hotels.
+ * - total_reviews and gallery are compatibility fields only.
+ * - total_reviews is NOT selected from public.hotels.
  */
 export interface HotelRecord extends DatabaseRecord {
   id: string;
@@ -49,29 +49,24 @@ export interface HotelRecord extends DatabaseRecord {
 
   /**
    * Computed field.
-   * Not a public.hotels database column.
+   * NOT a database column.
    */
-  thumbnail?: string | null;
+  thumbnail: string | null;
 
   /**
-   * Legacy UI compatibility field.
+   * Compatibility field for existing UI.
    *
-   * IMPORTANT:
-   * This is NOT selected from public.hotels.
-   * It exists only so existing marketing UI can safely render:
-   *
-   * {hotel.total_reviews} reviews
-   *
-   * Until a real reviews milestone is implemented, it remains undefined.
+   * NOT a database column.
+   * Until the reviews system is implemented, this is null.
    */
-  total_reviews?: number | null;
+  total_reviews: number | null;
 
   /**
-   * Legacy UI compatibility field.
+   * Compatibility field.
    *
    * NOT a database column.
    */
-  gallery?: string[] | null;
+  gallery: string[] | null;
 }
 
 export interface HotelImageRow {
@@ -138,17 +133,20 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       return hotels;
     }
 
-    const hotelIds = hotels.map((hotel) => hotel.id);
+    const hotelIds = hotels.map(
+      (hotel) => hotel.id
+    );
 
-    const { data: images, error } = await this.supabase
-      .from("hotel_images")
-      .select(
-        "hotel_id, storage_path, is_primary, sort_order"
-      )
-      .in("hotel_id", hotelIds)
-      .order("sort_order", {
-        ascending: true,
-      });
+    const { data: images, error } =
+      await this.supabase
+        .from("hotel_images")
+        .select(
+          "hotel_id, storage_path, is_primary, sort_order"
+        )
+        .in("hotel_id", hotelIds)
+        .order("sort_order", {
+          ascending: true,
+        });
 
     const primaryPathByHotelId =
       new Map<string, string>();
@@ -156,7 +154,9 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     if (!error && images) {
       for (const img of images as HotelImageRow[]) {
         const current =
-          primaryPathByHotelId.get(img.hotel_id);
+          primaryPathByHotelId.get(
+            img.hotel_id
+          );
 
         if (!current || img.is_primary) {
           primaryPathByHotelId.set(
@@ -176,11 +176,17 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
           ...hotel,
           thumbnail:
             DEFAULT_HOTEL_PLACEHOLDER,
+          total_reviews:
+            hotel.total_reviews ?? null,
+          gallery:
+            hotel.gallery ?? null,
         };
       }
 
       const normalizedPath =
-        storagePath.startsWith("hotel-images/")
+        storagePath.startsWith(
+          "hotel-images/"
+        )
           ? storagePath.slice(
               "hotel-images/".length
             )
@@ -189,12 +195,18 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       const { data: publicUrlData } =
         this.supabase.storage
           .from("hotel-images")
-          .getPublicUrl(normalizedPath);
+          .getPublicUrl(
+            normalizedPath
+          );
 
       return {
         ...hotel,
         thumbnail:
           publicUrlData.publicUrl,
+        total_reviews:
+          hotel.total_reviews ?? null,
+        gallery:
+          hotel.gallery ?? null,
       };
     });
   }
@@ -256,9 +268,19 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       );
     }
 
+    const hotel = data as HotelRecord;
+
     const [resolved] =
       await this.resolveImages([
-        data as HotelRecord,
+        {
+          ...hotel,
+          thumbnail:
+            hotel.thumbnail ?? null,
+          total_reviews:
+            hotel.total_reviews ?? null,
+          gallery:
+            hotel.gallery ?? null,
+        },
       ]);
 
     return resolved;
@@ -272,16 +294,30 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     page: number = 1,
     limit: number = 20
   ) {
-    return this.findWithPagination({
-      sort: {
-        column: "created_at",
-        ascending: false,
-      },
-      pagination: {
-        page,
-        limit,
-      },
-    });
+    const result =
+      await this.findWithPagination({
+        sort: {
+          column: "created_at",
+          ascending: false,
+        },
+        pagination: {
+          page,
+          limit,
+        },
+      });
+
+    return {
+      ...result,
+      data: result.data.map((hotel) => ({
+        ...hotel,
+        thumbnail:
+          hotel.thumbnail ?? null,
+        total_reviews:
+          hotel.total_reviews ?? null,
+        gallery:
+          hotel.gallery ?? null,
+      })),
+    };
   }
 
   async getAllHotelsPaginated(
@@ -297,7 +333,22 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   async getHotelById(
     id: string
   ): Promise<HotelRecord | null> {
-    return this.findById(id);
+    const hotel =
+      await this.findById(id);
+
+    if (!hotel) {
+      return null;
+    }
+
+    return {
+      ...hotel,
+      thumbnail:
+        hotel.thumbnail ?? null,
+      total_reviews:
+        hotel.total_reviews ?? null,
+      gallery:
+        hotel.gallery ?? null,
+    };
   }
 
   async createHotel(
@@ -305,7 +356,18 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       BaseRepository<HotelRecord>["create"]
     >[0]
   ) {
-    return this.create(data);
+    const created =
+      await this.create(data);
+
+    return {
+      ...created,
+      thumbnail:
+        created.thumbnail ?? null,
+      total_reviews:
+        created.total_reviews ?? null,
+      gallery:
+        created.gallery ?? null,
+    };
   }
 
   async updateHotel(
@@ -314,7 +376,21 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       BaseRepository<HotelRecord>["update"]
     >[1]
   ) {
-    return this.update(id, data);
+    const updated =
+      await this.update(
+        id,
+        data
+      );
+
+    return {
+      ...updated,
+      thumbnail:
+        updated.thumbnail ?? null,
+      total_reviews:
+        updated.total_reviews ?? null,
+      gallery:
+        updated.gallery ?? null,
+    };
   }
 
   async deleteHotel(
@@ -348,7 +424,8 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       );
     }
 
-    return (data ?? []) as HotelImageRow[];
+    return (data ??
+      []) as HotelImageRow[];
   }
 
   async getHotelImageById(
