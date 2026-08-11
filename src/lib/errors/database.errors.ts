@@ -54,6 +54,48 @@ export class ValidationError extends DatabaseError {
   }
 }
 
+// ---------------------------------------------------------------------------
+// HELPERS -- kept top-level and typed strictly so TypeScript narrowing works
+// correctly even when the underlying PostgrestError field is unknown at the
+// call site.
+// ---------------------------------------------------------------------------
+
+/**
+ * Safely converts an unknown value to a trimmed string.
+ * Returns "" for anything that is not a non-empty string.
+ *
+ * This exists because PostgrestError.details / .hint / .message have
+ * historically been typed loosely (string | null | unknown depending on
+ * the @supabase/supabase-js version), which breaks in-place
+ * `typeof x === "string" ? x.trim() : ""` narrowing under strict TS.
+ */
+function safeString(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim();
+}
+
+function extractConstraintName(message: string): string {
+  if (!message) {
+    return "unknown";
+  }
+
+  const match = message.match(/constraint "(.+?)"/i);
+
+  return match?.[1] ?? "unknown";
+}
+
+function extractColumnName(message: string): string {
+  if (!message) {
+    return "unknown";
+  }
+
+  const match = message.match(/column "(.+?)"/i);
+
+  return match?.[1] ?? "unknown";
+}
+
 /**
  * Converts a Supabase/PostgREST error into one of our application errors.
  *
@@ -65,25 +107,14 @@ export class ValidationError extends DatabaseError {
  * failure can be identified. Once Session 03 is completely stable, the
  * messages can be made more generic again if desired.
  */
-export function handleDatabaseError(
-  error: PostgrestError
-): DatabaseError {
+export function handleDatabaseError(error: PostgrestError): DatabaseError {
   const code = error.code ?? "UNKNOWN";
 
-  const rawMessage =
-    typeof error.message === "string"
-      ? error.message.trim()
-      : "";
-
-  const rawDetails =
-    typeof error.details === "string"
-      ? error.details.trim()
-      : "";
-
-  const rawHint =
-    typeof error.hint === "string"
-      ? error.hint.trim()
-      : "";
+  // Use safeString() rather than inline `typeof x === "string" ? x.trim() : ""`
+  // so that narrowing survives even when the field type is `unknown`.
+  const rawMessage = safeString(error.message);
+  const rawDetails = safeString(error.details);
+  const rawHint = safeString(error.hint);
 
   // -----------------------------------------------------------------------
   // UNIQUE CONSTRAINT
@@ -91,9 +122,7 @@ export function handleDatabaseError(
   // -----------------------------------------------------------------------
 
   if (code === "23505") {
-    const constraint = extractConstraintName(
-      rawMessage
-    );
+    const constraint = extractConstraintName(rawMessage);
 
     return new ConflictError(
       `A record with the same value already exists. Constraint: ${constraint}`,
@@ -113,15 +142,11 @@ export function handleDatabaseError(
   // -----------------------------------------------------------------------
 
   if (code === "23503") {
-    const constraint = extractConstraintName(
-      rawMessage
-    );
+    const constraint = extractConstraintName(rawMessage);
 
     return new ValidationError(
       `Foreign key constraint failed${
-        constraint !== "unknown"
-          ? `: ${constraint}`
-          : "."
+        constraint !== "unknown" ? `: ${constraint}` : "."
       }`,
       {
         code,
@@ -139,15 +164,11 @@ export function handleDatabaseError(
   // -----------------------------------------------------------------------
 
   if (code === "23502") {
-    const column = extractColumnName(
-      rawMessage
-    );
+    const column = extractColumnName(rawMessage);
 
     return new ValidationError(
       `Required field is missing${
-        column !== "unknown"
-          ? `: ${column}`
-          : "."
+        column !== "unknown" ? `: ${column}` : "."
       }`,
       {
         code,
@@ -165,15 +186,11 @@ export function handleDatabaseError(
   // -----------------------------------------------------------------------
 
   if (code === "23514") {
-    const constraint = extractConstraintName(
-      rawMessage
-    );
+    const constraint = extractConstraintName(rawMessage);
 
     return new ValidationError(
       `The submitted value violates a database rule${
-        constraint !== "unknown"
-          ? `: ${constraint}`
-          : "."
+        constraint !== "unknown" ? `: ${constraint}` : "."
       }`,
       {
         code,
@@ -240,10 +257,7 @@ export function handleDatabaseError(
   // INVALID DATETIME / DATE / TIME
   // -----------------------------------------------------------------------
 
-  if (
-    code === "22007" ||
-    code === "22008"
-  ) {
+  if (code === "22007" || code === "22008") {
     return new ValidationError(
       "One of the date or time values is invalid.",
       {
@@ -260,8 +274,7 @@ export function handleDatabaseError(
   // -----------------------------------------------------------------------
 
   return new DatabaseError(
-    rawMessage ||
-      "A database error occurred while processing your request.",
+    rawMessage || "A database error occurred while processing your request.",
     code,
     {
       code,
@@ -270,38 +283,4 @@ export function handleDatabaseError(
       hint: rawHint,
     }
   );
-}
-
-// ---------------------------------------------------------------------------
-// HELPERS
-// ---------------------------------------------------------------------------
-
-function extractConstraintName(
-  message: string
-): string {
-  if (!message) {
-    return "unknown";
-  }
-
-  const match =
-    message.match(
-      /constraint "(.+?)"/i
-    );
-
-  return match?.[1] ?? "unknown";
-}
-
-function extractColumnName(
-  message: string
-): string {
-  if (!message) {
-    return "unknown";
-  }
-
-  const match =
-    message.match(
-      /column "(.+?)"/i
-    );
-
-  return match?.[1] ?? "unknown";
 }
