@@ -3,9 +3,15 @@ import { SupabaseClientType, DatabaseRecord } from './types';
 
 // HotelRecord mirrors the actual public.hotels table shape verified
 // against information_schema (SESSION 03). Do NOT add columns that are
-// not present in the DB (RULE 7). thumbnail is a computed field
-// populated by resolveImages() from hotel_images.storage_path -- it is
-// NOT a real DB column.
+// not present in the DB (RULE 7).
+//
+// LEGACY-COMPAT optional fields (thumbnail, total_reviews, gallery) are
+// NOT real DB columns. They are kept here as optional so pre-existing
+// public/marketing UI code that references them continues to type-check.
+// - thumbnail is populated at read time by resolveImages() from
+//   hotel_images.storage_path.
+// - total_reviews and gallery will simply be undefined until a dedicated
+//   milestone adds them to the DB and to the read path.
 export interface HotelRecord extends DatabaseRecord {
   id: string;
   vendor_id: string | null;
@@ -41,7 +47,10 @@ export interface HotelRecord extends DatabaseRecord {
   is_featured: boolean;
   is_verified: boolean;
 
+  // Legacy-compat optional (not real DB columns) -- see comment above.
   thumbnail?: string | null;
+  total_reviews?: number | null;
+  gallery?: string[] | null;
 }
 
 export interface HotelImageRow {
