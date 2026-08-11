@@ -57,9 +57,7 @@ const hotelInputSchema = z.object({
   ),
   is_featured: z.boolean().optional(),
   status: z.string().min(1, 'Status is required'),
-  // P1 fix: hotels.vendor_id MUST remain nullable — a hotel is not
-  // required to have a vendor attached. A previous stabilization change
-  // incorrectly made this required; restored to nullable/optional here.
+  // hotels.vendor_id is nullable as of SESSION 03 SQL migration.
   vendor_id: z.preprocess(
     emptyToNull,
     z.string().uuid('Vendor must be a valid selection').nullable().optional()
@@ -143,17 +141,26 @@ function hotelExtensionFromMimeType(mimeType: string): string {
   }
 }
 
-export async function getHotelImagesAdmin(hotelId: string): Promise<HotelImageWithUrl[]> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  const rows = await repo.listHotelImages(hotelId);
-  return rows.map((row) => {
-    const normalizedPath = normalizeHotelStoragePath(row.storage_path);
-    const { data: publicUrlData } = supabase.storage
-      .from('hotel-images')
-      .getPublicUrl(normalizedPath);
-    return { ...row, publicUrl: publicUrlData.publicUrl };
+// SESSION 03: image admin actions now consistently return
+// ActionResult<T> so real Supabase / Storage / RLS errors surface to the
+// client instead of being swallowed by an unhandled thrown Error at the
+// Server Action serialization boundary.
+
+export async function getHotelImagesAdmin(
+  hotelId: string
+): Promise<ActionResult<HotelImageWithUrl[]>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    const rows = await repo.listHotelImages(hotelId);
+    return rows.map((row) => {
+      const normalizedPath = normalizeHotelStoragePath(row.storage_path);
+      const { data: publicUrlData } = supabase.storage
+        .from('hotel-images')
+        .getPublicUrl(normalizedPath);
+      return { ...row, publicUrl: publicUrlData.publicUrl };
+    });
   });
 }
 
@@ -161,68 +168,102 @@ export async function uploadHotelImageAdmin(
   hotelId: string,
   file: File,
   isPrimary: boolean
-): Promise<HotelImageWithUrl> {
-  await requireRole(['admin', 'super_admin']);
-  if (!HOTEL_ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
-  }
-  if (file.size > HOTEL_MAX_IMAGE_SIZE_BYTES) {
-    throw new Error('Image must be 5MB or smaller.');
-  }
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  const ext = hotelExtensionFromMimeType(file.type);
-  const objectKey = `${hotelId}/${crypto.randomUUID()}.${ext}`;
-  const storedPath = `hotel-images/${objectKey}`;
-  const { error: uploadError } = await supabase.storage
-    .from('hotel-images')
-    .upload(objectKey, file, { contentType: file.type, upsert: false });
-  if (uploadError) {
-    throw new Error(`Failed to upload image: ${uploadError.message}`);
-  }
-  const existing = await repo.listHotelImages(hotelId);
-  const nextSortOrder = existing.length > 0
-    ? Math.max(...existing.map((img) => img.sort_order)) + 1
-    : 0;
-  const shouldBePrimary = isPrimary || existing.length === 0;
-  const row = await repo.insertHotelImageRow(hotelId, storedPath, shouldBePrimary, nextSortOrder);
-  if (shouldBePrimary && existing.length > 0) {
-    await repo.setPrimaryHotelImage(hotelId, row.id);
-  }
-  const { data: publicUrlData } = supabase.storage
-    .from('hotel-images')
-    .getPublicUrl(objectKey);
-  return { ...row, publicUrl: publicUrlData.publicUrl };
+): Promise<ActionResult<HotelImageWithUrl>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+
+    if (!HOTEL_ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+    }
+    if (file.size > HOTEL_MAX_IMAGE_SIZE_BYTES) {
+      throw new Error('Image must be 5MB or smaller.');
+    }
+
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    const ext = hotelExtensionFromMimeType(file.type);
+    const objectKey = `${hotelId}/${crypto.randomUUID()}.${ext}`;
+    const storedPath = `hotel-images/${objectKey}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('hotel-images')
+      .upload(objectKey, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload image: ${uploadError.message}`);
+    }
+
+    const existing = await repo.listHotelImages(hotelId);
+    const nextSortOrder =
+      existing.length > 0
+        ? Math.max(...existing.map((img) => img.sort_order)) + 1
+        : 0;
+    const shouldBePrimary = isPrimary || existing.length === 0;
+
+    const row = await repo.insertHotelImageRow(
+      hotelId,
+      storedPath,
+      shouldBePrimary,
+      nextSortOrder
+    );
+
+    if (shouldBePrimary && existing.length > 0) {
+      await repo.setPrimaryHotelImage(hotelId, row.id);
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('hotel-images')
+      .getPublicUrl(objectKey);
+
+    return { ...row, publicUrl: publicUrlData.publicUrl };
+  });
 }
 
-export async function setPrimaryHotelImageAdmin(hotelId: string, imageId: string): Promise<void> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  await repo.setPrimaryHotelImage(hotelId, imageId);
+export async function setPrimaryHotelImageAdmin(
+  hotelId: string,
+  imageId: string
+): Promise<ActionResult<true>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    await repo.setPrimaryHotelImage(hotelId, imageId);
+    return true as const;
+  });
 }
 
-export async function reorderHotelImageAdmin(imageId: string, sortOrder: number): Promise<void> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  await repo.updateHotelImageSortOrder(imageId, sortOrder);
+export async function reorderHotelImageAdmin(
+  imageId: string,
+  sortOrder: number
+): Promise<ActionResult<true>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    await repo.updateHotelImageSortOrder(imageId, sortOrder);
+    return true as const;
+  });
 }
 
-export async function deleteHotelImageAdmin(imageId: string): Promise<void> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  const row = await repo.getHotelImageById(imageId);
-  if (!row) throw new Error('Image not found.');
-  const normalizedPath = normalizeHotelStoragePath(row.storage_path);
-  const { error: removeError } = await supabase.storage
-    .from('hotel-images')
-    .remove([normalizedPath]);
-  if (removeError) {
-    throw new Error(`Failed to delete image from storage: ${removeError.message}`);
-  }
-  await repo.deleteHotelImageRow(imageId);
+export async function deleteHotelImageAdmin(
+  imageId: string
+): Promise<ActionResult<true>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+    const supabase = await createClient();
+    const repo = new HotelRepository(supabase);
+    const row = await repo.getHotelImageById(imageId);
+    if (!row) throw new Error('Image not found.');
+    const normalizedPath = normalizeHotelStoragePath(row.storage_path);
+    const { error: removeError } = await supabase.storage
+      .from('hotel-images')
+      .remove([normalizedPath]);
+    if (removeError) {
+      throw new Error(`Failed to delete image from storage: ${removeError.message}`);
+    }
+    await repo.deleteHotelImageRow(imageId);
+    return true as const;
+  });
 }
 
 // --- Pre-existing exports (unchanged) ---
