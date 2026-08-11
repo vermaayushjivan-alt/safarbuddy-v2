@@ -1,5 +1,11 @@
-import { PostgrestError } from '@supabase/supabase-js';
+import { PostgrestError } from "@supabase/supabase-js";
 
+/**
+ * Base database error used by repositories and server actions.
+ *
+ * details intentionally contains the original database diagnostics so that
+ * the server can log the real Supabase/Postgres failure.
+ */
 export class DatabaseError extends Error {
   constructor(
     message: string,
@@ -7,93 +13,295 @@ export class DatabaseError extends Error {
     public details?: Record<string, unknown>
   ) {
     super(message);
-    this.name = 'DatabaseError';
+
+    this.name = "DatabaseError";
+
+    // Required when extending Error in some JS/TS runtimes.
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
 export class NotFoundError extends DatabaseError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(message, 'NOT_FOUND', details);
-    this.name = 'NotFoundError';
+  constructor(
+    message: string,
+    details?: Record<string, unknown>
+  ) {
+    super(message, "NOT_FOUND", details);
+
+    this.name = "NotFoundError";
   }
 }
 
 export class ConflictError extends DatabaseError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(message, 'CONFLICT', details);
-    this.name = 'ConflictError';
+  constructor(
+    message: string,
+    details?: Record<string, unknown>
+  ) {
+    super(message, "CONFLICT", details);
+
+    this.name = "ConflictError";
   }
 }
 
 export class ValidationError extends DatabaseError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(message, 'VALIDATION_ERROR', details);
-    this.name = 'ValidationError';
+  constructor(
+    message: string,
+    details?: Record<string, unknown>
+  ) {
+    super(message, "VALIDATION_ERROR", details);
+
+    this.name = "ValidationError";
   }
 }
 
-export function handleDatabaseError(error: PostgrestError): DatabaseError {
-  // Unique constraint violation
-  if (error.code === '23505') {
-    const constraint = extractConstraintName(error.message);
-    
+/**
+ * Converts a Supabase/PostgREST error into one of our application errors.
+ *
+ * During stabilization we preserve the actual Postgres diagnostics in
+ * `details` and also return a useful diagnostic message.
+ *
+ * IMPORTANT:
+ * This is intentionally diagnostic-friendly so the current hotel-create
+ * failure can be identified. Once Session 03 is completely stable, the
+ * messages can be made more generic again if desired.
+ */
+export function handleDatabaseError(
+  error: PostgrestError
+): DatabaseError {
+  const code = error.code ?? "UNKNOWN";
+
+  const rawMessage =
+    typeof error.message === "string"
+      ? error.message.trim()
+      : "";
+
+  const rawDetails =
+    typeof error.details === "string"
+      ? error.details.trim()
+      : "";
+
+  const rawHint =
+    typeof error.hint === "string"
+      ? error.hint.trim()
+      : "";
+
+  // -----------------------------------------------------------------------
+  // UNIQUE CONSTRAINT
+  // PostgreSQL: 23505
+  // -----------------------------------------------------------------------
+
+  if (code === "23505") {
+    const constraint = extractConstraintName(
+      rawMessage
+    );
+
     return new ConflictError(
-      `Unique constraint violation: ${constraint}`,
-      { constraint }
+      `A record with the same value already exists. Constraint: ${constraint}`,
+      {
+        code,
+        constraint,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
     );
   }
 
-  // Foreign key violation
-  if (error.code === '23503') {
+  // -----------------------------------------------------------------------
+  // FOREIGN KEY
+  // PostgreSQL: 23503
+  // -----------------------------------------------------------------------
+
+  if (code === "23503") {
+    const constraint = extractConstraintName(
+      rawMessage
+    );
+
     return new ValidationError(
-      'Foreign key constraint violation',
-      { originalError: error.message }
+      `Foreign key constraint failed${
+        constraint !== "unknown"
+          ? `: ${constraint}`
+          : "."
+      }`,
+      {
+        code,
+        constraint,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
     );
   }
 
-  // Not null violation
-  if (error.code === '23502') {
-    const column = extractColumnName(error.message);
-    
+  // -----------------------------------------------------------------------
+  // NOT NULL
+  // PostgreSQL: 23502
+  // -----------------------------------------------------------------------
+
+  if (code === "23502") {
+    const column = extractColumnName(
+      rawMessage
+    );
+
     return new ValidationError(
-      `Required field missing: ${column}`,
-      { column }
+      `Required field is missing${
+        column !== "unknown"
+          ? `: ${column}`
+          : "."
+      }`,
+      {
+        code,
+        column,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
     );
   }
 
-  // Numeric field overflow (value doesn't fit the column's precision/scale) —
-  // e.g. bookings.price_snapshot is numeric(10,2), max 99,999,999.99.
-  // Message is intentionally generic and safe to show to end users; the
-  // actual offending column is not always derivable from the Postgres
-  // message, so we don't guess at it.
-  if (error.code === '22003') {
+  // -----------------------------------------------------------------------
+  // CHECK CONSTRAINT
+  // PostgreSQL: 23514
+  // -----------------------------------------------------------------------
+
+  if (code === "23514") {
+    const constraint = extractConstraintName(
+      rawMessage
+    );
+
     return new ValidationError(
-      'The amount is too large. Please enter a smaller value.',
-      { code: '22003' }
+      `The submitted value violates a database rule${
+        constraint !== "unknown"
+          ? `: ${constraint}`
+          : "."
+      }`,
+      {
+        code,
+        constraint,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
     );
   }
 
-  // Generic database error. The safe/human message never includes the raw
-  // Postgres message (which can contain SQL, column/table names, or other
-  // internal details) — that raw text is kept in `details` for server-side
-  // logging only and must never be forwarded to the client as-is.
+  // -----------------------------------------------------------------------
+  // INVALID TEXT REPRESENTATION
+  // PostgreSQL: 22P02
+  // -----------------------------------------------------------------------
+
+  if (code === "22P02") {
+    return new ValidationError(
+      "One of the submitted values has an invalid format.",
+      {
+        code,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // NUMERIC VALUE OUT OF RANGE
+  // PostgreSQL: 22003
+  // -----------------------------------------------------------------------
+
+  if (code === "22003") {
+    return new ValidationError(
+      "The amount or numeric value is too large. Please enter a smaller value.",
+      {
+        code,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // STRING DATA TOO LONG
+  // PostgreSQL: 22001
+  // -----------------------------------------------------------------------
+
+  if (code === "22001") {
+    return new ValidationError(
+      "One of the entered values is too long.",
+      {
+        code,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // INVALID DATETIME / DATE / TIME
+  // -----------------------------------------------------------------------
+
+  if (
+    code === "22007" ||
+    code === "22008"
+  ) {
+    return new ValidationError(
+      "One of the date or time values is invalid.",
+      {
+        code,
+        message: rawMessage,
+        details: rawDetails,
+        hint: rawHint,
+      }
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // GENERIC DATABASE ERROR
+  // -----------------------------------------------------------------------
+
   return new DatabaseError(
-    'A database error occurred while processing your request.',
-    error.code,
+    rawMessage ||
+      "A database error occurred while processing your request.",
+    code,
     {
-      code: error.code,
-      hint: error.hint,
-      message: error.message,
+      code,
+      message: rawMessage,
+      details: rawDetails,
+      hint: rawHint,
     }
   );
 }
 
-function extractConstraintName(message: string): string {
-  const match = message.match(/constraint "(.+?)"/);
-  return match ? match[1] : 'unknown';
+// ---------------------------------------------------------------------------
+// HELPERS
+// ---------------------------------------------------------------------------
+
+function extractConstraintName(
+  message: string
+): string {
+  if (!message) {
+    return "unknown";
+  }
+
+  const match =
+    message.match(
+      /constraint "(.+?)"/i
+    );
+
+  return match?.[1] ?? "unknown";
 }
 
-function extractColumnName(message: string): string {
-  const match = message.match(/column "(.+?)"/);
-  return match ? match[1] : 'unknown';
+function extractColumnName(
+  message: string
+): string {
+  if (!message) {
+    return "unknown";
+  }
+
+  const match =
+    message.match(
+      /column "(.+?)"/i
+    );
+
+  return match?.[1] ?? "unknown";
 }
