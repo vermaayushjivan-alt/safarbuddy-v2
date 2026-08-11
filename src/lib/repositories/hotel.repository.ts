@@ -5,10 +5,10 @@ import { SupabaseClientType, DatabaseRecord } from "./types";
  * HotelRecord mirrors the verified public.hotels database shape.
  *
  * IMPORTANT:
- * - Do not add fields that are not present in public.hotels.
+ * - Only real public.hotels columns are queried from the database.
  * - thumbnail is a computed read-time field.
- * - total_reviews and gallery are NOT database columns and therefore
- *   are intentionally not part of this record.
+ * - total_reviews and gallery are legacy compatibility fields.
+ *   They are NOT queried from public.hotels.
  */
 export interface HotelRecord extends DatabaseRecord {
   id: string;
@@ -49,11 +49,29 @@ export interface HotelRecord extends DatabaseRecord {
 
   /**
    * Computed field.
-   *
-   * This does NOT come from public.hotels.
-   * It is populated from hotel_images.storage_path by resolveImages().
+   * Not a public.hotels database column.
    */
   thumbnail?: string | null;
+
+  /**
+   * Legacy UI compatibility field.
+   *
+   * IMPORTANT:
+   * This is NOT selected from public.hotels.
+   * It exists only so existing marketing UI can safely render:
+   *
+   * {hotel.total_reviews} reviews
+   *
+   * Until a real reviews milestone is implemented, it remains undefined.
+   */
+  total_reviews?: number | null;
+
+  /**
+   * Legacy UI compatibility field.
+   *
+   * NOT a database column.
+   */
+  gallery?: string[] | null;
 }
 
 export interface HotelImageRow {
@@ -132,13 +150,13 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
         ascending: true,
       });
 
-    const primaryPathByHotelId = new Map<string, string>();
+    const primaryPathByHotelId =
+      new Map<string, string>();
 
     if (!error && images) {
       for (const img of images as HotelImageRow[]) {
-        const current = primaryPathByHotelId.get(
-          img.hotel_id
-        );
+        const current =
+          primaryPathByHotelId.get(img.hotel_id);
 
         if (!current || img.is_primary) {
           primaryPathByHotelId.set(
@@ -150,22 +168,23 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     }
 
     return hotels.map((hotel) => {
-      const storagePath = primaryPathByHotelId.get(
-        hotel.id
-      );
+      const storagePath =
+        primaryPathByHotelId.get(hotel.id);
 
       if (!storagePath) {
         return {
           ...hotel,
-          thumbnail: DEFAULT_HOTEL_PLACEHOLDER,
+          thumbnail:
+            DEFAULT_HOTEL_PLACEHOLDER,
         };
       }
 
-      const normalizedPath = storagePath.startsWith(
-        "hotel-images/"
-      )
-        ? storagePath.slice("hotel-images/".length)
-        : storagePath;
+      const normalizedPath =
+        storagePath.startsWith("hotel-images/")
+          ? storagePath.slice(
+              "hotel-images/".length
+            )
+          : storagePath;
 
       const { data: publicUrlData } =
         this.supabase.storage
@@ -174,7 +193,8 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
 
       return {
         ...hotel,
-        thumbnail: publicUrlData.publicUrl,
+        thumbnail:
+          publicUrlData.publicUrl,
       };
     });
   }
@@ -187,40 +207,44 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     page: number = 1,
     limit: number = 20
   ) {
-    const result = await this.findWithPagination({
-      filters: [
-        {
-          column: "status",
-          operator: "eq",
-          value: "ACTIVE",
+    const result =
+      await this.findWithPagination({
+        filters: [
+          {
+            column: "status",
+            operator: "eq",
+            value: "ACTIVE",
+          },
+        ],
+        sort: {
+          column: "created_at",
+          ascending: false,
         },
-      ],
-      sort: {
-        column: "created_at",
-        ascending: false,
-      },
-      pagination: {
-        page,
-        limit,
-      },
-    });
+        pagination: {
+          page,
+          limit,
+        },
+      });
 
     return {
       ...result,
-      data: await this.resolveImages(result.data),
+      data: await this.resolveImages(
+        result.data
+      ),
     };
   }
 
   async getHotelBySlug(
     slug: string
   ): Promise<HotelRecord | null> {
-    const { data, error } = await this.supabase
-      .from("hotels")
-      .select("*")
-      .eq("slug", slug)
-      .eq("status", "ACTIVE")
-      .is("deleted_at", null)
-      .single();
+    const { data, error } =
+      await this.supabase
+        .from("hotels")
+        .select("*")
+        .eq("slug", slug)
+        .eq("status", "ACTIVE")
+        .is("deleted_at", null)
+        .single();
 
     if (error) {
       if (error.code === "PGRST116") {
@@ -232,9 +256,10 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       );
     }
 
-    const [resolved] = await this.resolveImages([
-      data as HotelRecord,
-    ]);
+    const [resolved] =
+      await this.resolveImages([
+        data as HotelRecord,
+      ]);
 
     return resolved;
   }
@@ -263,7 +288,10 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     page: number = 1,
     limit: number = 20
   ) {
-    return this.getAllHotels(page, limit);
+    return this.getAllHotels(
+      page,
+      limit
+    );
   }
 
   async getHotelById(
@@ -289,7 +317,9 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     return this.update(id, data);
   }
 
-  async deleteHotel(id: string): Promise<boolean> {
+  async deleteHotel(
+    id: string
+  ): Promise<boolean> {
     await this.softDeleteById(id);
     return true;
   }
@@ -301,15 +331,16 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   async listHotelImages(
     hotelId: string
   ): Promise<HotelImageRow[]> {
-    const { data, error } = await this.supabase
-      .from("hotel_images")
-      .select(
-        "id, hotel_id, storage_path, is_primary, sort_order"
-      )
-      .eq("hotel_id", hotelId)
-      .order("sort_order", {
-        ascending: true,
-      });
+    const { data, error } =
+      await this.supabase
+        .from("hotel_images")
+        .select(
+          "id, hotel_id, storage_path, is_primary, sort_order"
+        )
+        .eq("hotel_id", hotelId)
+        .order("sort_order", {
+          ascending: true,
+        });
 
     if (error) {
       throw new Error(
@@ -323,13 +354,14 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   async getHotelImageById(
     imageId: string
   ): Promise<HotelImageRow | null> {
-    const { data, error } = await this.supabase
-      .from("hotel_images")
-      .select(
-        "id, hotel_id, storage_path, is_primary, sort_order"
-      )
-      .eq("id", imageId)
-      .single();
+    const { data, error } =
+      await this.supabase
+        .from("hotel_images")
+        .select(
+          "id, hotel_id, storage_path, is_primary, sort_order"
+        )
+        .eq("id", imageId)
+        .single();
 
     if (error) {
       if (error.code === "PGRST116") {
@@ -350,18 +382,19 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     isPrimary: boolean,
     sortOrder: number
   ): Promise<HotelImageRow> {
-    const { data, error } = await this.supabase
-      .from("hotel_images")
-      .insert({
-        hotel_id: hotelId,
-        storage_path: storagePath,
-        is_primary: isPrimary,
-        sort_order: sortOrder,
-      })
-      .select(
-        "id, hotel_id, storage_path, is_primary, sort_order"
-      )
-      .single();
+    const { data, error } =
+      await this.supabase
+        .from("hotel_images")
+        .insert({
+          hotel_id: hotelId,
+          storage_path: storagePath,
+          is_primary: isPrimary,
+          sort_order: sortOrder,
+        })
+        .select(
+          "id, hotel_id, storage_path, is_primary, sort_order"
+        )
+        .single();
 
     if (error) {
       throw new Error(
@@ -410,12 +443,13 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     imageId: string,
     sortOrder: number
   ): Promise<void> {
-    const { error } = await this.supabase
-      .from("hotel_images")
-      .update({
-        sort_order: sortOrder,
-      })
-      .eq("id", imageId);
+    const { error } =
+      await this.supabase
+        .from("hotel_images")
+        .update({
+          sort_order: sortOrder,
+        })
+        .eq("id", imageId);
 
     if (error) {
       throw new Error(
@@ -427,10 +461,11 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   async deleteHotelImageRow(
     imageId: string
   ): Promise<void> {
-    const { error } = await this.supabase
-      .from("hotel_images")
-      .delete()
-      .eq("id", imageId);
+    const { error } =
+      await this.supabase
+        .from("hotel_images")
+        .delete()
+        .eq("id", imageId);
 
     if (error) {
       throw new Error(
