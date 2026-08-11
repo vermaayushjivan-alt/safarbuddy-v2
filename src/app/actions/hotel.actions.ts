@@ -1,91 +1,172 @@
-'use server';
+"use server";
 
-import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth/session';
-import { HotelRepository, HotelRecord, HotelImageRow } from '@/lib/repositories/hotel.repository';
-import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/session";
+import {
+  HotelRepository,
+  HotelRecord,
+  HotelImageRow,
+} from "@/lib/repositories/hotel.repository";
+import {
+  runAction,
+  emptyToNull,
+  type ActionResult,
+} from "@/lib/actions/action-result";
 
-// bookings.price_snapshot is numeric(10,2) — max representable value.
-// hotel/package starting_price is copied into price_snapshot at booking
-// time, so it must never be allowed to exceed this bound upstream.
 const MAX_BOOKING_AMOUNT = 99_999_999.99;
 
-// --- HOME-03: Trending Hotels (public, homepage) ---
+// -----------------------------------------------------------------------------
+// PUBLIC
+// -----------------------------------------------------------------------------
 
-export async function getTrendingHotels(limit: number = 6): Promise<HotelRecord[]> {
+export async function getTrendingHotels(
+  limit: number = 6
+): Promise<HotelRecord[]> {
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
+
   return repo.getTrendingHotels(limit);
 }
 
-// --- PUBLIC-01: Public Marketing Pages (/hotels, /hotels/[slug]) ---
-
-export async function getPublishedHotels(page: number = 1, limit: number = 20) {
+export async function getPublishedHotels(
+  page: number = 1,
+  limit: number = 20
+) {
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
+
   return repo.getPublishedHotels(page, limit);
 }
 
-export async function getHotelBySlug(slug: string): Promise<HotelRecord | null> {
+export async function getHotelBySlug(
+  slug: string
+): Promise<HotelRecord | null> {
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
+
   return repo.getHotelBySlug(slug);
 }
 
-// --- ADMIN-02: Hotel Management (CRUD) ---
+// -----------------------------------------------------------------------------
+// ADMIN HOTEL CRUD
+// -----------------------------------------------------------------------------
 
 const hotelInputSchema = z.object({
-  hotel_name: z.string().min(1, 'Hotel name is required'),
-  slug: z.string().min(1, 'Slug is required'),
-  description: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  city: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  state: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  country: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  address: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  latitude: z.preprocess(emptyToNull, z.number().nullable().optional()),
-  longitude: z.preprocess(emptyToNull, z.number().nullable().optional()),
-  star_rating: z.preprocess(emptyToNull, z.number().min(0).max(5).nullable().optional()),
+  hotel_name: z.string().min(1, "Hotel name is required"),
+
+  slug: z.string().min(1, "Slug is required"),
+
+  description: z.preprocess(
+    emptyToNull,
+    z.string().nullable().optional()
+  ),
+
+  city: z.preprocess(
+    emptyToNull,
+    z.string().nullable().optional()
+  ),
+
+  state: z.preprocess(
+    emptyToNull,
+    z.string().nullable().optional()
+  ),
+
+  country: z.preprocess(
+    emptyToNull,
+    z.string().nullable().optional()
+  ),
+
+  address: z.preprocess(
+    emptyToNull,
+    z.string().nullable().optional()
+  ),
+
+  latitude: z.preprocess(
+    emptyToNull,
+    z.number().nullable().optional()
+  ),
+
+  longitude: z.preprocess(
+    emptyToNull,
+    z.number().nullable().optional()
+  ),
+
+  star_rating: z.preprocess(
+    emptyToNull,
+    z
+      .number()
+      .min(0)
+      .max(5)
+      .nullable()
+      .optional()
+  ),
+
   starting_price: z.preprocess(
     emptyToNull,
     z
       .number()
       .min(0)
-      .max(MAX_BOOKING_AMOUNT, 'The amount is too large. Please enter a smaller value.')
+      .max(
+        MAX_BOOKING_AMOUNT,
+        "The amount is too large. Please enter a smaller value."
+      )
       .nullable()
       .optional()
   ),
+
   is_featured: z.boolean().optional(),
-  status: z.string().min(1, 'Status is required'),
-  // hotels.vendor_id is nullable as of SESSION 03 SQL migration.
+
+  status: z.string().min(1, "Status is required"),
+
   vendor_id: z.preprocess(
     emptyToNull,
-    z.string().uuid('Vendor must be a valid selection').nullable().optional()
+    z
+      .string()
+      .uuid("Vendor must be a valid selection")
+      .nullable()
+      .optional()
   ),
 });
 
-export type HotelInput = z.infer<typeof hotelInputSchema>;
+export type HotelInput = z.infer<
+  typeof hotelInputSchema
+>;
 
-export async function getAllHotelsAdmin(page: number = 1, limit: number = 20) {
-  await requireRole(['admin', 'super_admin']);
+export async function getAllHotelsAdmin(
+  page: number = 1,
+  limit: number = 20
+) {
+  await requireRole(["admin", "super_admin"]);
+
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
+
   return repo.getAllHotelsPaginated(page, limit);
 }
 
-export async function getHotelByIdAdmin(id: string): Promise<HotelRecord | null> {
-  await requireRole(['admin', 'super_admin']);
+export async function getHotelByIdAdmin(
+  id: string
+): Promise<HotelRecord | null> {
+  await requireRole(["admin", "super_admin"]);
+
   const supabase = await createClient();
   const repo = new HotelRepository(supabase);
+
   return repo.getHotelById(id);
 }
 
-export async function createHotelAdmin(input: HotelInput): Promise<ActionResult<HotelRecord>> {
+export async function createHotelAdmin(
+  input: HotelInput
+): Promise<ActionResult<HotelRecord>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
+    await requireRole(["admin", "super_admin"]);
+
     const parsed = hotelInputSchema.parse(input);
+
     const supabase = await createClient();
     const repo = new HotelRepository(supabase);
+
     return repo.createHotel(parsed);
   });
 }
@@ -95,71 +176,104 @@ export async function updateHotelAdmin(
   input: HotelInput
 ): Promise<ActionResult<HotelRecord>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
+    await requireRole(["admin", "super_admin"]);
+
     const parsed = hotelInputSchema.parse(input);
+
     const supabase = await createClient();
     const repo = new HotelRepository(supabase);
+
     return repo.updateHotel(id, parsed);
   });
 }
 
-export async function deleteHotelAdmin(id: string): Promise<ActionResult<boolean>> {
+export async function deleteHotelAdmin(
+  id: string
+): Promise<ActionResult<boolean>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
+    await requireRole(["admin", "super_admin"]);
+
     const supabase = await createClient();
     const repo = new HotelRepository(supabase);
+
     return repo.deleteHotel(id);
   });
 }
 
-// --- ADMIN-03: Hotel Image Upload / Management ---
+// -----------------------------------------------------------------------------
+// HOTEL IMAGES
+// -----------------------------------------------------------------------------
 
-const HOTEL_ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const HOTEL_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const HOTEL_ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+];
 
-export interface HotelImageWithUrl extends HotelImageRow {
+const HOTEL_MAX_IMAGE_SIZE_BYTES =
+  5 * 1024 * 1024;
+
+export interface HotelImageWithUrl
+  extends HotelImageRow {
   publicUrl: string;
 }
 
-function normalizeHotelStoragePath(storagePath: string): string {
-  return storagePath.startsWith('hotel-images/')
-    ? storagePath.slice('hotel-images/'.length)
+function normalizeHotelStoragePath(
+  storagePath: string
+): string {
+  return storagePath.startsWith("hotel-images/")
+    ? storagePath.slice("hotel-images/".length)
     : storagePath;
 }
 
-function hotelExtensionFromMimeType(mimeType: string): string {
+function hotelExtensionFromMimeType(
+  mimeType: string
+): string {
   switch (mimeType) {
-    case 'image/jpeg':
-    case 'image/jpg':
-      return 'jpg';
-    case 'image/png':
-      return 'png';
-    case 'image/webp':
-      return 'webp';
+    case "image/jpeg":
+    case "image/jpg":
+      return "jpg";
+
+    case "image/png":
+      return "png";
+
+    case "image/webp":
+      return "webp";
+
     default:
-      return 'webp';
+      return "webp";
   }
 }
-
-// SESSION 03: image admin actions now consistently return
-// ActionResult<T> so real Supabase / Storage / RLS errors surface to the
-// client instead of being swallowed by an unhandled thrown Error at the
-// Server Action serialization boundary.
 
 export async function getHotelImagesAdmin(
   hotelId: string
 ): Promise<ActionResult<HotelImageWithUrl[]>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
+    await requireRole(["admin", "super_admin"]);
+
     const supabase = await createClient();
     const repo = new HotelRepository(supabase);
-    const rows = await repo.listHotelImages(hotelId);
+
+    const rows =
+      await repo.listHotelImages(hotelId);
+
     return rows.map((row) => {
-      const normalizedPath = normalizeHotelStoragePath(row.storage_path);
-      const { data: publicUrlData } = supabase.storage
-        .from('hotel-images')
-        .getPublicUrl(normalizedPath);
-      return { ...row, publicUrl: publicUrlData.publicUrl };
+      const normalizedPath =
+        normalizeHotelStoragePath(
+          row.storage_path
+        );
+
+      const { data: publicUrlData } =
+        supabase.storage
+          .from("hotel-images")
+          .getPublicUrl(normalizedPath);
+
+      return {
+        ...row,
+        publicUrl:
+          publicUrlData.publicUrl,
+      };
     });
   });
 }
@@ -170,52 +284,133 @@ export async function uploadHotelImageAdmin(
   isPrimary: boolean
 ): Promise<ActionResult<HotelImageWithUrl>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
+    await requireRole(["admin", "super_admin"]);
 
-    if (!HOTEL_ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+    if (
+      !HOTEL_ALLOWED_IMAGE_TYPES.includes(
+        file.type
+      )
+    ) {
+      throw new Error(
+        "Only jpg, jpeg, png, and webp files are allowed."
+      );
     }
-    if (file.size > HOTEL_MAX_IMAGE_SIZE_BYTES) {
-      throw new Error('Image must be 5MB or smaller.');
+
+    if (
+      file.size >
+      HOTEL_MAX_IMAGE_SIZE_BYTES
+    ) {
+      throw new Error(
+        "Image must be 5MB or smaller."
+      );
     }
 
-    const supabase = await createClient();
-    const repo = new HotelRepository(supabase);
-    const ext = hotelExtensionFromMimeType(file.type);
-    const objectKey = `${hotelId}/${crypto.randomUUID()}.${ext}`;
-    const storedPath = `hotel-images/${objectKey}`;
+    const supabase =
+      await createClient();
 
-    const { error: uploadError } = await supabase.storage
-      .from('hotel-images')
-      .upload(objectKey, file, { contentType: file.type, upsert: false });
+    const repo =
+      new HotelRepository(supabase);
+
+    // Verify the hotel exists before uploading.
+    const hotel =
+      await repo.getHotelById(hotelId);
+
+    if (!hotel) {
+      throw new Error(
+        "Hotel not found."
+      );
+    }
+
+    const ext =
+      hotelExtensionFromMimeType(
+        file.type
+      );
+
+    const objectKey =
+      `${hotelId}/${crypto.randomUUID()}.${ext}`;
+
+    const storedPath =
+      `hotel-images/${objectKey}`;
+
+    const {
+      error: uploadError,
+    } = await supabase.storage
+      .from("hotel-images")
+      .upload(
+        objectKey,
+        file,
+        {
+          contentType: file.type,
+          upsert: false,
+        }
+      );
 
     if (uploadError) {
-      throw new Error(`Failed to upload image: ${uploadError.message}`);
+      throw new Error(
+        `Failed to upload image: ${uploadError.message}`
+      );
     }
 
-    const existing = await repo.listHotelImages(hotelId);
+    const existing =
+      await repo.listHotelImages(
+        hotelId
+      );
+
     const nextSortOrder =
       existing.length > 0
-        ? Math.max(...existing.map((img) => img.sort_order)) + 1
+        ? Math.max(
+            ...existing.map(
+              (img) =>
+                img.sort_order
+            )
+          ) + 1
         : 0;
-    const shouldBePrimary = isPrimary || existing.length === 0;
 
-    const row = await repo.insertHotelImageRow(
-      hotelId,
-      storedPath,
-      shouldBePrimary,
-      nextSortOrder
-    );
+    const shouldBePrimary =
+      isPrimary ||
+      existing.length === 0;
 
-    if (shouldBePrimary && existing.length > 0) {
-      await repo.setPrimaryHotelImage(hotelId, row.id);
+    try {
+      const row =
+        await repo.insertHotelImageRow(
+          hotelId,
+          storedPath,
+          shouldBePrimary,
+          nextSortOrder
+        );
+
+      if (
+        shouldBePrimary &&
+        existing.length > 0
+      ) {
+        await repo.setPrimaryHotelImage(
+          hotelId,
+          row.id
+        );
+      }
+
+      const {
+        data: publicUrlData,
+      } = supabase.storage
+        .from("hotel-images")
+        .getPublicUrl(
+          objectKey
+        );
+
+      return {
+        ...row,
+        publicUrl:
+          publicUrlData.publicUrl,
+      };
+    } catch (error) {
+      // DB insert failed after Storage upload.
+      // Best-effort cleanup prevents orphaned files.
+      await supabase.storage
+        .from("hotel-images")
+        .remove([objectKey]);
+
+      throw error;
     }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('hotel-images')
-      .getPublicUrl(objectKey);
-
-    return { ...row, publicUrl: publicUrlData.publicUrl };
   });
 }
 
@@ -224,10 +419,39 @@ export async function setPrimaryHotelImageAdmin(
   imageId: string
 ): Promise<ActionResult<true>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
-    const supabase = await createClient();
-    const repo = new HotelRepository(supabase);
-    await repo.setPrimaryHotelImage(hotelId, imageId);
+    await requireRole([
+      "admin",
+      "super_admin",
+    ]);
+
+    const supabase =
+      await createClient();
+
+    const repo =
+      new HotelRepository(supabase);
+
+    const image =
+      await repo.getHotelImageById(
+        imageId
+      );
+
+    if (!image) {
+      throw new Error(
+        "Image not found."
+      );
+    }
+
+    if (image.hotel_id !== hotelId) {
+      throw new Error(
+        "Image does not belong to this hotel."
+      );
+    }
+
+    await repo.setPrimaryHotelImage(
+      hotelId,
+      imageId
+    );
+
     return true as const;
   });
 }
@@ -237,10 +461,42 @@ export async function reorderHotelImageAdmin(
   sortOrder: number
 ): Promise<ActionResult<true>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
-    const supabase = await createClient();
-    const repo = new HotelRepository(supabase);
-    await repo.updateHotelImageSortOrder(imageId, sortOrder);
+    await requireRole([
+      "admin",
+      "super_admin",
+    ]);
+
+    if (
+      !Number.isInteger(sortOrder) ||
+      sortOrder < 0
+    ) {
+      throw new Error(
+        "Sort order must be a non-negative integer."
+      );
+    }
+
+    const supabase =
+      await createClient();
+
+    const repo =
+      new HotelRepository(supabase);
+
+    const image =
+      await repo.getHotelImageById(
+        imageId
+      );
+
+    if (!image) {
+      throw new Error(
+        "Image not found."
+      );
+    }
+
+    await repo.updateHotelImageSortOrder(
+      imageId,
+      sortOrder
+    );
+
     return true as const;
   });
 }
@@ -249,24 +505,58 @@ export async function deleteHotelImageAdmin(
   imageId: string
 ): Promise<ActionResult<true>> {
   return runAction(async () => {
-    await requireRole(['admin', 'super_admin']);
-    const supabase = await createClient();
-    const repo = new HotelRepository(supabase);
-    const row = await repo.getHotelImageById(imageId);
-    if (!row) throw new Error('Image not found.');
-    const normalizedPath = normalizeHotelStoragePath(row.storage_path);
-    const { error: removeError } = await supabase.storage
-      .from('hotel-images')
-      .remove([normalizedPath]);
-    if (removeError) {
-      throw new Error(`Failed to delete image from storage: ${removeError.message}`);
+    await requireRole([
+      "admin",
+      "super_admin",
+    ]);
+
+    const supabase =
+      await createClient();
+
+    const repo =
+      new HotelRepository(supabase);
+
+    const row =
+      await repo.getHotelImageById(
+        imageId
+      );
+
+    if (!row) {
+      throw new Error(
+        "Image not found."
+      );
     }
-    await repo.deleteHotelImageRow(imageId);
+
+    const normalizedPath =
+      normalizeHotelStoragePath(
+        row.storage_path
+      );
+
+    const {
+      error: removeError,
+    } = await supabase.storage
+      .from("hotel-images")
+      .remove([
+        normalizedPath,
+      ]);
+
+    if (removeError) {
+      throw new Error(
+        `Failed to delete image from storage: ${removeError.message}`
+      );
+    }
+
+    await repo.deleteHotelImageRow(
+      imageId
+    );
+
     return true as const;
   });
 }
 
-// --- Pre-existing exports (unchanged) ---
+// -----------------------------------------------------------------------------
+// PRE-EXISTING COMPATIBILITY EXPORTS
+// -----------------------------------------------------------------------------
 
 export async function addHotelImageAction(
   hotelId: string,
@@ -274,13 +564,33 @@ export async function addHotelImageAction(
   isPrimary: boolean = false,
   sortOrder: number = 0
 ) {
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
+  const supabase =
+    await createClient();
+
+  const repo =
+    new HotelRepository(supabase);
+
   try {
-    const newImage = await repo.insertHotelImageRow(hotelId, storagePath, isPrimary, sortOrder);
-    return { success: true, data: newImage };
+    const newImage =
+      await repo.insertHotelImageRow(
+        hotelId,
+        storagePath,
+        isPrimary,
+        sortOrder
+      );
+
+    return {
+      success: true,
+      data: newImage,
+    };
   } catch (error: unknown) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    };
   }
 }
 
@@ -290,67 +600,162 @@ export async function createHotelImage(
   isPrimary: boolean = false,
   sortOrder: number = 0
 ) {
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
+  return addHotelImageAction(
+    hotelId,
+    storagePath,
+    isPrimary,
+    sortOrder
+  );
+}
+
+export async function getHotelsAction(
+  page: number = 1,
+  limit: number = 20
+) {
+  const supabase =
+    await createClient();
+
+  const repo =
+    new HotelRepository(supabase);
+
   try {
-    const image = await repo.insertHotelImageRow(hotelId, storagePath, isPrimary, sortOrder);
-    return { success: true, data: image };
+    const result =
+      await repo.getAllHotelsPaginated(
+        page,
+        limit
+      );
+
+    return {
+      success: true,
+      data: result,
+    };
   } catch (error: unknown) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    };
   }
 }
 
-export async function getHotelsAction(page: number = 1, limit: number = 20) {
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
+export async function getPublishedHotelsAction(
+  page: number = 1,
+  limit: number = 20
+) {
+  const supabase =
+    await createClient();
+
+  const repo =
+    new HotelRepository(supabase);
+
   try {
-    const result = await repo.getAllHotelsPaginated(page, limit);
-    return { success: true, data: result };
+    const result =
+      await repo.getPublishedHotels(
+        page,
+        limit
+      );
+
+    return {
+      success: true,
+      data: result,
+    };
   } catch (error: unknown) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    };
   }
 }
 
-export async function getPublishedHotelsAction(page: number = 1, limit: number = 20) {
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
+export async function getHotelBySlugAction(
+  slug: string
+) {
+  const supabase =
+    await createClient();
+
+  const repo =
+    new HotelRepository(supabase);
+
   try {
-    const result = await repo.getPublishedHotels(page, limit);
-    return { success: true, data: result };
+    const hotel =
+      await repo.getHotelBySlug(
+        slug
+      );
+
+    return {
+      success: true,
+      data: hotel,
+    };
   } catch (error: unknown) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    };
   }
 }
 
-export async function getHotelBySlugAction(slug: string) {
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
+export async function deleteHotelImageAction(
+  imageId: string
+) {
+  const supabase =
+    await createClient();
+
+  const repo =
+    new HotelRepository(supabase);
+
   try {
-    const hotel = await repo.getHotelBySlug(slug);
-    return { success: true, data: hotel };
+    await repo.deleteHotelImageRow(
+      imageId
+    );
+
+    return {
+      success: true,
+    };
   } catch (error: unknown) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    };
   }
 }
 
-export async function deleteHotelImageAction(imageId: string) {
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
-  try {
-    await repo.deleteHotelImageRow(imageId);
-    return { success: true };
-  } catch (error: unknown) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
+export async function setPrimaryHotelImageAction(
+  hotelId: string,
+  imageId: string
+) {
+  const supabase =
+    await createClient();
 
-export async function setPrimaryHotelImageAction(hotelId: string, imageId: string) {
-  const supabase = await createClient();
-  const repo = new HotelRepository(supabase);
+  const repo =
+    new HotelRepository(supabase);
+
   try {
-    await repo.setPrimaryHotelImage(hotelId, imageId);
-    return { success: true };
+    await repo.setPrimaryHotelImage(
+      hotelId,
+      imageId
+    );
+
+    return {
+      success: true,
+    };
   } catch (error: unknown) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
+    };
   }
 }
