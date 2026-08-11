@@ -23,7 +23,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   // Vendor dropdown state
-  const [vendors, setVendors] = useState<{ id: string; vendor_name: string }[]>([]);
+  const [vendors, setVendors] = useState<
+    { id: string; vendor_name: string }[]
+  >([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
   const [vendorsError, setVendorsError] = useState<string | null>(null);
 
@@ -41,19 +43,25 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     starting_price: hotel?.starting_price ?? undefined,
     is_featured: hotel?.is_featured ?? false,
     status: (hotel?.status as HotelInput["status"]) ?? "DRAFT",
-    // vendor_id — preselected from existing hotel when editing; empty
-    // string as initial create state. hotels.vendor_id is nullable, so a
-    // blank selection is valid and is normalized to null server-side.
+
+    // vendor_id — preselected from existing hotel when editing;
+    // empty string as initial create state.
+    // hotels.vendor_id is nullable, so a blank selection is valid
+    // and is normalized to null server-side.
     vendor_id: hotel?.vendor_id ?? "",
   });
 
   // Load vendor list on mount — admin never types a UUID
   useEffect(() => {
     let active = true;
+
     async function loadVendors() {
       try {
         const data = await getAllVendorsForDropdown();
-        if (active) setVendors(data);
+
+        if (active) {
+          setVendors(data);
+        }
       } catch (err) {
         if (active) {
           setVendorsError(
@@ -61,15 +69,27 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           );
         }
       } finally {
-        if (active) setVendorsLoading(false);
+        if (active) {
+          setVendorsLoading(false);
+        }
       }
     }
+
     loadVendors();
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  function handleChange<K extends keyof HotelInput>(key: K, value: HotelInput[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  function handleChange<K extends keyof HotelInput>(
+    key: K,
+    value: HotelInput[K]
+  ) {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -84,7 +104,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             ? await updateHotelAdmin(hotel.id, form)
             : null;
 
-      if (!result) return;
+      if (!result) {
+        return;
+      }
 
       if (!result.success) {
         setError(result.error);
@@ -142,6 +164,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             className={inputClass}
           />
         </Field>
+
         <Field label="State">
           <input
             type="text"
@@ -161,6 +184,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             className={inputClass}
           />
         </Field>
+
         <Field label="Address">
           <input
             type="text"
@@ -186,6 +210,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             className={inputClass}
           />
         </Field>
+
         <Field label="Longitude">
           <input
             type="number"
@@ -219,6 +244,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             className={inputClass}
           />
         </Field>
+
         <Field label="Starting Price (₹)">
           <input
             type="number"
@@ -251,8 +277,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
         </select>
       </Field>
 
-      {/* STABILIZATION-01: Vendor selector — admin selects by name,
-          UUID is submitted internally. Never manually typed. */}
+      {/* Vendor selector — admin selects by name, UUID is submitted internally. */}
       <Field label="Vendor">
         {vendorsLoading ? (
           <p className="text-[13px] text-ink/50">Loading vendors…</p>
@@ -262,11 +287,15 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           <select
             value={form.vendor_id ?? ""}
             onChange={(e) =>
-              handleChange("vendor_id", e.target.value === "" ? null : e.target.value)
+              handleChange(
+                "vendor_id",
+                e.target.value === "" ? null : e.target.value
+              )
             }
             className={inputClass}
           >
             <option value="">— No vendor —</option>
+
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.vendor_name}
@@ -274,6 +303,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             ))}
           </select>
         )}
+
         <p className="mt-1 text-[12px] text-ink/45">
           Select the vendor that owns or manages this hotel.
         </p>
@@ -301,6 +331,15 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
               ? "Create Hotel"
               : "Save Changes"}
         </button>
+
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => router.push("/admin/hotels")}
+          className="focus-ring rounded-xl border border-deep/15 px-5 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist disabled:opacity-50"
+        >
+          Cancel
+        </button>
       </div>
     </form>
   );
@@ -324,6 +363,7 @@ function Field({
         {label}
         {required && <span className="text-orange"> *</span>}
       </label>
+
       {children}
     </div>
   );
