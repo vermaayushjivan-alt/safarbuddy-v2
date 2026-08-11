@@ -3,7 +3,7 @@ import {
   NotFoundError,
   ValidationError,
   handleDatabaseError,
-} from '@/lib/errors/database.errors';
+} from "@/lib/errors/database.errors";
 
 import {
   PaginationOptions,
@@ -16,9 +16,11 @@ import {
   DatabaseRecord,
   InsertData,
   UpdateData,
-} from './types';
+} from "./types";
 
-export abstract class BaseRepository<T extends DatabaseRecord> {
+export abstract class BaseRepository<
+  T extends DatabaseRecord
+> {
   protected tableName: string;
   protected softDelete: boolean;
   protected softDeleteColumn: string;
@@ -30,9 +32,15 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
   ) {
     this.supabase = supabase;
     this.tableName = config.tableName;
-    this.softDelete = config.softDelete ?? false;
-    this.softDeleteColumn = config.softDeleteColumn ?? 'deleted_at';
+    this.softDelete =
+      config.softDelete ?? false;
+    this.softDeleteColumn =
+      config.softDeleteColumn ?? "deleted_at";
   }
+
+  // -------------------------------------------------------------------------
+  // FILTERS
+  // -------------------------------------------------------------------------
 
   protected applyFilters<Q>(
     query: Q,
@@ -42,54 +50,136 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
 
     filters.forEach((filter) => {
       const typedQuery = result as {
-        eq: (column: string, value: unknown) => Q;
-        neq: (column: string, value: unknown) => Q;
-        gt: (column: string, value: unknown) => Q;
-        gte: (column: string, value: unknown) => Q;
-        lt: (column: string, value: unknown) => Q;
-        lte: (column: string, value: unknown) => Q;
-        like: (column: string, value: unknown) => Q;
-        ilike: (column: string, value: unknown) => Q;
-        in: (column: string, value: unknown) => Q;
-        is: (column: string, value: unknown) => Q;
+        eq: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        neq: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        gt: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        gte: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        lt: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        lte: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        like: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        ilike: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        in: (
+          column: string,
+          value: unknown
+        ) => Q;
+
+        is: (
+          column: string,
+          value: unknown
+        ) => Q;
       };
 
       switch (filter.operator) {
-        case 'eq':
-          result = typedQuery.eq(filter.column, filter.value);
+        case "eq":
+          result = typedQuery.eq(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'neq':
-          result = typedQuery.neq(filter.column, filter.value);
+
+        case "neq":
+          result = typedQuery.neq(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'gt':
-          result = typedQuery.gt(filter.column, filter.value);
+
+        case "gt":
+          result = typedQuery.gt(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'gte':
-          result = typedQuery.gte(filter.column, filter.value);
+
+        case "gte":
+          result = typedQuery.gte(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'lt':
-          result = typedQuery.lt(filter.column, filter.value);
+
+        case "lt":
+          result = typedQuery.lt(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'lte':
-          result = typedQuery.lte(filter.column, filter.value);
+
+        case "lte":
+          result = typedQuery.lte(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'like':
-          result = typedQuery.like(filter.column, filter.value);
+
+        case "like":
+          result = typedQuery.like(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'ilike':
-          result = typedQuery.ilike(filter.column, filter.value);
+
+        case "ilike":
+          result = typedQuery.ilike(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'in':
-          result = typedQuery.in(filter.column, filter.value);
+
+        case "in":
+          result = typedQuery.in(
+            filter.column,
+            filter.value
+          );
           break;
-        case 'is':
-          result = typedQuery.is(filter.column, filter.value);
+
+        case "is":
+          result = typedQuery.is(
+            filter.column,
+            filter.value
+          );
           break;
       }
     });
 
     return result;
   }
+
+  // -------------------------------------------------------------------------
+  // SORT
+  // -------------------------------------------------------------------------
 
   protected applySort<Q>(
     query: Q,
@@ -98,179 +188,267 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
     const typedQuery = query as {
       order: (
         column: string,
-        options: { ascending: boolean }
+        options: {
+          ascending: boolean;
+        }
       ) => Q;
     };
 
-    return typedQuery.order(sort.column, {
-      ascending: sort.ascending ?? true,
-    });
+    return typedQuery.order(
+      sort.column,
+      {
+        ascending:
+          sort.ascending ?? true,
+      }
+    );
   }
+
+  // -------------------------------------------------------------------------
+  // PAGINATION
+  // -------------------------------------------------------------------------
 
   protected applyPagination<Q>(
     query: Q,
     pagination: PaginationOptions
   ): Q {
     const from =
-      (pagination.page - 1) * pagination.limit;
+      (pagination.page - 1) *
+      pagination.limit;
 
     const to =
-      from + pagination.limit - 1;
+      from +
+      pagination.limit -
+      1;
 
     const typedQuery = query as {
-      range: (from: number, to: number) => Q;
+      range: (
+        from: number,
+        to: number
+      ) => Q;
     };
 
-    return typedQuery.range(from, to);
+    return typedQuery.range(
+      from,
+      to
+    );
   }
+
+  // -------------------------------------------------------------------------
+  // FIND BY ID
+  // -------------------------------------------------------------------------
 
   protected async findById(
     id: string,
-    columns: string = '*'
+    columns: string = "*"
   ): Promise<T | null> {
     try {
       if (!id || !id.trim()) {
         return null;
       }
 
-      const queryBuilder = this.supabase
-        .from(this.tableName)
-        .select(columns)
-        .eq('id', id);
+      const queryBuilder =
+        this.supabase
+          .from(this.tableName)
+          .select(columns)
+          .eq("id", id);
 
       const query = this.softDelete
-        ? queryBuilder.is(this.softDeleteColumn, null)
+        ? queryBuilder.is(
+            this.softDeleteColumn,
+            null
+          )
         : queryBuilder;
 
-      const { data, error } = await query.single();
+      const {
+        data,
+        error,
+      } = await query.single();
 
       if (error) {
         if (
-          error.code === 'PGRST116' ||
-          error.code === '22P02'
+          error.code ===
+            "PGRST116" ||
+          error.code === "22P02"
         ) {
           return null;
         }
 
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       return data
         ? (data as unknown as T)
         : null;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] findById failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to find record by ID'
+        "Failed to find record by ID"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // FIND ONE
+  // -------------------------------------------------------------------------
 
   protected async findOne(
     filters: FilterOptions[],
-    columns: string = '*'
+    columns: string = "*"
   ): Promise<T | null> {
     try {
-      let queryBuilder = this.supabase
-        .from(this.tableName)
-        .select(columns);
+      let queryBuilder =
+        this.supabase
+          .from(this.tableName)
+          .select(columns);
 
-      queryBuilder = this.applyFilters(
-        queryBuilder,
-        filters
-      );
+      queryBuilder =
+        this.applyFilters(
+          queryBuilder,
+          filters
+        );
 
       const query = this.softDelete
-        ? queryBuilder.is(this.softDeleteColumn, null)
+        ? queryBuilder.is(
+            this.softDeleteColumn,
+            null
+          )
         : queryBuilder;
 
-      const { data, error } = await query.single();
+      const {
+        data,
+        error,
+      } = await query.single();
 
       if (error) {
         if (
-          error.code === 'PGRST116' ||
-          error.code === '22P02'
+          error.code ===
+            "PGRST116" ||
+          error.code === "22P02"
         ) {
           return null;
         }
 
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       return data
         ? (data as unknown as T)
         : null;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] findOne failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to find record'
+        "Failed to find record"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // FIND MANY
+  // -------------------------------------------------------------------------
 
   protected async findMany(
     options: SelectOptions = {}
   ): Promise<T[]> {
     try {
-      const columns = options.columns ?? '*';
+      const columns =
+        options.columns ?? "*";
 
-      let queryBuilder = this.supabase
-        .from(this.tableName)
-        .select(columns);
+      let queryBuilder =
+        this.supabase
+          .from(this.tableName)
+          .select(columns);
 
       if (this.softDelete) {
-        queryBuilder = queryBuilder.is(
-          this.softDeleteColumn,
-          null
-        );
+        queryBuilder =
+          queryBuilder.is(
+            this.softDeleteColumn,
+            null
+          );
       }
 
       if (options.filters) {
-        queryBuilder = this.applyFilters(
-          queryBuilder,
-          options.filters
-        );
+        queryBuilder =
+          this.applyFilters(
+            queryBuilder,
+            options.filters
+          );
       }
 
       if (options.sort) {
-        queryBuilder = this.applySort(
-          queryBuilder,
-          options.sort
-        );
+        queryBuilder =
+          this.applySort(
+            queryBuilder,
+            options.sort
+          );
       }
 
       if (options.pagination) {
-        queryBuilder = this.applyPagination(
-          queryBuilder,
-          options.pagination
-        );
+        queryBuilder =
+          this.applyPagination(
+            queryBuilder,
+            options.pagination
+          );
       }
 
-      const { data, error } = await queryBuilder;
+      const {
+        data,
+        error,
+      } = await queryBuilder;
 
       if (error) {
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       return data
         ? (data as unknown as T[])
         : [];
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] findMany failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to find records'
+        "Failed to find records"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // FIND WITH PAGINATION
+  // -------------------------------------------------------------------------
 
   protected async findWithPagination(
     options: SelectOptions & {
@@ -283,25 +461,28 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
         ...selectOptions
       } = options;
 
-      let countQuery = this.supabase
-        .from(this.tableName)
-        .select('*', {
-          count: 'exact',
-          head: true,
-        });
+      let countQuery =
+        this.supabase
+          .from(this.tableName)
+          .select("*", {
+            count: "exact",
+            head: true,
+          });
 
       if (this.softDelete) {
-        countQuery = countQuery.is(
-          this.softDeleteColumn,
-          null
-        );
+        countQuery =
+          countQuery.is(
+            this.softDeleteColumn,
+            null
+          );
       }
 
       if (options.filters) {
-        countQuery = this.applyFilters(
-          countQuery,
-          options.filters
-        );
+        countQuery =
+          this.applyFilters(
+            countQuery,
+            options.filters
+          );
       }
 
       const {
@@ -310,19 +491,24 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       } = await countQuery;
 
       if (countError) {
-        throw handleDatabaseError(countError);
+        throw handleDatabaseError(
+          countError
+        );
       }
 
-      const total = count ?? 0;
+      const total =
+        count ?? 0;
 
-      const data = await this.findMany({
-        ...selectOptions,
-        pagination,
-      });
+      const data =
+        await this.findMany({
+          ...selectOptions,
+          pagination,
+        });
 
       const totalPages =
         Math.ceil(
-          total / pagination.limit
+          total /
+            pagination.limit
         );
 
       return {
@@ -332,20 +518,32 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
         limit: pagination.limit,
         totalPages,
         hasNext:
-          pagination.page < totalPages,
+          pagination.page <
+          totalPages,
         hasPrev:
           pagination.page > 1,
       };
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] findWithPagination failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to find paginated records'
+        "Failed to find paginated records"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // CREATE
+  // -------------------------------------------------------------------------
 
   protected async create(
     data: InsertData<T>
@@ -357,32 +555,53 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       } = await this.supabase
         .from(this.tableName)
         .insert(
-          data as Record<string, unknown>
+          data as Record<
+            string,
+            unknown
+          >
         )
         .select()
         .single();
 
       if (error) {
-        throw handleDatabaseError(error);
+        /*
+         * IMPORTANT:
+         * Do not replace this with a generic DatabaseError.
+         * handleDatabaseError preserves the actual PostgreSQL code/details.
+         */
+        throw handleDatabaseError(
+          error
+        );
       }
 
       if (!result) {
         throw new DatabaseError(
-          'Failed to create record - no data returned'
+          "Failed to create record - no data returned"
         );
       }
 
       return result as unknown as T;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] create failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to create record'
+        "Failed to create record"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // CREATE MANY
+  // -------------------------------------------------------------------------
 
   protected async createMany(
     data: InsertData<T>[]
@@ -394,27 +613,43 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       } = await this.supabase
         .from(this.tableName)
         .insert(
-          data as Record<string, unknown>[]
+          data as Record<
+            string,
+            unknown
+          >[]
         )
         .select();
 
       if (error) {
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       return result
         ? (result as unknown as T[])
         : [];
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] createMany failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to create records'
+        "Failed to create records"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // UPDATE
+  // -------------------------------------------------------------------------
 
   protected async update(
     id: string,
@@ -423,22 +658,27 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
     try {
       if (!id || !id.trim()) {
         throw new ValidationError(
-          'Record ID is required'
+          "Record ID is required"
         );
       }
 
-      let queryBuilder = this.supabase
-        .from(this.tableName)
-        .update(
-          data as Record<string, unknown>
-        )
-        .eq('id', id);
+      let queryBuilder =
+        this.supabase
+          .from(this.tableName)
+          .update(
+            data as Record<
+              string,
+              unknown
+            >
+          )
+          .eq("id", id);
 
       if (this.softDelete) {
-        queryBuilder = queryBuilder.is(
-          this.softDeleteColumn,
-          null
-        );
+        queryBuilder =
+          queryBuilder.is(
+            this.softDeleteColumn,
+            null
+          );
       }
 
       const {
@@ -449,54 +689,76 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
+        if (
+          error.code ===
+          "PGRST116"
+        ) {
           throw new NotFoundError(
-            'Record not found'
+            "Record not found"
           );
         }
 
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       if (!result) {
         throw new NotFoundError(
-          'Record not found'
+          "Record not found"
         );
       }
 
       return result as unknown as T;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] update failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to update record'
+        "Failed to update record"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // UPDATE MANY
+  // -------------------------------------------------------------------------
 
   protected async updateMany(
     filters: FilterOptions[],
     data: UpdateData<T>
   ): Promise<T[]> {
     try {
-      let queryBuilder = this.supabase
-        .from(this.tableName)
-        .update(
-          data as Record<string, unknown>
-        );
+      let queryBuilder =
+        this.supabase
+          .from(this.tableName)
+          .update(
+            data as Record<
+              string,
+              unknown
+            >
+          );
 
-      queryBuilder = this.applyFilters(
-        queryBuilder,
-        filters
-      );
+      queryBuilder =
+        this.applyFilters(
+          queryBuilder,
+          filters
+        );
 
       if (this.softDelete) {
-        queryBuilder = queryBuilder.is(
-          this.softDeleteColumn,
-          null
-        );
+        queryBuilder =
+          queryBuilder.is(
+            this.softDeleteColumn,
+            null
+          );
       }
 
       const {
@@ -505,22 +767,35 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       } = await queryBuilder.select();
 
       if (error) {
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       return result
         ? (result as unknown as T[])
         : [];
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] updateMany failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to update records'
+        "Failed to update records"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // DELETE
+  // -------------------------------------------------------------------------
 
   protected async delete(
     id: string
@@ -528,44 +803,60 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
     try {
       if (!id || !id.trim()) {
         throw new ValidationError(
-          'Record ID is required'
+          "Record ID is required"
         );
       }
 
-      const { error } =
-        await this.supabase
-          .from(this.tableName)
-          .delete()
-          .eq('id', id);
+      const {
+        error,
+      } = await this.supabase
+        .from(this.tableName)
+        .delete()
+        .eq("id", id);
 
       if (error) {
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       return true;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] delete failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to delete record'
+        "Failed to delete record"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // DELETE MANY
+  // -------------------------------------------------------------------------
 
   protected async deleteMany(
     filters: FilterOptions[]
   ): Promise<number> {
     try {
-      let queryBuilder = this.supabase
-        .from(this.tableName)
-        .delete();
+      let queryBuilder =
+        this.supabase
+          .from(this.tableName)
+          .delete();
 
-      queryBuilder = this.applyFilters(
-        queryBuilder,
-        filters
-      );
+      queryBuilder =
+        this.applyFilters(
+          queryBuilder,
+          filters
+        );
 
       const {
         data,
@@ -573,20 +864,33 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       } = await queryBuilder.select();
 
       if (error) {
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       return data?.length ?? 0;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] deleteMany failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to delete records'
+        "Failed to delete records"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // SOFT DELETE
+  // -------------------------------------------------------------------------
 
   protected async softDeleteById(
     id: string,
@@ -594,7 +898,7 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
   ): Promise<T> {
     if (!this.softDelete) {
       throw new ValidationError(
-        'Soft delete is not enabled for this repository'
+        "Soft delete is not enabled for this repository"
       );
     }
 
@@ -608,7 +912,8 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       };
 
       if (deletedBy) {
-        updateData.deleted_by = deletedBy;
+        updateData.deleted_by =
+          deletedBy;
       }
 
       const {
@@ -617,45 +922,64 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       } = await this.supabase
         .from(this.tableName)
         .update(updateData)
-        .eq('id', id)
-        .is(this.softDeleteColumn, null)
+        .eq("id", id)
+        .is(
+          this.softDeleteColumn,
+          null
+        )
         .select()
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
+        if (
+          error.code ===
+          "PGRST116"
+        ) {
           throw new NotFoundError(
-            'Record not found or already deleted'
+            "Record not found or already deleted"
           );
         }
 
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       if (!data) {
         throw new NotFoundError(
-          'Record not found or already deleted'
+          "Record not found or already deleted"
         );
       }
 
       return data as unknown as T;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] softDeleteById failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to soft delete record'
+        "Failed to soft delete record"
       );
     }
   }
+
+  // -------------------------------------------------------------------------
+  // RESTORE
+  // -------------------------------------------------------------------------
 
   protected async restore(
     id: string
   ): Promise<T> {
     if (!this.softDelete) {
       throw new ValidationError(
-        'Soft delete is not enabled for this repository'
+        "Soft delete is not enabled for this repository"
       );
     }
 
@@ -664,7 +988,8 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
         string,
         unknown
       > = {
-        [this.softDeleteColumn]: null,
+        [this.softDeleteColumn]:
+          null,
       };
 
       const {
@@ -673,39 +998,51 @@ export abstract class BaseRepository<T extends DatabaseRecord> {
       } = await this.supabase
         .from(this.tableName)
         .update(updateData)
-        .eq('id', id)
+        .eq("id", id)
         .not(
           this.softDeleteColumn,
-          'is',
+          "is",
           null
         )
         .select()
         .single();
 
       if (error) {
-        if (error.code === 'PGRST116') {
+        if (
+          error.code ===
+          "PGRST116"
+        ) {
           throw new NotFoundError(
-            'Record not found or not deleted'
+            "Record not found or not deleted"
           );
         }
 
-        throw handleDatabaseError(error);
+        throw handleDatabaseError(
+          error
+        );
       }
 
       if (!data) {
         throw new NotFoundError(
-          'Record not found or not deleted'
+          "Record not found or not deleted"
         );
       }
 
       return data as unknown as T;
     } catch (error) {
-      if (error instanceof DatabaseError) {
+      if (
+        error instanceof DatabaseError
+      ) {
         throw error;
       }
 
+      console.error(
+        `[${this.tableName}] restore failed`,
+        error
+      );
+
       throw new DatabaseError(
-        'Failed to restore record'
+        "Failed to restore record"
       );
     }
   }
