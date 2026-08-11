@@ -29,6 +29,16 @@ const forgotPasswordSchema = z.object({
   email: z.string().email("Enter a valid email address."),
 });
 
+const resetPasswordSchema = z
+  .object({
+    password: z.string().min(6, "Password must be at least 6 characters."),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
 export type AuthActionState = {
   error?: string;
   fieldErrors?: Record<string, string[]>;
@@ -158,6 +168,58 @@ export async function forgotPasswordAction(
       redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
     }
   );
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reset Password                                                             */
+/* -------------------------------------------------------------------------- */
+
+// STABILIZATION fix: forgotPasswordAction sends users to
+// /auth/callback?next=/reset-password after they click the emailed link.
+// The callback route already exchanges the code for a session (see
+// src/app/auth/callback/route.ts), so this action only needs to update
+// the password on the now-authenticated session — it does not re-verify
+// the reset token itself. No new auth architecture introduced; reuses
+// the existing Supabase client + AuthActionState pattern used by every
+// other action in this file.
+export async function resetPasswordAction(
+  _prevState: AuthActionState,
+  formData: FormData
+): Promise<AuthActionState> {
+  const parsed = resetPasswordSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  const supabase = await createClient();
+
+  // No active session means the reset link was missing, expired, or
+  // already used — the callback route would not have reached this page
+  // with a valid session in that case.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      error:
+        "This reset link has expired or was already used. Please request a new one.",
+    };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+  });
 
   if (error) {
     return { error: error.message };
