@@ -20,22 +20,30 @@ export function HotelImageManager({ hotelId }: HotelImageManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // SESSION 03: all image server actions now return ActionResult<T>.
+  // Client no longer relies on thrown errors — we always check
+  // result.success and surface result.error to the user.
+
   async function refresh() {
-    const data = await getHotelImagesAdmin(hotelId);
-    setImages(data.sort((a, b) => a.sort_order - b.sort_order));
+    const result = await getHotelImagesAdmin(hotelId);
+    if (result.success) {
+      setImages(result.data.sort((a, b) => a.sort_order - b.sort_order));
+    } else {
+      setError(result.error);
+    }
   }
 
   useEffect(() => {
     let active = true;
     async function load() {
-      try {
-        const data = await getHotelImagesAdmin(hotelId);
-        if (active) setImages(data.sort((a, b) => a.sort_order - b.sort_order));
-      } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : "Failed to load images");
-      } finally {
-        if (active) setLoading(false);
+      const result = await getHotelImagesAdmin(hotelId);
+      if (!active) return;
+      if (result.success) {
+        setImages(result.data.sort((a, b) => a.sort_order - b.sort_order));
+      } else {
+        setError(result.error);
       }
+      setLoading(false);
     }
     load();
     return () => {
@@ -49,25 +57,28 @@ export function HotelImageManager({ hotelId }: HotelImageManagerProps) {
     setError(null);
 
     startTransition(async () => {
-      try {
-        await uploadHotelImageAdmin(hotelId, file, images.length === 0);
+      const result = await uploadHotelImageAdmin(
+        hotelId,
+        file,
+        images.length === 0
+      );
+      if (result.success) {
         await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Upload failed");
-      } finally {
-        e.target.value = "";
+      } else {
+        setError(result.error);
       }
+      e.target.value = "";
     });
   }
 
   function handleSetPrimary(imageId: string) {
     setError(null);
     startTransition(async () => {
-      try {
-        await setPrimaryHotelImageAdmin(hotelId, imageId);
+      const result = await setPrimaryHotelImageAdmin(hotelId, imageId);
+      if (result.success) {
         await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to set primary");
+      } else {
+        setError(result.error);
       }
     });
   }
@@ -75,11 +86,11 @@ export function HotelImageManager({ hotelId }: HotelImageManagerProps) {
   function handleSortOrderChange(imageId: string, sortOrder: number) {
     setError(null);
     startTransition(async () => {
-      try {
-        await reorderHotelImageAdmin(imageId, sortOrder);
+      const result = await reorderHotelImageAdmin(imageId, sortOrder);
+      if (result.success) {
         await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to update sort order");
+      } else {
+        setError(result.error);
       }
     });
   }
@@ -87,11 +98,11 @@ export function HotelImageManager({ hotelId }: HotelImageManagerProps) {
   function handleDelete(imageId: string) {
     setError(null);
     startTransition(async () => {
-      try {
-        await deleteHotelImageAdmin(imageId);
+      const result = await deleteHotelImageAdmin(imageId);
+      if (result.success) {
         await refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete image");
+      } else {
+        setError(result.error);
       }
     });
   }
