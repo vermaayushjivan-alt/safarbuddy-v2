@@ -9,20 +9,13 @@ import {
 } from "@/app/actions/hotel.actions";
 import { getAllVendorsForDropdown } from "@/app/actions/vendor.actions";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
-import { HOTEL_STATUS_VALUES } from "@/lib/repositories/hotel.repository";
 
-// SESSION 03: STATUS_OPTIONS now exactly matches the hotels_status_check
-// DB constraint. Submitted values are the raw lowercase DB values;
-// the label is the human-friendly display text only.
-const STATUS_OPTIONS: {
-  value: (typeof HOTEL_STATUS_VALUES)[number];
-  label: string;
-}[] = [
+const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
   { value: "suspended", label: "Suspended" },
-];
+] as const;
 
 interface HotelFormProps {
   mode: "create" | "edit";
@@ -54,18 +47,19 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     star_rating: hotel?.star_rating ?? undefined,
     starting_price: hotel?.starting_price ?? undefined,
     is_featured: hotel?.is_featured ?? false,
-    // SESSION 03: default new-hotel status matches DB default 'pending'.
-    // When editing, preserve whatever DB value the row already has.
+
+    // Supabase hotels_status_check allows only:
+    // pending | active | inactive | suspended
+    //
+    // New hotels start as pending.
+    // Existing hotels preserve their current DB status.
     status: hotel?.status ?? "pending",
 
-    // vendor_id — preselected from existing hotel when editing;
-    // empty string as initial create state.
-    // hotels.vendor_id is nullable, so a blank selection is valid
-    // and is normalized to null server-side.
+    // vendor_id is nullable in the database.
     vendor_id: hotel?.vendor_id ?? "",
   });
 
-  // Load vendor list on mount — admin never types a UUID
+  // Load vendor list on mount.
   useEffect(() => {
     let active = true;
 
@@ -79,7 +73,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
       } catch (err) {
         if (active) {
           setVendorsError(
-            err instanceof Error ? err.message : "Failed to load vendors"
+            err instanceof Error
+              ? err.message
+              : "Failed to load vendors"
           );
         }
       } finally {
@@ -106,7 +102,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
@@ -119,6 +115,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             : null;
 
       if (!result) {
+        setError("Unable to save hotel.");
         return;
       }
 
@@ -133,7 +130,10 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl space-y-5">
+    <form
+      onSubmit={handleSubmit}
+      className="max-w-2xl space-y-5"
+    >
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
           {error}
@@ -145,7 +145,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           type="text"
           required
           value={form.hotel_name}
-          onChange={(e) => handleChange("hotel_name", e.target.value)}
+          onChange={(e) =>
+            handleChange("hotel_name", e.target.value)
+          }
           className={inputClass}
         />
       </Field>
@@ -155,7 +157,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           type="text"
           required
           value={form.slug}
-          onChange={(e) => handleChange("slug", e.target.value)}
+          onChange={(e) =>
+            handleChange("slug", e.target.value)
+          }
           className={inputClass}
         />
       </Field>
@@ -163,7 +167,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
       <Field label="Description">
         <textarea
           value={form.description ?? ""}
-          onChange={(e) => handleChange("description", e.target.value)}
+          onChange={(e) =>
+            handleChange("description", e.target.value)
+          }
           rows={4}
           className={inputClass}
         />
@@ -174,7 +180,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           <input
             type="text"
             value={form.city ?? ""}
-            onChange={(e) => handleChange("city", e.target.value)}
+            onChange={(e) =>
+              handleChange("city", e.target.value)
+            }
             className={inputClass}
           />
         </Field>
@@ -183,7 +191,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           <input
             type="text"
             value={form.state ?? ""}
-            onChange={(e) => handleChange("state", e.target.value)}
+            onChange={(e) =>
+              handleChange("state", e.target.value)
+            }
             className={inputClass}
           />
         </Field>
@@ -194,7 +204,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           <input
             type="text"
             value={form.country ?? ""}
-            onChange={(e) => handleChange("country", e.target.value)}
+            onChange={(e) =>
+              handleChange("country", e.target.value)
+            }
             className={inputClass}
           />
         </Field>
@@ -203,7 +215,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           <input
             type="text"
             value={form.address ?? ""}
-            onChange={(e) => handleChange("address", e.target.value)}
+            onChange={(e) =>
+              handleChange("address", e.target.value)
+            }
             className={inputClass}
           />
         </Field>
@@ -218,7 +232,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             onChange={(e) =>
               handleChange(
                 "latitude",
-                e.target.value === "" ? undefined : Number(e.target.value)
+                e.target.value === ""
+                  ? undefined
+                  : Number(e.target.value)
               )
             }
             className={inputClass}
@@ -233,7 +249,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             onChange={(e) =>
               handleChange(
                 "longitude",
-                e.target.value === "" ? undefined : Number(e.target.value)
+                e.target.value === ""
+                  ? undefined
+                  : Number(e.target.value)
               )
             }
             className={inputClass}
@@ -252,14 +270,16 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             onChange={(e) =>
               handleChange(
                 "star_rating",
-                e.target.value === "" ? undefined : Number(e.target.value)
+                e.target.value === ""
+                  ? undefined
+                  : Number(e.target.value)
               )
             }
             className={inputClass}
           />
         </Field>
 
-        <Field label="Starting Price (INR)">
+        <Field label="Starting Price (₹)">
           <input
             type="number"
             min={0}
@@ -267,7 +287,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             onChange={(e) =>
               handleChange(
                 "starting_price",
-                e.target.value === "" ? undefined : Number(e.target.value)
+                e.target.value === ""
+                  ? undefined
+                  : Number(e.target.value)
               )
             }
             className={inputClass}
@@ -278,41 +300,63 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
       <Field label="Status">
         <select
           value={form.status}
-          onChange={(e) =>
-            handleChange("status", e.target.value as HotelInput["status"])
-          }
+          onChange={(e) => {
+            const value = e.target.value;
+
+            if (
+              value === "pending" ||
+              value === "active" ||
+              value === "inactive" ||
+              value === "suspended"
+            ) {
+              handleChange("status", value);
+            }
+          }}
           className={inputClass}
         >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
+          {STATUS_OPTIONS.map((option) => (
+            <option
+              key={option.value}
+              value={option.value}
+            >
+              {option.label}
             </option>
           ))}
         </select>
       </Field>
 
-      {/* Vendor selector — admin selects by name, UUID is submitted internally. */}
+      {/* Vendor selector — admin selects by name,
+          UUID is submitted internally. */}
       <Field label="Vendor">
         {vendorsLoading ? (
-          <p className="text-[13px] text-ink/50">Loading vendors...</p>
+          <p className="text-[13px] text-ink/50">
+            Loading vendors…
+          </p>
         ) : vendorsError ? (
-          <p className="text-[13px] text-red-600">{vendorsError}</p>
+          <p className="text-[13px] text-red-600">
+            {vendorsError}
+          </p>
         ) : (
           <select
             value={form.vendor_id ?? ""}
             onChange={(e) =>
               handleChange(
                 "vendor_id",
-                e.target.value === "" ? null : e.target.value
+                e.target.value === ""
+                  ? null
+                  : e.target.value
               )
             }
             className={inputClass}
           >
-            <option value="">-- No vendor --</option>
+            <option value="">— No vendor —</option>
 
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.vendor_name}
+            {vendors.map((vendor) => (
+              <option
+                key={vendor.id}
+                value={vendor.id}
+              >
+                {vendor.vendor_name}
               </option>
             ))}
           </select>
@@ -327,9 +371,15 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
         <input
           type="checkbox"
           checked={form.is_featured ?? false}
-          onChange={(e) => handleChange("is_featured", e.target.checked)}
+          onChange={(e) =>
+            handleChange(
+              "is_featured",
+              e.target.checked
+            )
+          }
           className="h-4 w-4 rounded border-deep/30"
         />
+
         Featured on homepage
       </label>
 
@@ -375,7 +425,9 @@ function Field({
     <div>
       <label className="mb-1.5 block font-heading text-[13px] font-semibold text-deep">
         {label}
-        {required && <span className="text-orange"> *</span>}
+        {required && (
+          <span className="text-orange"> *</span>
+        )}
       </label>
 
       {children}
