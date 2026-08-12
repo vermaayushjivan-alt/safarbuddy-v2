@@ -152,38 +152,72 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
       );
     }
 
-    const { error: setError } = await this.supabase
+    // Ownership check: the image being promoted must actually belong to
+    // roomTypeId. Scoping the update to both id AND room_type_id (instead
+    // of id alone) means a mismatched imageId affects zero rows instead of
+    // silently flipping is_primary on another room type's image.
+    const { data: setData, error: setError } = await this.supabase
       .from('room_images')
       .update({ is_primary: true })
-      .eq('id', imageId);
+      .eq('id', imageId)
+      .eq('room_type_id', roomTypeId)
+      .select('id');
 
     if (setError) {
       throw new Error(`Failed to set primary image: ${setError.message}`);
     }
+
+    if (!setData || setData.length === 0) {
+      throw new Error(
+        'Image not found for this room type.'
+      );
+    }
   }
 
   async updateRoomImageSortOrder(
+    roomTypeId: string,
     imageId: string,
     sortOrder: number
   ): Promise<void> {
-    const { error } = await this.supabase
+    // Scoped to id AND room_type_id — see setPrimaryRoomImage above.
+    const { data, error } = await this.supabase
       .from('room_images')
       .update({ sort_order: sortOrder })
-      .eq('id', imageId);
+      .eq('id', imageId)
+      .eq('room_type_id', roomTypeId)
+      .select('id');
 
     if (error) {
       throw new Error(`Failed to update sort order: ${error.message}`);
     }
+
+    if (!data || data.length === 0) {
+      throw new Error(
+        'Image not found for this room type.'
+      );
+    }
   }
 
-  async deleteRoomImageRow(imageId: string): Promise<void> {
-    const { error } = await this.supabase
+  async deleteRoomImageRow(
+    roomTypeId: string,
+    imageId: string
+  ): Promise<void> {
+    // Scoped to id AND room_type_id — see setPrimaryRoomImage above.
+    const { data, error } = await this.supabase
       .from('room_images')
       .delete()
-      .eq('id', imageId);
+      .eq('id', imageId)
+      .eq('room_type_id', roomTypeId)
+      .select('id');
 
     if (error) {
       throw new Error(`Failed to delete room image row: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error(
+        'Image not found for this room type.'
+      );
     }
   }
 }
