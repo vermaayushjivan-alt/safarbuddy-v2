@@ -1,5 +1,5 @@
 // src/app/api/public/cashfree/webhook/route.ts
-// PAY-02 — Cashfree webhook -> public.payments -> bookings confirmation.
+// PAY-02 — Cashfree webhook -> public.payments -> booking confirmation.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -11,27 +11,39 @@ export const runtime = "nodejs";
 
 const CF_STATUS_MAP: Record<
   string,
-  "paid" | "failed" | "processing" | "flagged"
+  "processing" | "paid" | "failed" | "flagged"
 > = {
   SUCCESS: "paid",
+  PENDING: "processing",
   FAILED: "failed",
   USER_DROPPED: "failed",
-  FLAGGED: "flagged",
-  PENDING: "processing",
   CANCELLED: "failed",
+  FLAGGED: "flagged",
 };
 
 function ok() {
-  return NextResponse.json({ success: true }, { status: 200 });
+  return NextResponse.json(
+    { success: true },
+    { status: 200 }
+  );
 }
 
 function badRequest(reason: string) {
-  console.warn(`[Cashfree Webhook] ${reason}`);
-  return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  console.warn(
+    `[Cashfree Webhook] ${reason}`
+  );
+
+  return NextResponse.json(
+    { error: "Bad request" },
+    { status: 400 }
+  );
 }
 
 function serverError() {
-  return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  return NextResponse.json(
+    { error: "Internal error" },
+    { status: 500 }
+  );
 }
 
 export async function POST(
@@ -42,108 +54,179 @@ export async function POST(
   try {
     rawBody = await request.text();
   } catch {
-    return badRequest("Failed to read request body");
+    return badRequest(
+      "Failed to read request body"
+    );
   }
 
-  const timestamp = request.headers.get("x-webhook-timestamp");
-  const signature = request.headers.get("x-webhook-signature");
+  const timestamp =
+    request.headers.get(
+      "x-webhook-timestamp"
+    );
+
+  const signature =
+    request.headers.get(
+      "x-webhook-signature"
+    );
 
   if (!timestamp || !signature) {
-    return badRequest("Missing webhook headers");
+    return badRequest(
+      "Missing webhook headers"
+    );
   }
 
-  if (!verifyWebhookSignature(timestamp, rawBody, signature)) {
-    return badRequest("Invalid signature");
+  if (
+    !verifyWebhookSignature(
+      timestamp,
+      rawBody,
+      signature
+    )
+  ) {
+    return badRequest(
+      "Invalid signature"
+    );
   }
 
   let payload: Record<string, unknown>;
 
   try {
-    payload = JSON.parse(rawBody) as Record<string, unknown>;
+    payload = JSON.parse(rawBody) as Record<
+      string,
+      unknown
+    >;
   } catch {
-    return badRequest("Invalid JSON payload");
+    return badRequest(
+      "Invalid JSON payload"
+    );
   }
 
-  const data = payload.data as Record<string, unknown> | undefined;
-  const order = data?.order as Record<string, unknown> | undefined;
-  const paymentData = data?.payment as Record<string, unknown> | undefined;
+  const data =
+    payload.data as
+      | Record<string, unknown>
+      | undefined;
+
+  const order =
+    data?.order as
+      | Record<string, unknown>
+      | undefined;
+
+  const paymentData =
+    data?.payment as
+      | Record<string, unknown>
+      | undefined;
 
   if (!order || !paymentData) {
     return ok();
   }
 
-  // Cashfree sends both merchant order_id and Cashfree's cf_order_id.
-  // SafarBuddy stores the merchant order_id in payments.cf_order_id.
-  const merchantOrderId = order.order_id;
-  const cfOrderId = order.cf_order_id;
-  const rawStatus = paymentData.payment_status;
-  const cfPaymentId = paymentData.cf_payment_id;
-  const paymentAmount = paymentData.payment_amount;
-  const paymentCurrency = paymentData.payment_currency;
-  const paymentMethod = paymentData.payment_group;
-  const paymentMessage = paymentData.payment_message;
+  const merchantOrderId =
+    order.order_id;
+
+  const rawStatus =
+    paymentData.payment_status;
+
+  const cfPaymentId =
+    paymentData.cf_payment_id;
+
+  const paymentAmount =
+    paymentData.payment_amount;
+
+  const paymentCurrency =
+    paymentData.payment_currency;
+
+  const paymentMethod =
+    paymentData.payment_group;
+
+  const paymentMessage =
+    paymentData.payment_message;
 
   if (
     typeof merchantOrderId !== "string" ||
     !merchantOrderId
   ) {
-    return badRequest("Missing order_id in payload");
+    return badRequest(
+      "Missing order_id in payload"
+    );
   }
 
-  if (typeof rawStatus !== "string" || !rawStatus) {
-    return badRequest("Missing payment_status in payload");
+  if (
+    typeof rawStatus !== "string" ||
+    !rawStatus
+  ) {
+    return badRequest(
+      "Missing payment_status in payload"
+    );
   }
 
-  const mappedStatus = CF_STATUS_MAP[rawStatus];
+  const mappedStatus =
+    CF_STATUS_MAP[rawStatus];
 
   if (!mappedStatus) {
+    // Unknown Cashfree statuses are acknowledged
+    // but never acted upon.
     return ok();
   }
 
   let supabase;
 
   try {
-    // Webhooks have no user cookie. Service-role access is required because
-    // the payments RLS policy only permits the payment owner/admin to update.
-    supabase = createServiceRoleClient();
+    // Webhooks have no user cookie. Service-role
+    // access is used only after the Cashfree
+    // signature has been verified above.
+    supabase =
+      createServiceRoleClient();
   } catch {
     return serverError();
   }
 
-  const paymentRepo = new PaymentRepository(supabase);
-  const bookingRepo = new BookingRepository(supabase);
+  const paymentRepo =
+    new PaymentRepository(
+      supabase
+    );
+
+  const bookingRepo =
+    new BookingRepository(
+      supabase
+    );
 
   let payment;
 
   try {
-    payment = await paymentRepo.getPaymentByOrderId(
-      merchantOrderId
-    );
+    payment =
+      await paymentRepo.getPaymentByOrderId(
+        merchantOrderId
+      );
   } catch (error) {
     console.error(
       "[Cashfree Webhook] Payment lookup failed",
       error
     );
+
     return serverError();
   }
 
   if (!payment) {
     console.warn(
-      `[Cashfree Webhook] No payment found for cf_order_id=${merchantOrderId}, cf_order_id=${String(
-        cfOrderId ?? ""
-      )}`
+      `[Cashfree Webhook] No payment found for cf_order_id=${merchantOrderId}`
     );
+
     return ok();
   }
 
-  // Terminal states are idempotent. A later duplicate webhook must not
-  // downgrade a successful payment.
-  if (payment.status === "paid") {
+  // Terminal payment states are idempotent.
+  // A duplicate webhook must never downgrade
+  // a paid/failed/flagged payment.
+  if (
+    payment.status === "paid" ||
+    payment.status === "failed" ||
+    payment.status === "flagged"
+  ) {
     return ok();
   }
 
   if (mappedStatus === "paid") {
-    const storedAmount = Number(payment.amount);
+    const storedAmount =
+      Number(payment.amount);
 
     const receivedAmount =
       typeof paymentAmount === "number"
@@ -152,9 +235,10 @@ export async function POST(
           ? Number(paymentAmount)
           : null;
 
-    const storedCurrency = String(
-      payment.currency || ""
-    ).toUpperCase();
+    const storedCurrency =
+      String(
+        payment.currency || ""
+      ).toUpperCase();
 
     const receivedCurrency =
       typeof paymentCurrency === "string"
@@ -162,15 +246,22 @@ export async function POST(
         : null;
 
     const amountMismatch =
-      receivedAmount !== null &&
-      (!Number.isFinite(receivedAmount) ||
-        Math.abs(receivedAmount - storedAmount) > 0.001);
+      receivedAmount === null ||
+      !Number.isFinite(receivedAmount) ||
+      Math.abs(
+        receivedAmount -
+          storedAmount
+      ) > 0.001;
 
     const currencyMismatch =
-      receivedCurrency !== null &&
-      receivedCurrency !== storedCurrency;
+      receivedCurrency === null ||
+      receivedCurrency !==
+        storedCurrency;
 
-    if (amountMismatch || currencyMismatch) {
+    if (
+      amountMismatch ||
+      currencyMismatch
+    ) {
       console.error(
         `[Cashfree Webhook] Payment mismatch: payment=${payment.id}, ` +
           `stored=${storedAmount} ${storedCurrency}, ` +
@@ -178,26 +269,39 @@ export async function POST(
       );
 
       try {
-        await paymentRepo.updatePaymentStatus(payment.id, {
-          status: "failed",
-          cf_payment_status: rawStatus,
-          cf_payment_id:
-            typeof cfPaymentId === "string"
-              ? cfPaymentId
-              : null,
-          payment_method:
-            typeof paymentMethod === "string"
-              ? paymentMethod
-              : null,
-          failure_reason:
-            "Amount or currency mismatch in Cashfree webhook.",
-          completed_at: new Date().toISOString(),
-        });
+        await paymentRepo.updatePaymentStatus(
+          payment.id,
+          {
+            status: "failed",
+
+            cf_payment_id:
+              typeof cfPaymentId ===
+              "string"
+                ? cfPaymentId
+                : null,
+
+            cf_payment_status:
+              rawStatus,
+
+            payment_method:
+              typeof paymentMethod ===
+              "string"
+                ? paymentMethod
+                : null,
+
+            failure_reason:
+              "Amount or currency mismatch in Cashfree webhook.",
+
+            completed_at:
+              new Date().toISOString(),
+          }
+        );
       } catch (error) {
         console.error(
           "[Cashfree Webhook] Failed to mark mismatch",
           error
         );
+
         return serverError();
       }
 
@@ -206,35 +310,49 @@ export async function POST(
   }
 
   try {
-    await paymentRepo.updatePaymentStatus(payment.id, {
-      status: mappedStatus,
-      cf_payment_status: rawStatus,
-      cf_payment_id:
-        typeof cfPaymentId === "string"
-          ? cfPaymentId
-          : undefined,
-      payment_method:
-        typeof paymentMethod === "string"
-          ? paymentMethod
-          : undefined,
-      failure_reason:
-        mappedStatus === "failed"
-          ? typeof paymentMessage === "string"
-            ? paymentMessage
-            : `Cashfree payment status: ${rawStatus}`
-          : null,
-      completed_at:
-        mappedStatus === "paid" ||
-        mappedStatus === "failed" ||
-        mappedStatus === "flagged"
-          ? new Date().toISOString()
-          : null,
-    });
+    await paymentRepo.updatePaymentStatus(
+      payment.id,
+      {
+        status: mappedStatus,
+
+        cf_payment_id:
+          typeof cfPaymentId ===
+          "string"
+            ? cfPaymentId
+            : undefined,
+
+        cf_payment_status:
+          rawStatus,
+
+        payment_method:
+          typeof paymentMethod ===
+          "string"
+            ? paymentMethod
+            : undefined,
+
+        failure_reason:
+          mappedStatus === "failed" ||
+          mappedStatus === "flagged"
+            ? typeof paymentMessage ===
+              "string"
+              ? paymentMessage
+              : `Cashfree payment status: ${rawStatus}`
+            : null,
+
+        completed_at:
+          mappedStatus === "paid" ||
+          mappedStatus === "failed" ||
+          mappedStatus === "flagged"
+            ? new Date().toISOString()
+            : null,
+      }
+    );
   } catch (error) {
     console.error(
       "[Cashfree Webhook] Payment update failed",
       error
     );
+
     return serverError();
   }
 
@@ -242,14 +360,16 @@ export async function POST(
     let booking;
 
     try {
-      booking = await bookingRepo.getBookingById(
-        payment.booking_id
-      );
+      booking =
+        await bookingRepo.getBookingById(
+          payment.booking_id
+        );
     } catch (error) {
       console.error(
         "[Cashfree Webhook] Booking lookup failed",
         error
       );
+
       return serverError();
     }
 
@@ -257,17 +377,21 @@ export async function POST(
       console.error(
         `[Cashfree Webhook] Booking ${payment.booking_id} not found`
       );
+
       return ok();
     }
 
     if (booking.status === "pending") {
       try {
-        await bookingRepo.confirmBooking(payment.booking_id);
+        await bookingRepo.confirmBooking(
+          payment.booking_id
+        );
       } catch (error) {
         console.error(
           "[Cashfree Webhook] Booking confirmation failed",
           error
         );
+
         return serverError();
       }
     }
