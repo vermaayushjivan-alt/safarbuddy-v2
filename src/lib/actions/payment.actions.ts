@@ -1,9 +1,10 @@
 // src/lib/actions/payment.actions.ts
-// PAY-02 — Cashfree payment initiation using the LIVE public.payments contract.
+// PAY-02 — Cashfree payment initiation using the approved PAY-01 payments schema.
 
 "use server";
 
 import { z } from "zod";
+import { runAction, type ActionResult } from "@/lib/actions/action-result";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser, requireRole } from "@/lib/auth/session";
 import { BookingRepository } from "@/lib/repositories/booking.repository";
@@ -51,9 +52,8 @@ async function createNewPayment(bookingId: string): Promise<{
     throw new Error("UNAUTHENTICATED");
   }
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
-    bookingId,
-  });
+  const { bookingId: validatedBookingId } =
+    bookingIdSchema.parse({ bookingId });
 
   const supabase = await createClient();
 
@@ -73,7 +73,7 @@ async function createNewPayment(bookingId: string): Promise<{
   const existingPayments =
     await paymentRepo.getPaymentsByBookingId(validatedBookingId);
 
-  if (existingPayments.some((p) => p.status === "paid")) {
+  if (existingPayments.some((payment) => payment.status === "paid")) {
     throw new Error("This booking has already been paid.");
   }
 
@@ -101,7 +101,12 @@ async function createNewPayment(bookingId: string): Promise<{
     throw new Error("Invalid booking amount");
   }
 
-  const gatewayOrderId = `SF-${validatedBookingId.split("-")[0]}-${Date.now()}`;
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    throw new Error("Invalid booking currency");
+  }
+
+  const gatewayOrderId =
+    `SF-${validatedBookingId.split("-")[0]}-${Date.now()}`;
 
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -112,53 +117,84 @@ async function createNewPayment(bookingId: string): Promise<{
     order_id: gatewayOrderId,
     order_amount: amount,
     order_currency: currency,
+
     customer_details: {
       customer_id: authUser.id,
       customer_email: authUser.email ?? "",
       customer_phone: userProfile.phone.trim(),
     },
+
     order_meta: {
-      return_url: `${siteUrl}/payment/success?order_id=${encodeURIComponent(
-        gatewayOrderId
-      )}&booking_id=${encodeURIComponent(booking.id)}`,
-      notify_url: `${siteUrl}/api/public/cashfree/webhook`,
+      return_url:
+        `${siteUrl}/payment/success?order_id=${encodeURIComponent(
+          gatewayOrderId
+        )}&booking_id=${encodeURIComponent(booking.id)}`,
+
+      notify_url:
+        `${siteUrl}/api/public/cashfree/webhook`,
     },
   };
 
-  const cashfreeOrder = await createCashfreeOrder(cashfreePayload);
+  const cashfreeOrder =
+    await createCashfreeOrder(cashfreePayload);
 
   await paymentRepo.createPayment({
     booking_id: booking.id,
     user_id: authUser.id,
-    amount,
+
     cf_order_id: gatewayOrderId,
     cf_payment_id: null,
-    payment_session_id: cashfreeOrder.payment_session_id,
-    status: "initiated",
-    cf_payment_status: null,
+    payment_session_id:
+      cashfreeOrder.payment_session_id,
+
+    amount,
     currency,
+
+    status: "initiated",
+
+    cf_payment_status: null,
     payment_method: null,
+    failure_reason: null,
+
     initiated_at: new Date().toISOString(),
     completed_at: null,
-    failure_reason: null,
+
     created_by: authUser.id,
     updated_by: authUser.id,
-  });
+  } as Parameters<PaymentRepository["createPayment"]>[0]);
 
   return {
-    paymentSessionId: cashfreeOrder.payment_session_id,
+    paymentSessionId:
+      cashfreeOrder.payment_session_id,
+
     gatewayOrderId,
     amount,
     currency,
   };
 }
 
-export async function initiatePayment(bookingId: string) {
-  return createNewPayment(bookingId);
+export async function initiatePayment(
+  bookingId: string
+): Promise<
+  ActionResult<
+    Awaited<ReturnType<typeof createNewPayment>>
+  >
+> {
+  return runAction(() =>
+    createNewPayment(bookingId)
+  );
 }
 
-export async function retryPayment(bookingId: string) {
-  return createNewPayment(bookingId);
+export async function retryPayment(
+  bookingId: string
+): Promise<
+  ActionResult<
+    Awaited<ReturnType<typeof createNewPayment>>
+  >
+> {
+  return runAction(() =>
+    createNewPayment(bookingId)
+  );
 }
 
 export async function getMyPaymentForBooking(
@@ -170,22 +206,29 @@ export async function getMyPaymentForBooking(
     throw new Error("UNAUTHENTICATED");
   }
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
-    bookingId,
-  });
+  const { bookingId: validatedBookingId } =
+    bookingIdSchema.parse({ bookingId });
 
   const supabase = await createClient();
 
-  const bookingRepo = new BookingRepository(supabase);
-  const paymentRepo = new PaymentRepository(supabase);
+  const bookingRepo =
+    new BookingRepository(supabase);
 
-  const booking = await bookingRepo.getBookingById(validatedBookingId);
+  const paymentRepo =
+    new PaymentRepository(supabase);
+
+  const booking =
+    await bookingRepo.getBookingById(
+      validatedBookingId
+    );
 
   if (!booking || booking.user_id !== authUser.id) {
     throw new Error("Booking not found");
   }
 
-  return paymentRepo.getLatestPaymentForBooking(validatedBookingId);
+  return paymentRepo.getLatestPaymentForBooking(
+    validatedBookingId
+  );
 }
 
 export async function getMyBookingPayments(
@@ -197,22 +240,29 @@ export async function getMyBookingPayments(
     throw new Error("UNAUTHENTICATED");
   }
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
-    bookingId,
-  });
+  const { bookingId: validatedBookingId } =
+    bookingIdSchema.parse({ bookingId });
 
   const supabase = await createClient();
 
-  const bookingRepo = new BookingRepository(supabase);
-  const paymentRepo = new PaymentRepository(supabase);
+  const bookingRepo =
+    new BookingRepository(supabase);
 
-  const booking = await bookingRepo.getBookingById(validatedBookingId);
+  const paymentRepo =
+    new PaymentRepository(supabase);
+
+  const booking =
+    await bookingRepo.getBookingById(
+      validatedBookingId
+    );
 
   if (!booking || booking.user_id !== authUser.id) {
     throw new Error("Booking not found");
   }
 
-  return paymentRepo.getPaymentsByBookingId(validatedBookingId);
+  return paymentRepo.getPaymentsByBookingId(
+    validatedBookingId
+  );
 }
 
 export async function getAllPaymentsAdmin(
@@ -222,14 +272,17 @@ export async function getAllPaymentsAdmin(
 ) {
   await requireRole(["admin", "super_admin"]);
 
-  const parsed = paginationSchema.parse({
-    page,
-    limit,
-    status,
-  });
+  const parsed =
+    paginationSchema.parse({
+      page,
+      limit,
+      status,
+    });
 
   const supabase = await createClient();
-  const paymentRepo = new PaymentRepository(supabase);
+
+  const paymentRepo =
+    new PaymentRepository(supabase);
 
   return paymentRepo.getAllPayments(
     parsed.page,
@@ -243,10 +296,15 @@ export async function getPaymentByIdAdmin(
 ): Promise<PaymentRecord | null> {
   await requireRole(["admin", "super_admin"]);
 
-  const { id: validatedId } = paymentIdSchema.parse({ id });
+  const { id: validatedId } =
+    paymentIdSchema.parse({ id });
 
   const supabase = await createClient();
-  const paymentRepo = new PaymentRepository(supabase);
 
-  return paymentRepo.getPaymentById(validatedId);
+  const paymentRepo =
+    new PaymentRepository(supabase);
+
+  return paymentRepo.getPaymentById(
+    validatedId
+  );
 }
