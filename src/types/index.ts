@@ -1,16 +1,16 @@
 /**
  * Global Type Definitions
- * 
+ *
  * WHY IT EXISTS:
  * - Centralized type definitions used across the application
  * - Shared interfaces and type utilities
- * 
+ *
  * RESPONSIBILITY:
  * - Define common types and interfaces
  * - Export type utilities
- * 
+ *
  * SERVER/CLIENT: Both
- * 
+ *
  * USED BY: All modules
  */
 
@@ -21,22 +21,33 @@
 /**
  * Make specific properties optional
  */
-export type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+export type PartialBy<
+  T,
+  K extends keyof T
+> = Omit<T, K> &
+  Partial<Pick<T, K>>;
 
 /**
  * Make specific properties required
  */
-export type RequiredBy<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
+export type RequiredBy<
+  T,
+  K extends keyof T
+> = Omit<T, K> &
+  Required<Pick<T, K>>;
 
 /**
  * Extract only string keys from an object type
  */
-export type StringKeys<T> = Extract<keyof T, string>;
+export type StringKeys<T> =
+  Extract<keyof T, string>;
 
 /**
  * Make all properties nullable
  */
-export type Nullable<T> = { [K in keyof T]: T[K] | null };
+export type Nullable<T> = {
+  [K in keyof T]: T[K] | null;
+};
 
 /**
  * Remove null and undefined from all properties
@@ -78,7 +89,9 @@ export interface ApiErrorResponse {
 /**
  * Combined API response type
  */
-export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+export type ApiResponse<T> =
+  | ApiSuccessResponse<T>
+  | ApiErrorResponse;
 
 /**
  * Pagination parameters
@@ -87,7 +100,7 @@ export interface PaginationParams {
   page?: number;
   limit?: number;
   sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
+  sortOrder?: "asc" | "desc";
 }
 
 /**
@@ -95,6 +108,7 @@ export interface PaginationParams {
  */
 export interface PaginatedData<T> {
   items: T[];
+
   pagination: {
     page: number;
     limit: number;
@@ -111,16 +125,18 @@ export interface PaginatedData<T> {
 
 /**
  * User roles.
- * Kept in sync with AppRole in src/db/schema.ts (the source of truth,
- * backed by the public.roles table) — see AUTH-05.
+ *
+ * Kept in sync with AppRole in src/db/schema.ts
+ * (the source of truth, backed by the public.roles
+ * table) — see AUTH-05.
  */
 export type UserRole =
-  | 'user' // Customer
-  | 'vendor'
-  | 'hotel_owner'
-  | 'travel_agent'
-  | 'admin'
-  | 'super_admin';
+  | "user"
+  | "vendor"
+  | "hotel_owner"
+  | "travel_agent"
+  | "admin"
+  | "super_admin";
 
 /**
  * Basic user info (safe to expose)
@@ -135,7 +151,8 @@ export interface UserBasicInfo {
 /**
  * Session user (from auth)
  */
-export interface SessionUser extends UserBasicInfo {
+export interface SessionUser
+  extends UserBasicInfo {
   roles: UserRole[];
   emailVerified: boolean;
   phoneVerified: boolean;
@@ -148,36 +165,35 @@ export interface SessionUser extends UserBasicInfo {
 /**
  * Booking status
  */
-export type BookingStatus = 
-  | 'pending'
-  | 'confirmed'
-  | 'cancelled'
-  | 'completed'
-  | 'failed';
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "cancelled"
+  | "completed"
+  | "failed";
 
 /**
  * Payment status
  */
 export type PaymentStatus =
-  | 'pending'
-  | 'success'
-  | 'failed'
-  | 'cancelled'
-  | 'refunded'
-  | 'partially_refunded';
+  | "initiated"
+  | "processing"
+  | "paid"
+  | "failed"
+  | "flagged";
 
 /**
  * Booking type (service type)
  */
-export type BookingType = 
-  | 'flight'
-  | 'hotel'
-  | 'bus'
-  | 'train'
-  | 'package'
-  | 'visa'
-  | 'forex'
-  | 'insurance';
+export type BookingType =
+  | "flight"
+  | "hotel"
+  | "bus"
+  | "train"
+  | "package"
+  | "visa"
+  | "forex"
+  | "insurance";
 
 // ============================================
 // TRAVELER TYPES
@@ -186,17 +202,30 @@ export type BookingType =
 /**
  * Traveler type based on age
  */
-export type TravelerType = 'adult' | 'child' | 'infant';
+export type TravelerType =
+  | "adult"
+  | "child"
+  | "infant";
 
 /**
  * Gender options
  */
-export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+export type Gender =
+  | "male"
+  | "female"
+  | "other"
+  | "prefer_not_to_say";
 
 /**
  * Title options
  */
-export type Title = 'Mr' | 'Mrs' | 'Ms' | 'Miss' | 'Dr' | 'Master';
+export type Title =
+  | "Mr"
+  | "Mrs"
+  | "Ms"
+  | "Miss"
+  | "Dr"
+  | "Master";
 
 /**
  * Traveler count
@@ -214,7 +243,9 @@ export interface TravelerCount {
 /**
  * Sort direction
  */
-export type SortDirection = 'asc' | 'desc';
+export type SortDirection =
+  | "asc"
+  | "desc";
 
 /**
  * Price range filter
@@ -228,8 +259,8 @@ export interface PriceRange {
  * Date range filter
  */
 export interface DateRange {
-  start: string; // ISO date string
-  end: string; // ISO date string
+  start: string;
+  end: string;
 }
 
 // ============================================
@@ -239,18 +270,23 @@ export interface DateRange {
 /**
  * Size variants for components
  */
-export type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+export type Size =
+  | "xs"
+  | "sm"
+  | "md"
+  | "lg"
+  | "xl";
 
 /**
  * Color variants for components
  */
-export type ColorVariant = 
-  | 'primary'
-  | 'secondary'
-  | 'success'
-  | 'warning'
-  | 'destructive'
-  | 'muted';
+export type ColorVariant =
+  | "primary"
+  | "secondary"
+  | "success"
+  | "warning"
+  | "destructive"
+  | "muted";
 
 /**
  * Common component props
@@ -276,10 +312,16 @@ export interface FieldState {
 /**
  * Form state
  */
-export interface FormState<T extends Record<string, unknown>> {
+export interface FormState<
+  T extends Record<string, unknown>
+> {
   values: T;
-  errors: Partial<Record<keyof T, string>>;
-  touched: Partial<Record<keyof T, boolean>>;
+  errors: Partial<
+    Record<keyof T, string>
+  >;
+  touched: Partial<
+    Record<keyof T, boolean>
+  >;
   isSubmitting: boolean;
   isValid: boolean;
 }
@@ -291,14 +333,20 @@ export interface FormState<T extends Record<string, unknown>> {
 /**
  * Click handler
  */
-export type ClickHandler = (event: React.MouseEvent<HTMLElement>) => void;
+export type ClickHandler = (
+  event: React.MouseEvent<HTMLElement>
+) => void;
 
 /**
  * Change handler
  */
-export type ChangeHandler<T = string> = (value: T) => void;
+export type ChangeHandler<T = string> = (
+  value: T
+) => void;
 
 /**
  * Submit handler
  */
-export type SubmitHandler<T> = (data: T) => void | Promise<void>;
+export type SubmitHandler<T> = (
+  data: T
+) => void | Promise<void>;
