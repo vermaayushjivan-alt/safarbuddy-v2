@@ -78,15 +78,28 @@ Features:
 
 **Verification:** TypeScript PASS, ESLint PASS (0 errors; 1 pre-existing unrelated warning). Production build blocked by the same environment-only Google Fonts network restriction documented in the 2026-08-08 stabilization pass above — not a code error.
 
+### PAY-01 (Payments Schema) — COMPLETE — Frozen
+
+**Documentation correction:** this milestone's code already existed in the repository (verified in-place) but was never reflected here; this entry backfills that gap rather than re-implementing anything. `public.payments` table (`src/db/sql/004_payment_schema.sql`, additive-only), `payments` table/relations/types added to `src/db/schema.ts` (Drizzle — schema/type source of truth only, same convention as `bookings`). `payments.booking_id → bookings.id` and `payments.user_id → users.id`, both `ON DELETE RESTRICT`. Supports multiple payment attempts per booking (retry model); refunds explicitly out of scope. `amount` is a snapshot, never recalculated or accepted from the client.
+
+### PAY-02 (Cashfree Integration) — COMPLETE — Frozen
+
+**Documentation correction:** same as PAY-01 — already implemented, not previously logged here. Features: `PaymentRepository` (`src/lib/repositories/payment.repository.ts`), `src/lib/cashfree/cashfree.client.ts` (order creation, webhook signature verification), `src/lib/actions/payment.actions.ts` (customer `initiatePayment`/`retryPayment`/`getMyPaymentForBooking`/`getMyBookingPayments`, admin `getAllPaymentsAdmin`/`getPaymentByIdAdmin`, all Zod-validated), `src/app/api/public/cashfree/webhook/route.ts` (signature-verified, idempotent — terminal payment states are never downgraded by a duplicate webhook; amount/currency mismatch is treated as a failure and logged; confirms the linked booking only on verified `paid` status), customer UI (`src/components/payment/PayNowButton.tsx`, `src/app/dashboard/bookings/[id]/pay`, `src/app/payment/success`, `src/app/payment/failure`).
+
+### PAY-03 (Admin Payment Management UI) — COMPLETE — Frozen
+
+Gap found during inspection: PAY-02's admin actions (`getAllPaymentsAdmin`, `getPaymentByIdAdmin`) existed but had no UI, unlike every other admin-managed table. View-only admin UI added, mirroring the `/admin/bookings` list pattern and the `isValidUuid` route-param guard used by destinations.
+
+Features:
+- `/admin/payments` — paginated list, status filter tabs (`initiated`/`processing`/`paid`/`failed`/`flagged`), reuses existing `getAllPaymentsAdmin`.
+- `/admin/payments/[id]` — payment detail (gateway order/payment IDs, raw gateway status, method, timestamps, failure reason) plus its linked booking summary via existing `getBookingByIdAdmin`. No new Server Actions, no schema/mutation added — read-only.
+- `/admin` dashboard gained a "Payments" card, matching the existing card pattern.
+
+**Verification:** TypeScript PASS (0 errors), ESLint PASS (0 errors, same 1 pre-existing unrelated `ProfileMenu.tsx` warning). Production build blocked by the same pre-existing sandbox-only Google Fonts restriction — not a code error, not introduced by this change.
+
 ---
 
 ## Pending
-
-### Payments
-
-- Payment tables / payment flow — Pending.
-
-Must not be invented or implemented until the database architecture is explicitly defined according to `DATABASE_BIBLE.md`. Booking (BOOKING-01) intentionally creates bookings independent of payment so this can follow as its own milestone.
 
 ### Booking — deferred to a later milestone
 
@@ -190,16 +203,9 @@ If image uploads continue to fail after deployment, the exact Supabase/Storage e
 
 ## Next Development Phase
 
-### 1. Payment Flow
+### 1. Payment Flow — COMPLETE (see PAY-01/PAY-02/PAY-03 above)
 
-After booking architecture is established:
-
-- Payment database design
-- Cashfree integration
-- Payment actions
-- Payment status handling
-- Success/failure handling
-- Booking/payment relationship (linking a `bookings` row to its payment once the payment schema exists)
+Previously listed here as pending; PAY-01 (schema), PAY-02 (Cashfree integration), and PAY-03 (admin UI) are now Completed/Frozen entries above. No further payment work is scheduled unless a new milestone is explicitly approved (e.g. refunds, which were explicitly out of scope for PAY-01).
 
 ### 2. Dedicated Architecture Cleanup
 
@@ -252,3 +258,5 @@ At the end of the feature roadmap, perform one dedicated final pass covering:
 - **v5 (2026-08-08 admin routing/repository hardening)** — Added UUID boundary validation for destination edit/images routes, added reusable UUID validation utility, corrected `base.repository.ts` after a parsing/build failure, and documented image Storage/RLS live verification as remaining production-hardening work. Updated this status file to make Booking/Payment the next major development phase while retaining technical debt and stability items for the final hardening pass.
 
 - **v6 (2026-08-08 BOOKING-01)** — Implemented BOOKING-01: `bookings` table (schema + SQL migration), `BookingRepository`, `booking.actions.ts`, one additive public `getPackageForBooking()` action, customer booking pages (`/hotels/[slug]/book`, `/packages/[id]/book`), customer "My Bookings" (`/dashboard/bookings`), admin bookings management (`/admin/bookings`). Moved Booking from Pending to Completed/Frozen; Payment remains the next milestone.
+
+- **v7 (2026-08-12 PAY-01/PAY-02 documentation backfill + PAY-03)** — Inspection found PAY-01 (payments schema) and PAY-02 (Cashfree integration: order creation, signature-verified idempotent webhook, customer pay flow) already fully implemented in the codebase but never logged here; backfilled both as Completed/Frozen entries rather than re-implementing. Removed the stale "Payments — Pending" section and the stale "Payment Flow" next-phase entry, since the actual code was already live. Implemented PAY-03 (Admin Payment Management UI): `/admin/payments` list + `/admin/payments/[id]` detail (view-only, reuses existing `getAllPaymentsAdmin`/`getPaymentByIdAdmin`/`getBookingByIdAdmin`, no schema or Server Action changes), plus a "Payments" card on `/admin`. TypeScript PASS, ESLint PASS (0 errors, 1 pre-existing unrelated warning), production build blocked only by the pre-existing sandbox Google Fonts restriction.
