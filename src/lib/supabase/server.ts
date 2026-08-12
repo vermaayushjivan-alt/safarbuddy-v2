@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import "server-only";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -28,28 +30,21 @@ export async function createClient() {
 }
 
 /**
- * Creates a Supabase client using the service-role key.
+ * Creates a Supabase client for trusted server-to-server operations.
  *
- * Server-only: use only for trusted server-to-server callbacks such as
- * Cashfree webhooks where no user session cookie is available.
+ * This is intentionally NOT used for normal authenticated requests. The
+ * Cashfree webhook has no Supabase user cookie, so it must use the service
+ * role after the webhook signature has been verified.
  */
 export function createServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRoleKey) {
-    throw new Error("Supabase service-role configuration is missing.");
+    throw new Error("Supabase service role is not configured.");
   }
 
-  return createServerClient(url, serviceRoleKey, {
-    cookies: {
-      getAll() {
-        return [];
-      },
-      setAll() {
-        // Service-role webhook clients do not use user session cookies.
-      },
-    },
+  return createSupabaseClient(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
