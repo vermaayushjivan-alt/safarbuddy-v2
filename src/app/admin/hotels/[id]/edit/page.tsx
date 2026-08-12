@@ -24,7 +24,7 @@ export default async function EditHotelPage({
             href="/admin/hotels"
             className="focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
           >
-            ← Back to Hotels
+            Back to Hotels
           </Link>
 
           <h1 className="font-display text-3xl text-deep">
@@ -40,7 +40,9 @@ export default async function EditHotelPage({
             Manage Images
           </Link>
 
-          {hotel.status === "ACTIVE" && (
+          {/* SESSION 03: status contract updated to lowercase to match
+              hotels_status_check DB constraint. */}
+          {hotel.status === "active" && (
             <Link
               href={`/hotels/${hotel.slug}`}
               target="_blank"
