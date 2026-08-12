@@ -1,24 +1,5 @@
 // src/lib/actions/payment.actions.ts
-// PAY-01 — Payment Server Actions.
-//
-// Architecture:
-//   'use server'
-//   → auth (getAuthUser / requireRole)
-//   → Zod validation
-//   → createClient()
-//   → repositories
-//   → business guards
-//   → Cashfree API (via cashfree.client.ts)
-//   → repository persistence
-//   → return typed result
-//
-// Rules:
-// - amount, currency, user_id, phone are NEVER accepted from the client.
-// - All sensitive values are read server-side only.
-// - BookingRepository is used read-only — never mutated here.
-// - BookingRepository.confirmBooking() is called ONLY by the webhook handler
-//   (PAY-01 Step 7), never here.
-// - Retry creates a NEW payment row. Previous rows are never mutated.
+// PAY-02 — Cashfree payment initiation using the LIVE public.payments contract.
 
 'use server';
 
@@ -36,9 +17,14 @@ import {
   CashfreeOrderPayload,
 } from '@/lib/cashfree/cashfree.client';
 
-// ---------------------------------------------------------------------------
-// Zod schemas
-// ---------------------------------------------------------------------------
+const PAYMENT_STATUSES = [
+  'pending',
+  'success',
+  'failed',
+  'cancelled',
+  'refunded',
+  'partially_refunded',
+] as const;
 
 const bookingIdSchema = z.object({
   bookingId: z.string().uuid('Invalid booking ID'),
@@ -51,65 +37,37 @@ const paymentIdSchema = z.object({
 const paginationSchema = z.object({
   page: z.number().int().min(1).default(1),
   limit: z.number().int().min(1).max(100).default(20),
-  status: z
-    .enum(['initiated', 'processing', 'paid', 'failed', 'flagged'])
-    .optional(),
+  status: z.enum(PAYMENT_STATUSES).optional(),
 });
-
-// ---------------------------------------------------------------------------
-// Internal helper — shared by initiatePayment and retryPayment.
-// Encapsulates the full payment creation flow so both actions
-// remain identical in their security posture.
-// ---------------------------------------------------------------------------
 
 async function createNewPayment(bookingId: string): Promise<{
   paymentSessionId: string;
-  cfOrderId: string;
+  gatewayOrderId: string;
   amount: number;
   currency: string;
 }> {
-  // 1. Authentication
   const authUser = await getAuthUser();
-  if (!authUser) {
-    throw new Error('UNAUTHENTICATED');
-  }
+  if (!authUser) throw new Error('UNAUTHENTICATED');
 
-  // 2. Validate input
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
-    bookingId,
-  });
-
-  // 3. Supabase client
+  const { bookingId: validatedBookingId } = bookingIdSchema.parse({ bookingId });
   const supabase = await createClient();
-
-  // 4. Repositories
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
-  // 5. Fetch and verify booking ownership
   const booking = await bookingRepo.getBookingById(validatedBookingId);
-
   if (!booking || booking.user_id !== authUser.id) {
-    // Do not reveal whether the booking exists for another user.
     throw new Error('Booking not found');
   }
 
-  // 6. Booking status guard — only 'pending' is payable
   if (booking.status !== 'pending') {
     throw new Error('Only pending bookings can be paid');
   }
 
-  // 7. Existing payment guard — block if already paid
-  const existingPayments = await paymentRepo.getPaymentsByBookingId(
-    validatedBookingId
-  );
-
-  const alreadyPaid = existingPayments.some((p) => p.status === 'paid');
-  if (alreadyPaid) {
+  const existingPayments = await paymentRepo.getPaymentsByBookingId(validatedBookingId);
+  if (existingPayments.some((p) => p.status === 'success')) {
     throw new Error('This booking has already been paid.');
   }
 
-  // 8. Retrieve phone server-side — never from client
   const { data: userProfile, error: profileError } = await supabase
     .from('users')
     .select('phone')
@@ -119,7 +77,6 @@ async function createNewPayment(bookingId: string): Promise<{
   if (
     profileError ||
     !userProfile ||
-    !userProfile.phone ||
     typeof userProfile.phone !== 'string' ||
     userProfile.phone.trim() === ''
   ) {
@@ -128,21 +85,22 @@ async function createNewPayment(bookingId: string): Promise<{
     );
   }
 
-  // 9. Amount and currency — server-side only from booking record
-  const amount = booking.price_snapshot;
-  const currency = booking.currency;
+  const amount = Number(booking.price_snapshot);
+  const currency = String(booking.currency || 'INR').toUpperCase();
 
-  // 10. Generate Cashfree order ID per approved format:
-  //     SF-{first segment of bookingId}-{unix timestamp ms}
-  //     Max 45 chars. Actual: SF-(8 chars)-(13 chars) = 25 chars ✅
-  const cfOrderId = `SF-${validatedBookingId.split('-')[0]}-${Date.now()}`;
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Invalid booking amount');
+  }
 
-  // 11. Construct Cashfree order payload
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+  const gatewayOrderId = `SF-${validatedBookingId.split('-')[0]}-${Date.now()}`;
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    'http://localhost:3000';
 
   const cashfreePayload: CashfreeOrderPayload = {
-    order_id: cfOrderId,
-    order_amount: Number(amount),
+    order_id: gatewayOrderId,
+    order_amount: amount,
     order_currency: currency,
     customer_details: {
       customer_id: authUser.id,
@@ -150,94 +108,58 @@ async function createNewPayment(bookingId: string): Promise<{
       customer_phone: userProfile.phone.trim(),
     },
     order_meta: {
-      return_url: `${siteUrl}/payment/success?order_id=${cfOrderId}`,
+      return_url: `${siteUrl}/payment/success?order_id=${encodeURIComponent(gatewayOrderId)}&booking_id=${encodeURIComponent(booking.id)}`,
       notify_url: `${siteUrl}/api/public/cashfree/webhook`,
     },
   };
 
-  // 12. Create Cashfree order — throws on failure
   const cashfreeOrder = await createCashfreeOrder(cashfreePayload);
 
-  // 13. Persist payment row — status 'initiated'
-  // amount stored as numeric string in DB via Drizzle/Supabase;
-  // PaymentRecord.amount is typed as number but the underlying
-  // Supabase insert accepts both number and string for numeric columns.
   await paymentRepo.createPayment({
     booking_id: booking.id,
     user_id: authUser.id,
-    cf_order_id: cashfreeOrder.cf_order_id,
-    payment_session_id: cashfreeOrder.payment_session_id,
-    amount: Number(amount),
-    currency: currency,
-    status: 'initiated',
+    amount,
+    currency_code: currency,
+    payment_gateway: 'cashfree',
+    payment_method: null,
+    gateway_order_id: gatewayOrderId,
+    gateway_payment_id: null,
+    status: 'pending',
+    initiated_at: new Date().toISOString(),
+    completed_at: null,
+    failure_reason: null,
     created_by: authUser.id,
     updated_by: authUser.id,
   });
 
-  // 14. Return only the fields the UI needs — no raw Cashfree response
   return {
     paymentSessionId: cashfreeOrder.payment_session_id,
-    cfOrderId: cashfreeOrder.cf_order_id,
-    amount: Number(amount),
-    currency: currency,
+    gatewayOrderId,
+    amount,
+    currency,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Customer actions
-// ---------------------------------------------------------------------------
-
-/**
- * Initiate a payment for a booking.
- * Called on the customer payment initiation page.
- * Creates a Cashfree order and a payment row with status 'initiated'.
- */
-export async function initiatePayment(bookingId: string): Promise<{
-  paymentSessionId: string;
-  cfOrderId: string;
-  amount: number;
-  currency: string;
-}> {
+export async function initiatePayment(bookingId: string) {
   return createNewPayment(bookingId);
 }
 
-/**
- * Retry a failed/abandoned payment for a booking.
- * Always creates a NEW Cashfree order and a NEW payment row.
- * Previous payment rows are never mutated.
- * Blocked if the booking is already paid.
- */
-export async function retryPayment(bookingId: string): Promise<{
-  paymentSessionId: string;
-  cfOrderId: string;
-  amount: number;
-  currency: string;
-}> {
+export async function retryPayment(bookingId: string) {
   return createNewPayment(bookingId);
 }
 
-/**
- * Get the latest payment for the authenticated customer's booking.
- * Ownership verified: customer can only view their own booking's payment.
- */
 export async function getMyPaymentForBooking(
   bookingId: string
 ): Promise<PaymentRecord | null> {
   const authUser = await getAuthUser();
-  if (!authUser) {
-    throw new Error('UNAUTHENTICATED');
-  }
+  if (!authUser) throw new Error('UNAUTHENTICATED');
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
-    bookingId,
-  });
-
+  const { bookingId: validatedBookingId } = bookingIdSchema.parse({ bookingId });
   const supabase = await createClient();
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
   const booking = await bookingRepo.getBookingById(validatedBookingId);
-
   if (!booking || booking.user_id !== authUser.id) {
     throw new Error('Booking not found');
   }
@@ -245,28 +167,18 @@ export async function getMyPaymentForBooking(
   return paymentRepo.getLatestPaymentForBooking(validatedBookingId);
 }
 
-/**
- * Get all payment attempts for the authenticated customer's booking.
- * Ownership verified: customer can only view their own booking's payments.
- */
 export async function getMyBookingPayments(
   bookingId: string
 ): Promise<PaymentRecord[]> {
   const authUser = await getAuthUser();
-  if (!authUser) {
-    throw new Error('UNAUTHENTICATED');
-  }
+  if (!authUser) throw new Error('UNAUTHENTICATED');
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
-    bookingId,
-  });
-
+  const { bookingId: validatedBookingId } = bookingIdSchema.parse({ bookingId });
   const supabase = await createClient();
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
   const booking = await bookingRepo.getBookingById(validatedBookingId);
-
   if (!booking || booking.user_id !== authUser.id) {
     throw new Error('Booking not found');
   }
@@ -274,41 +186,24 @@ export async function getMyBookingPayments(
   return paymentRepo.getPaymentsByBookingId(validatedBookingId);
 }
 
-// ---------------------------------------------------------------------------
-// Admin actions
-// ---------------------------------------------------------------------------
-
-/**
- * Paginated list of all payments — admin only.
- * Optional status filter.
- */
 export async function getAllPaymentsAdmin(
   page: number = 1,
   limit: number = 20,
   status?: PaymentStatus
 ) {
   await requireRole(['admin', 'super_admin']);
-
   const parsed = paginationSchema.parse({ page, limit, status });
-
   const supabase = await createClient();
   const paymentRepo = new PaymentRepository(supabase);
-
   return paymentRepo.getAllPayments(parsed.page, parsed.limit, parsed.status);
 }
 
-/**
- * Single payment detail by ID — admin only.
- */
 export async function getPaymentByIdAdmin(
   id: string
 ): Promise<PaymentRecord | null> {
   await requireRole(['admin', 'super_admin']);
-
   const { id: validatedId } = paymentIdSchema.parse({ id });
-
   const supabase = await createClient();
   const paymentRepo = new PaymentRepository(supabase);
-
   return paymentRepo.getPaymentById(validatedId);
 }
