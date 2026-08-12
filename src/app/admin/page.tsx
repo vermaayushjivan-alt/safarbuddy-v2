@@ -6,6 +6,7 @@ import {
   Tag,
   Store,
   CalendarCheck,
+  Wallet,
 } from "lucide-react";
 
 const sections = [
@@ -44,6 +45,12 @@ const sections = [
     label: "Bookings",
     description: "View, confirm, cancel, and complete hotel and package bookings.",
     icon: CalendarCheck,
+  },
+  {
+    href: "/admin/payments",
+    label: "Payments",
+    description: "View Cashfree payment status and history for every booking.",
+    icon: Wallet,
   },
 ];
 
