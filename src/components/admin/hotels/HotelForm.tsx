@@ -9,8 +9,20 @@ import {
 } from "@/app/actions/hotel.actions";
 import { getAllVendorsForDropdown } from "@/app/actions/vendor.actions";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
+import { HOTEL_STATUS_VALUES } from "@/lib/repositories/hotel.repository";
 
-const STATUS_OPTIONS = ["pending", "ACTIVE", "INACTIVE"] as const;
+// SESSION 03: STATUS_OPTIONS now exactly matches the hotels_status_check
+// DB constraint. Submitted values are the raw lowercase DB values;
+// the label is the human-friendly display text only.
+const STATUS_OPTIONS: {
+  value: (typeof HOTEL_STATUS_VALUES)[number];
+  label: string;
+}[] = [
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "suspended", label: "Suspended" },
+];
 
 interface HotelFormProps {
   mode: "create" | "edit";
@@ -42,7 +54,9 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     star_rating: hotel?.star_rating ?? undefined,
     starting_price: hotel?.starting_price ?? undefined,
     is_featured: hotel?.is_featured ?? false,
-    status: (hotel?.status as HotelInput["status"]) ?? "pending",
+    // SESSION 03: default new-hotel status matches DB default 'pending'.
+    // When editing, preserve whatever DB value the row already has.
+    status: hotel?.status ?? "pending",
 
     // vendor_id — preselected from existing hotel when editing;
     // empty string as initial create state.
@@ -245,7 +259,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           />
         </Field>
 
-        <Field label="Starting Price (₹)">
+        <Field label="Starting Price (INR)">
           <input
             type="number"
             min={0}
@@ -270,8 +284,8 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           className={inputClass}
         >
           {STATUS_OPTIONS.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>
@@ -280,7 +294,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
       {/* Vendor selector — admin selects by name, UUID is submitted internally. */}
       <Field label="Vendor">
         {vendorsLoading ? (
-          <p className="text-[13px] text-ink/50">Loading vendors…</p>
+          <p className="text-[13px] text-ink/50">Loading vendors...</p>
         ) : vendorsError ? (
           <p className="text-[13px] text-red-600">{vendorsError}</p>
         ) : (
@@ -294,7 +308,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
             }
             className={inputClass}
           >
-            <option value="">— No vendor —</option>
+            <option value="">-- No vendor --</option>
 
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
