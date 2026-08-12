@@ -25,7 +25,7 @@ export interface PaymentRecord extends DatabaseRecord {
   cf_payment_status: string | null;
   payment_method: string | null;
   failure_reason: string | null;
-  initiated_at: string;
+  initiated_at: string | null;
   completed_at: string | null;
 }
 
@@ -34,8 +34,8 @@ type PaymentUpdateData =
 
 export interface UpdatePaymentStatusData {
   status: PaymentStatus;
-  cf_payment_status?: string | null;
   cf_payment_id?: string | null;
+  cf_payment_status?: string | null;
   payment_method?: string | null;
   failure_reason?: string | null;
   completed_at?: string | null;
@@ -61,10 +61,14 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
   }
 
   async getPaymentByOrderId(
-    orderId: string
+    cfOrderId: string
   ): Promise<PaymentRecord | null> {
     return this.findOne([
-      { column: "cf_order_id", operator: "eq", value: orderId },
+      {
+        column: "cf_order_id",
+        operator: "eq",
+        value: cfOrderId,
+      },
     ]);
   }
 
@@ -91,16 +95,14 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     id: string,
     data: UpdatePaymentStatusData
   ): Promise<PaymentRecord> {
-    const updateData: PaymentUpdateData = {
-      status: data.status,
-    };
-
-    if (data.cf_payment_status !== undefined) {
-      updateData.cf_payment_status = data.cf_payment_status;
-    }
+    const updateData: PaymentUpdateData = { status: data.status };
 
     if (data.cf_payment_id !== undefined) {
       updateData.cf_payment_id = data.cf_payment_id;
+    }
+
+    if (data.cf_payment_status !== undefined) {
+      updateData.cf_payment_status = data.cf_payment_status;
     }
 
     if (data.payment_method !== undefined) {
