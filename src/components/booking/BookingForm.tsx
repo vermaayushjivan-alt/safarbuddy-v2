@@ -1,153 +1,146 @@
+// src/components/payment/PayNowButton.tsx
+// PAY-01 — Client component for Cashfree hosted checkout initiation.
+//
+// Calls initiatePayment() server action → receives paymentSessionId →
+// loads Cashfree JS SDK from CDN → redirects to Cashfree hosted checkout.
+//
+// No Cashfree credentials are used here.
+// Amount and currency are NOT accepted from props or user input.
+// paymentSessionId is a short-lived session token — not a secret.
+//
+// STABILIZATION fix: this previously pointed to /payment/pending, a
+// route that was never created — Cashfree would redirect a real
+// customer straight into a 404 after checkout. /payment/success already
+// implements the intended neutral "submitted, awaiting verification"
+// copy (it does not claim the payment definitely succeeded), and is the
+// same route payment.actions.ts already sets as order_meta.return_url —
+// so this now points there too, keeping client and server consistent
+// without introducing a new page. The webhook remains the authoritative
+// processor either way.
+
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { createBooking, type CreateBookingInput } from '@/app/actions/booking.actions';
+import { useState } from 'react';
+import { initiatePayment } from '@/lib/actions/payment.actions';
 
-interface BookingFormProps {
-  mode: 'hotel' | 'package';
-  targetId: string;
-  targetName: string;
-  startingPrice: number | null;
+interface PayNowButtonProps {
+  bookingId: string;
 }
 
-function formatPrice(price: number | null): string {
-  if (price == null) return '—';
-  return price.toLocaleString('en-IN');
+// Cashfree JS SDK type — loaded from CDN at runtime.
+declare global {
+  interface Window {
+    Cashfree?: (config: { mode: string }) => {
+      checkout: (options: {
+        paymentSessionId: string;
+        returnUrl: string;
+      }) => Promise<{ error?: { message?: string } }>;
+    };
+  }
 }
 
-export default function BookingForm({ mode, targetId, targetName, startingPrice }: BookingFormProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+export function PayNowButton({ bookingId }: PayNowButtonProps) {
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [checkInDate, setCheckInDate] = useState('');
-  const [checkOutDate, setCheckOutDate] = useState('');
-  const [travelDate, setTravelDate] = useState('');
-  const [numGuests, setNumGuests] = useState(1);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handlePayNow() {
+    setLoading(true);
     setError(null);
 
-    const input: CreateBookingInput = {
-      booking_type: mode,
-      hotel_id: mode === 'hotel' ? targetId : null,
-      package_id: mode === 'package' ? targetId : null,
-      check_in_date: mode === 'hotel' ? checkInDate : null,
-      check_out_date: mode === 'hotel' ? checkOutDate : null,
-      travel_date: mode === 'package' ? travelDate : null,
-      num_guests: numGuests,
-    };
+    try {
+      // 1. Call server action — auth, ownership, Cashfree order creation.
+      //    Amount and currency come from the server. Never from this component.
+      const result = await initiatePayment(bookingId);
 
-    startTransition(async () => {
-      try {
-        const booking = await createBooking(input);
-        router.push(`/dashboard/bookings?created=${booking.id}`);
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong');
+      // 2. Load Cashfree JS SDK from CDN if not already present.
+      await loadCashfreeScript();
+
+      if (!window.Cashfree) {
+        throw new Error(
+          'Cashfree checkout could not be loaded. Please try again.'
+        );
       }
-    });
+
+      // 3. Initialise Cashfree SDK mode from public env variable.
+      const mode =
+        process.env.NEXT_PUBLIC_CASHFREE_ENV === 'production'
+          ? 'production'
+          : 'sandbox';
+
+      const cashfree = window.Cashfree({ mode });
+
+      // 4. Return URL points to /payment/success — the same neutral
+      //    verification page payment.actions.ts already sets as the
+      //    server-side order_meta.return_url. The webhook is the
+      //    authoritative payment processor; this page does not claim
+      //    success or failure on its own.
+      const returnUrl =
+        `${window.location.origin}/payment/success` +
+        `?order_id=${result.gatewayOrderId}` +
+        `&booking_id=${bookingId}`;
+
+      const checkoutResult = await cashfree.checkout({
+        paymentSessionId: result.paymentSessionId,
+        returnUrl,
+      });
+
+      if (checkoutResult?.error?.message) {
+        throw new Error(checkoutResult.error.message);
+      }
+
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Payment could not be initiated. Please try again.';
+      setError(message);
+      setLoading(false);
+    }
+    // setLoading(false) not called on success — Cashfree redirects the page.
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md space-y-5 rounded-2xl border border-deep/15 bg-white p-6">
+    <div className="space-y-3">
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
           {error}
         </div>
       )}
-
-      <div>
-        <p className="text-[11px] text-ink/45">
-          {mode === 'hotel' ? 'Per night' : 'Starting price'}
-        </p>
-        <p className="mt-1 font-display text-2xl text-orange">
-          ₹{formatPrice(startingPrice)}
-        </p>
-        <p className="mt-1 text-[13px] text-ink/60">{targetName}</p>
-      </div>
-
-      {mode === 'hotel' ? (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label="Check-in" required>
-            <input
-              type="date"
-              required
-              value={checkInDate}
-              onChange={(e) => setCheckInDate(e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Check-out" required>
-            <input
-              type="date"
-              required
-              value={checkOutDate}
-              onChange={(e) => setCheckOutDate(e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-        </div>
-      ) : (
-        <Field label="Travel date" required>
-          <input
-            type="date"
-            required
-            value={travelDate}
-            onChange={(e) => setTravelDate(e.target.value)}
-            className={inputClass}
-          />
-        </Field>
-      )}
-
-      <Field label="Number of guests" required>
-        <input
-          type="number"
-          required
-          min={1}
-          value={numGuests}
-          onChange={(e) => setNumGuests(Number(e.target.value))}
-          className={inputClass}
-        />
-      </Field>
-
-      <div className="pt-2">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="focus-ring w-full rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 disabled:opacity-50"
-        >
-          {isPending ? 'Booking...' : 'Confirm Booking'}
-        </button>
-        <p className="mt-2 text-center text-[11px] text-ink/45">
-          Payment is not required to place this booking.
-        </p>
-      </div>
-    </form>
+      <button
+        type="button"
+        onClick={handlePayNow}
+        disabled={loading}
+        className="w-full rounded-xl bg-orange px-6 py-3 font-heading text-[15px] font-bold text-white transition hover:bg-orange/90 disabled:opacity-60"
+      >
+        {loading ? 'Preparing payment…' : 'Pay Now'}
+      </button>
+    </div>
   );
 }
 
-const inputClass =
-  'focus-ring w-full rounded-xl border border-deep/15 px-3.5 py-2.5 text-[14px] text-deep outline-none transition focus:border-deep/40';
+function loadCashfreeScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.Cashfree) {
+      resolve();
+      return;
+    }
 
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-1.5 block font-heading text-[13px] font-semibold text-deep">
-        {label}
-        {required && <span className="text-orange"> *</span>}
-      </label>
-      {children}
-    </div>
-  );
+    const existing = document.getElementById('cashfree-js-sdk');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () =>
+        reject(new Error('Failed to load Cashfree SDK'))
+      );
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'cashfree-js-sdk';
+    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () =>
+      reject(new Error('Failed to load Cashfree SDK'));
+    document.body.appendChild(script);
+  });
 }
