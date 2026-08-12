@@ -238,35 +238,55 @@ export async function uploadRoomImageAdmin(
       );
     }
 
-    const existing = await repo.listRoomImages(roomTypeId);
+    // From here on, storage upload has already succeeded. If any step
+    // below throws, the uploaded object would otherwise be orphaned in
+    // Storage with no DB row pointing to it — so any failure past this
+    // point cleans up the uploaded object before rethrowing.
+    try {
+      const existing = await repo.listRoomImages(roomTypeId);
 
-    const nextSortOrder =
-      existing.length > 0
-        ? Math.max(...existing.map((img) => img.sort_order)) + 1
-        : 0;
+      const nextSortOrder =
+        existing.length > 0
+          ? Math.max(...existing.map((img) => img.sort_order)) + 1
+          : 0;
 
-    const shouldBePrimary =
-      isPrimary || existing.length === 0;
+      const shouldBePrimary =
+        isPrimary || existing.length === 0;
 
-    const row = await repo.insertRoomImageRow(
-      roomTypeId,
-      storedPath,
-      shouldBePrimary,
-      nextSortOrder
-    );
+      const row = await repo.insertRoomImageRow(
+        roomTypeId,
+        storedPath,
+        shouldBePrimary,
+        nextSortOrder
+      );
 
-    if (shouldBePrimary && existing.length > 0) {
-      await repo.setPrimaryRoomImage(roomTypeId, row.id);
+      if (shouldBePrimary && existing.length > 0) {
+        await repo.setPrimaryRoomImage(roomTypeId, row.id);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('room-images')
+        .getPublicUrl(objectKey);
+
+      return {
+        ...row,
+        publicUrl: publicUrlData.publicUrl,
+      };
+    } catch (err) {
+      const { error: cleanupError } = await supabase.storage
+        .from('room-images')
+        .remove([objectKey]);
+
+      if (cleanupError) {
+        console.error(
+          '[uploadRoomImageAdmin] Failed to clean up orphaned storage object after DB failure:',
+          objectKey,
+          cleanupError.message
+        );
+      }
+
+      throw err;
     }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('room-images')
-      .getPublicUrl(objectKey);
-
-    return {
-      ...row,
-      publicUrl: publicUrlData.publicUrl,
-    };
   });
 }
 
@@ -287,6 +307,7 @@ export async function setPrimaryRoomImageAdmin(
 }
 
 export async function reorderRoomImageAdmin(
+  roomTypeId: string,
   imageId: string,
   sortOrder: number
 ): Promise<ActionResult<true>> {
@@ -296,13 +317,14 @@ export async function reorderRoomImageAdmin(
     const supabase = await createClient();
     const repo = new RoomTypeRepository(supabase);
 
-    await repo.updateRoomImageSortOrder(imageId, sortOrder);
+    await repo.updateRoomImageSortOrder(roomTypeId, imageId, sortOrder);
 
     return true as const;
   });
 }
 
 export async function deleteRoomImageAdmin(
+  roomTypeId: string,
   imageId: string
 ): Promise<ActionResult<true>> {
   return runAction(async () => {
@@ -313,24 +335,32 @@ export async function deleteRoomImageAdmin(
 
     const row = await repo.getRoomImageById(imageId);
 
-    if (!row) {
-      throw new Error('Image not found.');
+    if (!row || row.room_type_id !== roomTypeId) {
+      throw new Error('Image not found for this room type.');
     }
 
     const normalizedPath =
       normalizeRoomStoragePath(row.storage_path);
+
+    // DB row is the source of truth for the UI, so it is deleted first
+    // (scoped to id AND room_type_id as a second ownership check). If the
+    // subsequent Storage removal fails, the DB is already consistent and
+    // the leftover Storage object is a harmless, non-user-visible orphan
+    // that can be cleaned up separately — the reverse order would risk a
+    // DB row left pointing at an already-deleted file.
+    await repo.deleteRoomImageRow(roomTypeId, imageId);
 
     const { error: removeError } = await supabase.storage
       .from('room-images')
       .remove([normalizedPath]);
 
     if (removeError) {
-      throw new Error(
-        `Failed to delete image from storage: ${removeError.message}`
+      console.error(
+        '[deleteRoomImageAdmin] DB row deleted but Storage removal failed — orphaned object:',
+        normalizedPath,
+        removeError.message
       );
     }
-
-    await repo.deleteRoomImageRow(imageId);
 
     return true as const;
   });
