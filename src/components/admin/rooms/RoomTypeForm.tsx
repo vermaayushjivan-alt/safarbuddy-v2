@@ -1,183 +1,355 @@
-import { BaseRepository } from './base.repository';
-import { SupabaseClientType, DatabaseRecord } from './types';
+"use client";
 
-// RoomTypeRecord mirrors public.room_types as created by
-// src/db/sql/005_room01_schema.sql (ROOM-01). This is a "content table"
-// in the same sense as hotels/offers/destinations per DATABASE_BIBLE.md
-// — accessed directly via the Supabase client through BaseRepository,
-// not via Drizzle.
-//
-// ROOM-01 scope only. Do NOT add columns here for room_images (ROOM-02),
-// room_rates (ROOM-03), room_inventory (ROOM-04), or booking_rooms
-// (ROOM-05) — those are separate future milestones.
-export interface RoomTypeRecord extends DatabaseRecord {
-  id: string;
-  hotel_id: string;
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  createRoomTypeAdmin,
+  updateRoomTypeAdmin,
+  type RoomTypeInput,
+} from "@/app/actions/room-type.actions";
+import type {
+  RoomTypeRecord,
+  RoomTypeStatus,
+} from "@/lib/repositories/room-type.repository";
 
-  name: string;
-  description: string | null;
-
-  base_price: number;
-
-  max_adults: number;
-  max_children: number;
-
-  bed_config: string | null;
-  room_size_sqft: number | null;
-
-  status: RoomTypeStatus;
-  display_order: number;
+interface RoomTypeFormProps {
+  hotelId: string;
+  roomType?: RoomTypeRecord | null;
 }
 
-// Matches room_types_status_check in 005_room01_schema.sql.
-export const ROOM_TYPE_STATUS_VALUES = ['active', 'inactive'] as const;
-export type RoomTypeStatus = (typeof ROOM_TYPE_STATUS_VALUES)[number];
+export function RoomTypeForm({
+  hotelId,
+  roomType = null,
+}: RoomTypeFormProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
-export interface RoomImageRow {
-  id: string;
-  room_type_id: string;
-  storage_path: string;
-  is_primary: boolean;
-  sort_order: number;
-}
+  const isEditing = Boolean(roomType);
 
-export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
-  constructor(supabase: SupabaseClientType) {
-    super(supabase, {
-      tableName: 'room_types',
-      softDelete: true,
-      softDeleteColumn: 'deleted_at',
+  const [name, setName] = useState(roomType?.name ?? "");
+  const [description, setDescription] = useState(
+    roomType?.description ?? ""
+  );
+  const [basePrice, setBasePrice] = useState(
+    roomType?.base_price?.toString() ?? ""
+  );
+  const [maxAdults, setMaxAdults] = useState(
+    roomType?.max_adults?.toString() ?? "1"
+  );
+  const [maxChildren, setMaxChildren] = useState(
+    roomType?.max_children?.toString() ?? "0"
+  );
+  const [bedConfig, setBedConfig] = useState(roomType?.bed_config ?? "");
+  const [roomSizeSqft, setRoomSizeSqft] = useState(
+    roomType?.room_size_sqft?.toString() ?? ""
+  );
+  const [status, setStatus] = useState<RoomTypeStatus>(
+    roomType?.status ?? "active"
+  );
+  const [displayOrder, setDisplayOrder] = useState(
+    roomType?.display_order?.toString() ?? "0"
+  );
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+
+    const parsedBasePrice = Number(basePrice);
+    const parsedMaxAdults = Number(maxAdults);
+    const parsedMaxChildren = Number(maxChildren);
+    const parsedRoomSize = roomSizeSqft
+      ? Number(roomSizeSqft)
+      : undefined;
+    const parsedDisplayOrder = displayOrder
+      ? Number(displayOrder)
+      : undefined;
+
+    if (!name.trim()) {
+      setError("Room type name is required.");
+      return;
+    }
+
+    if (!Number.isFinite(parsedBasePrice) || parsedBasePrice < 0) {
+      setError("Please enter a valid base price.");
+      return;
+    }
+
+    if (!Number.isInteger(parsedMaxAdults) || parsedMaxAdults < 1) {
+      setError("At least 1 adult is required.");
+      return;
+    }
+
+    if (!Number.isInteger(parsedMaxChildren) || parsedMaxChildren < 0) {
+      setError("Children count cannot be negative.");
+      return;
+    }
+
+    if (
+      parsedRoomSize !== undefined &&
+      (!Number.isInteger(parsedRoomSize) || parsedRoomSize <= 0)
+    ) {
+      setError("Room size must be a positive whole number.");
+      return;
+    }
+
+    if (
+      parsedDisplayOrder !== undefined &&
+      (!Number.isInteger(parsedDisplayOrder) || parsedDisplayOrder < 0)
+    ) {
+      setError("Display order cannot be negative.");
+      return;
+    }
+
+    const input: RoomTypeInput = {
+      hotel_id: hotelId,
+      name: name.trim(),
+      description: description.trim() || null,
+      base_price: parsedBasePrice,
+      max_adults: parsedMaxAdults,
+      max_children: parsedMaxChildren,
+      bed_config: bedConfig.trim() || null,
+      room_size_sqft: parsedRoomSize ?? null,
+      status,
+      display_order: parsedDisplayOrder ?? 0,
+    };
+
+    startTransition(async () => {
+      try {
+        const result = isEditing && roomType
+          ? await updateRoomTypeAdmin(roomType.id, input)
+          : await createRoomTypeAdmin(input);
+
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+
+        router.push(`/admin/hotels/${hotelId}/rooms`);
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again."
+        );
+      }
     });
   }
 
-  // Room types are managed per-hotel (nested admin route), not via a
-  // top-level paginated list — mirrors VendorRepository.listVendorBranches,
-  // the closest existing "children of a parent" admin pattern. A hotel is
-  // not expected to have enough room types to need pagination.
-  async getRoomTypesByHotel(hotelId: string): Promise<RoomTypeRecord[]> {
-    return this.findMany({
-      filters: [{ column: 'hotel_id', operator: 'eq', value: hotelId }],
-      sort: { column: 'display_order', ascending: true },
-    });
-  }
+  return (
+    <form onSubmit={handleSubmit} className="max-w-3xl space-y-6">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          {error}
+        </div>
+      )}
 
-  async getRoomTypeById(id: string): Promise<RoomTypeRecord | null> {
-    return this.findById(id);
-  }
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="room-name"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Room Type Name
+          </label>
 
-  async createRoomType(
-    data: Parameters<BaseRepository<RoomTypeRecord>['create']>[0]
-  ) {
-    return this.create(data);
-  }
+          <input
+            id="room-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Deluxe Room"
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
 
-  async updateRoomType(
-    id: string,
-    data: Parameters<BaseRepository<RoomTypeRecord>['update']>[1]
-  ) {
-    return this.update(id, data);
-  }
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="room-description"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Description
+          </label>
 
-  async deleteRoomType(id: string): Promise<boolean> {
-    return this.softDeleteById(id).then(() => true);
-  }
+          <textarea
+            id="room-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Describe this room type..."
+            rows={4}
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
 
-  // --- ROOM-02: room_images table CRUD only. No Storage calls here —
-  // those live in room-type.actions.ts, same split as
-  // HotelRepository/hotel.actions.ts. ---
+        <div>
+          <label
+            htmlFor="base-price"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Base Price
+          </label>
 
-  async listRoomImages(roomTypeId: string): Promise<RoomImageRow[]> {
-    const { data, error } = await this.supabase
-      .from('room_images')
-      .select('id, room_type_id, storage_path, is_primary, sort_order')
-      .eq('room_type_id', roomTypeId)
-      .order('sort_order', { ascending: true });
+          <input
+            id="base-price"
+            type="number"
+            min="0"
+            step="0.01"
+            value={basePrice}
+            onChange={(e) => setBasePrice(e.target.value)}
+            placeholder="2500"
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
 
-    if (error) {
-      throw new Error(`Failed to list room images: ${error.message}`);
-    }
+        <div>
+          <label
+            htmlFor="room-status"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Status
+          </label>
 
-    return (data ?? []) as RoomImageRow[];
-  }
+          <select
+            id="room-status"
+            value={status}
+            onChange={(e) =>
+              setStatus(e.target.value as RoomTypeStatus)
+            }
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
 
-  async getRoomImageById(imageId: string): Promise<RoomImageRow | null> {
-    const { data, error } = await this.supabase
-      .from('room_images')
-      .select('id, room_type_id, storage_path, is_primary, sort_order')
-      .eq('id', imageId)
-      .single();
+        <div>
+          <label
+            htmlFor="max-adults"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Maximum Adults
+          </label>
 
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw new Error(`Failed to get room image: ${error.message}`);
-    }
+          <input
+            id="max-adults"
+            type="number"
+            min="1"
+            step="1"
+            value={maxAdults}
+            onChange={(e) => setMaxAdults(e.target.value)}
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
 
-    return data as RoomImageRow;
-  }
+        <div>
+          <label
+            htmlFor="max-children"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Maximum Children
+          </label>
 
-  async insertRoomImageRow(
-    roomTypeId: string,
-    storagePath: string,
-    isPrimary: boolean,
-    sortOrder: number
-  ): Promise<RoomImageRow> {
-    const { data, error } = await this.supabase
-      .from('room_images')
-      .insert({
-        room_type_id: roomTypeId,
-        storage_path: storagePath,
-        is_primary: isPrimary,
-        sort_order: sortOrder,
-      })
-      .select('id, room_type_id, storage_path, is_primary, sort_order')
-      .single();
+          <input
+            id="max-children"
+            type="number"
+            min="0"
+            step="1"
+            value={maxChildren}
+            onChange={(e) => setMaxChildren(e.target.value)}
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
 
-    if (error) {
-      throw new Error(`Failed to insert room image row: ${error.message}`);
-    }
+        <div>
+          <label
+            htmlFor="bed-config"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Bed Configuration
+          </label>
 
-    return data as RoomImageRow;
-  }
+          <input
+            id="bed-config"
+            type="text"
+            value={bedConfig}
+            onChange={(e) => setBedConfig(e.target.value)}
+            placeholder="1 King Bed"
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
 
-  async setPrimaryRoomImage(roomTypeId: string, imageId: string): Promise<void> {
-    const { error: clearError } = await this.supabase
-      .from('room_images')
-      .update({ is_primary: false })
-      .eq('room_type_id', roomTypeId);
+        <div>
+          <label
+            htmlFor="room-size"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Room Size (sq ft)
+          </label>
 
-    if (clearError) {
-      throw new Error(`Failed to clear primary flags: ${clearError.message}`);
-    }
+          <input
+            id="room-size"
+            type="number"
+            min="1"
+            step="1"
+            value={roomSizeSqft}
+            onChange={(e) => setRoomSizeSqft(e.target.value)}
+            placeholder="350"
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
 
-    const { error: setError } = await this.supabase
-      .from('room_images')
-      .update({ is_primary: true })
-      .eq('id', imageId);
+        <div>
+          <label
+            htmlFor="display-order"
+            className="mb-1.5 block font-heading text-[13px] font-semibold text-deep"
+          >
+            Display Order
+          </label>
 
-    if (setError) {
-      throw new Error(`Failed to set primary image: ${setError.message}`);
-    }
-  }
+          <input
+            id="display-order"
+            type="number"
+            min="0"
+            step="1"
+            value={displayOrder}
+            onChange={(e) => setDisplayOrder(e.target.value)}
+            disabled={isPending}
+            className="w-full rounded-xl border border-deep/15 bg-white px-3 py-2.5 text-[13px] text-deep outline-none transition focus:border-deep/40"
+          />
+        </div>
+      </div>
 
-  async updateRoomImageSortOrder(imageId: string, sortOrder: number): Promise<void> {
-    const { error } = await this.supabase
-      .from('room_images')
-      .update({ sort_order: sortOrder })
-      .eq('id', imageId);
+      <div className="flex items-center gap-3 border-t border-deep/10 pt-6">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="focus-ring rounded-full bg-deep px-5 py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isPending
+            ? "Saving..."
+            : isEditing
+              ? "Update Room Type"
+              : "Create Room Type"}
+        </button>
 
-    if (error) {
-      throw new Error(`Failed to update sort order: ${error.message}`);
-    }
-  }
-
-  async deleteRoomImageRow(imageId: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('room_images')
-      .delete()
-      .eq('id', imageId);
-
-    if (error) {
-      throw new Error(`Failed to delete room image row: ${error.message}`);
-    }
-  }
+        <button
+          type="button"
+          onClick={() => router.push(`/admin/hotels/${hotelId}/rooms`)}
+          disabled={isPending}
+          className="focus-ring rounded-full border border-deep/15 px-5 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
 }
