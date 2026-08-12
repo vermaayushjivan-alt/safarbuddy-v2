@@ -5,12 +5,14 @@ import { SupabaseClientType, DatabaseRecord } from './types';
 // against information_schema (SESSION 03). Do NOT add columns that are
 // not present in the DB (RULE 7).
 //
-// LEGACY-COMPAT optional fields (thumbnail, total_reviews, gallery) are
-// NOT real DB columns. They are kept here as optional so pre-existing
-// public/marketing UI code that references them continues to type-check.
+// LEGACY-COMPAT non-optional nullable fields (thumbnail, total_reviews,
+// gallery) are NOT real DB columns. They are kept here as required
+// nullable so pre-existing public/marketing UI code that references them
+// continues to type-check with function signatures like
+// formatReviews(n: number | null).
 // - thumbnail is populated at read time by resolveImages() from
 //   hotel_images.storage_path.
-// - total_reviews and gallery will simply be undefined until a dedicated
+// - total_reviews and gallery are always null until a dedicated
 //   milestone adds them to the DB and to the read path.
 //
 // HOTEL STATUS CONTRACT (SESSION 03):
@@ -53,10 +55,11 @@ export interface HotelRecord extends DatabaseRecord {
   is_featured: boolean;
   is_verified: boolean;
 
-  // Legacy-compat optional (not real DB columns) -- see comment above.
-  thumbnail?: string | null;
-  total_reviews?: number | null;
-  gallery?: string[] | null;
+  // Legacy-compat non-optional nullable (not real DB columns) --
+  // see comment above.
+  thumbnail: string | null;
+  total_reviews: number | null;
+  gallery: string[] | null;
 }
 
 // Single source of truth for the DB-enforced status contract.
@@ -80,6 +83,19 @@ export interface HotelImageRow {
 
 const DEFAULT_HOTEL_PLACEHOLDER = '/images/placeholders/default-hotel.webp';
 
+// Ensures every HotelRecord returned to callers has the legacy-compat
+// non-optional nullable fields populated (never undefined), even when
+// the DB row does not contain them. resolveImages() will later overwrite
+// `thumbnail` with a real public URL if a primary hotel image exists.
+function withLegacyDefaults(hotel: HotelRecord): HotelRecord {
+  return {
+    ...hotel,
+    thumbnail: hotel.thumbnail ?? null,
+    total_reviews: hotel.total_reviews ?? null,
+    gallery: hotel.gallery ?? null,
+  };
+}
+
 export class HotelRepository extends BaseRepository<HotelRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
@@ -102,7 +118,7 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       pagination: { page: 1, limit },
     });
 
-    return this.resolveImages(hotels);
+    return this.resolveImages(hotels.map(withLegacyDefaults));
   }
 
   private async resolveImages(hotels: HotelRecord[]): Promise<HotelRecord[]> {
@@ -153,7 +169,10 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       pagination: { page, limit },
     });
 
-    return { ...result, data: await this.resolveImages(result.data) };
+    return {
+      ...result,
+      data: await this.resolveImages(result.data.map(withLegacyDefaults)),
+    };
   }
 
   // SESSION 03: status filter updated from 'ACTIVE' to 'active'.
@@ -173,16 +192,19 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       throw new Error(`Failed to get hotel by slug: ${error.message}`);
     }
 
-    const [resolved] = await this.resolveImages([data as HotelRecord]);
+    const [resolved] = await this.resolveImages([
+      withLegacyDefaults(data as HotelRecord),
+    ]);
     return resolved;
   }
 
   // ADMIN-02 CRUD.
   async getAllHotels(page: number = 1, limit: number = 20) {
-    return this.findWithPagination({
+    const result = await this.findWithPagination({
       sort: { column: 'created_at', ascending: false },
       pagination: { page, limit },
     });
+    return { ...result, data: result.data.map(withLegacyDefaults) };
   }
 
   async getAllHotelsPaginated(page: number = 1, limit: number = 20) {
@@ -190,18 +212,21 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   }
 
   async getHotelById(id: string): Promise<HotelRecord | null> {
-    return this.findById(id);
+    const hotel = await this.findById(id);
+    return hotel ? withLegacyDefaults(hotel) : null;
   }
 
   async createHotel(data: Parameters<BaseRepository<HotelRecord>['create']>[0]) {
-    return this.create(data);
+    const created = await this.create(data);
+    return withLegacyDefaults(created);
   }
 
   async updateHotel(
     id: string,
     data: Parameters<BaseRepository<HotelRecord>['update']>[1]
   ) {
-    return this.update(id, data);
+    const updated = await this.update(id, data);
+    return withLegacyDefaults(updated);
   }
 
   async deleteHotel(id: string): Promise<boolean> {
