@@ -113,20 +113,6 @@ export function toSafeErrorMessage(error: unknown): string {
       return error.message;
     }
 
-    if (
-      error.details &&
-      typeof error.details === "object"
-    ) {
-      const detailMessage =
-        typeof error.details.message === "string"
-          ? error.details.message.trim()
-          : "";
-
-      if (detailMessage) {
-        return `Database error: ${detailMessage}`;
-      }
-    }
-
     if (error.code?.trim()) {
       return `Database error (${error.code}).`;
     }
