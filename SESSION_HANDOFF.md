@@ -1,102 +1,150 @@
-# SESSION_HANDOFF.md
+SESSION_HANDOFF.md
 
-Single source of truth for the current session boundary. Read this
-first if picking up the project without the full ZIP.
+Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
----
+Current milestone
 
-## Current milestone
+ADMIN-10 / ROOM-01 — Hotel Room Type Management — COMPLETE — Frozen
 
-PAY-03 (Admin Payment Management UI) — **COMPLETE — Frozen**
+Deployment-ready. Do not reopen unless a regression/bug is found.
 
-## Completed this session
+Completed this session
 
-- Inspected the full project against `DEVELOPMENT_BIBLE.md`,
-  `DATABASE_BIBLE.md`, `PROJECT_STATUS.md`, and `CHANGELOG.md`.
-- Found that `PROJECT_STATUS.md`/`SESSION_HANDOFF.md` were stale:
-  PAY-01 (payments schema) and PAY-02 (Cashfree integration — order
-  creation, signature-verified idempotent webhook, customer pay flow)
-  were already fully implemented in the codebase and verified working
-  (TypeScript/ESLint clean), but were never logged as Completed.
-  Backfilled both into `PROJECT_STATUS.md` as documentation
-  corrections — no code was re-implemented or changed for PAY-01/PAY-02.
-- Identified the one genuine gap: PAY-02's admin actions
-  (`getAllPaymentsAdmin`, `getPaymentByIdAdmin`) existed but had no UI.
-- Implemented PAY-03 (view-only, no schema/Server Action changes):
-  - `src/app/admin/payments/page.tsx` — paginated list, status filter
-    tabs, mirrors the `/admin/bookings` pattern.
-  - `src/app/admin/payments/[id]/page.tsx` — payment detail + linked
-    booking summary, reuses the existing `isValidUuid` route-param
-    guard (same pattern as destinations).
-  - `src/app/admin/page.tsx` — added a "Payments" card.
-  - `PROJECT_STATUS.md` and `CHANGELOG.md` updated (v7 / new entry).
+Completed hotel-nested room type management.
 
-## Remaining work (next milestone)
+Added room type list and edit routes.
 
-Per `PROJECT_STATUS.md` "Pending":
-- Booking deferred scope: room/departure inventory, availability
-  calendars, coupons, commissions, invoices, vouchers, notifications,
-  guest checkout, vendor-facing booking access.
-- Architecture cleanup (dedicated milestone, not bundled): dead
-  `src/lib/repository/` tree, unused `user.repository.ts`, stray
-  `hotel.repository.ts ts`, unused legacy auth helpers
-  (`src/lib/auth/redirect.ts`, `src/lib/auth/server.ts`).
-- Role-based dashboard pages still missing their own `page.tsx`:
-  `/dashboard`, `/hotel-owner`, `/travel-agent`, `/super-admin`,
-  `/vendor`.
-- Remaining public nav routes with no page yet: Flights, Bus, Train,
-  Holiday, Visa, Forex, Careers, Blog, Privacy Policy, etc.
-- Image Storage/RLS live upload behavior — not independently
-  verified in any session to date.
-- Possible future payment work (not yet approved/scoped): refunds,
-  manual admin status override, payment export/reporting.
+Added RoomTypeForm.
 
-Also unresolved and carried over from prior sessions, unrelated to
-Booking/Payment: hotel `vendor_id` creation gap, `findWithPagination`
-empty-message production error (needs log evidence), Google OAuth
-`unexpected_failure` (likely a Supabase/Google dashboard config issue).
+Added room-type.actions.ts.
 
-## Exact files changed/created this session
+Added RoomTypeRepository.
 
-New:
-- `src/app/admin/payments/page.tsx`
-- `src/app/admin/payments/[id]/page.tsx`
+Added room-type.schema.ts.
 
-Modified:
-- `src/app/admin/page.tsx` — added "Payments" card.
-- `PROJECT_STATUS.md` — backfilled PAY-01/PAY-02 as Completed/Frozen,
-  added PAY-03 as Completed/Frozen, removed stale Payments-pending
-  section and stale "Payment Flow" next-phase entry, added v7 history
-  entry.
-- `CHANGELOG.md` — new PAY-03 entry (includes the PAY-01/PAY-02
-  documentation-backfill note).
+Preserved existing repository/action/form architecture.
 
-## Next action for a fresh session
+Resolved missing RoomTypeForm export.
 
-Pick the next item from `PROJECT_STATUS.md` "Pending" — most likely
-either the dedicated Architecture Cleanup milestone (explicit sign-off
-already flagged as required) or one of the missing role-based
-dashboard pages. Do not start a new schema-touching milestone (e.g.
-refunds, room inventory) without an explicit readiness-audit +
-approval turn first, per RULE 13.
+Resolved RoomTypeFormProps mode mismatch.
 
-## Verification status (this session)
+Resolved room-list return-shape TypeScript mismatch.
 
-- TypeScript (`npx tsc --noEmit`): **PASS**, 0 errors.
-- ESLint (`npx eslint .`): **PASS** — 0 errors, 1 pre-existing warning
-  in `components/layout/ProfileMenu.tsx` (top-level duplicate of
-  `src/components/layout/ProfileMenu.tsx` — pre-existing architecture
-  debt, not introduced or touched this session; unrelated `<img>`
-  usage warning).
-- Production build (`npm run build`): blocked by the same
-  environment-only Google Fonts network restriction documented in
-  every prior session (`next/font/google` fetch of `Inter` returns 403
-  in this sandbox's network policy) — not a code error. The live
-  Vercel deployment has working network access and is not expected to
-  hit this.
+Final state: deployment ready.
 
-## Known blocker
+Exact files created
 
-None specific to PAY-03 code. The Google Fonts build-time fetch
-restriction is a sandbox-network limitation, not a milestone blocker —
-confirm on the next live Vercel deploy.
+src/app/admin/hotels/[id]/rooms/page.tsx
+src/app/admin/hotels/[id]/rooms/[roomId]/edit/page.tsx
+src/components/admin/rooms/RoomTypeForm.tsx
+src/lib/actions/room-type.actions.ts
+src/lib/repositories/room-type.repository.ts
+src/lib/validations/room-type.schema.ts
+
+Files modified
+
+src/app/admin/hotels/[id]/page.tsx
+src/components/admin/hotels/HotelTable.tsx
+src/lib/validations/index.ts
+src/components/admin/layout/AdminSidebar.tsx
+
+ROOM-01 scope
+
+Implemented:
+
+Hotel room type list.
+
+Create/edit room type flow.
+
+Room type CRUD.
+
+Hotel-context admin navigation.
+
+Not implemented:
+
+ROOM-02 room images.
+
+ROOM-03 room rates.
+
+ROOM-04 room inventory/availability.
+
+ROOM-05 booking-room linkage.
+
+Previous errors — resolved
+
+RoomTypeForm export
+
+Previous error:
+
+The export RoomTypeForm was not found in module
+src/components/admin/rooms/RoomTypeForm.tsx
+
+Resolved.
+
+mode prop mismatch
+
+Previous error:
+
+Property 'mode' does not exist on type 'RoomTypeFormProps'
+
+Resolved.
+
+Room list return-shape mismatch
+
+Previous error:
+
+Property 'data' does not exist on type 'RoomTypeRecord[]'
+
+Resolved.
+
+Next action
+
+ROOM-02 — Room Image Management
+
+Before coding:
+
+Existing Architecture
+
+Root Cause/current gap
+
+Exact files
+
+Why
+
+Minimal plan
+
+Confirm schema before coding
+
+Follow DEVELOPMENT_BIBLE.md RULE 15 and RULE 13.
+
+Other pending work
+
+Deferred booking scope.
+
+Architecture cleanup.
+
+Role-based dashboard pages.
+
+Remaining public routes.
+
+Supabase Storage/RLS live verification.
+
+Hotel vendor_id creation gap.
+
+findWithPagination empty-message issue.
+
+Google OAuth unexpected_failure.
+
+Frozen milestones
+
+HOME-01, HOME-02, HOME-03, ADMIN-01 through ADMIN-10, AUTH-05, AUTH-06, BOOKING-01, PAY-01, PAY-02 and PAY-03 are frozen unless a real bug/regression requires reopening.
+
+Verification
+
+Deployment: READY
+
+RoomTypeForm export issue: RESOLVED
+
+RoomTypeFormProps mode issue: RESOLVED
+
+Room-list return-shape issue: RESOLVED
