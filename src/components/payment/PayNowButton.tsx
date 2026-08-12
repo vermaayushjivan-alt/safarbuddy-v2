@@ -63,7 +63,7 @@ export function PayNowButton({ bookingId }: PayNowButtonProps) {
 
       // 3. Initialise Cashfree SDK mode from public env variable.
       const mode =
-        process.env.NEXT_PUBLIC_CASHFREE_MODE === 'production'
+        process.env.NEXT_PUBLIC_CASHFREE_ENV === 'production'
           ? 'production'
           : 'sandbox';
 
@@ -76,7 +76,7 @@ export function PayNowButton({ bookingId }: PayNowButtonProps) {
       //    success or failure on its own.
       const returnUrl =
         `${window.location.origin}/payment/success` +
-        `?order_id=${result.cfOrderId}` +
+        `?order_id=${result.gatewayOrderId}` +
         `&booking_id=${bookingId}`;
 
       const checkoutResult = await cashfree.checkout({
