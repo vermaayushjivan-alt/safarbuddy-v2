@@ -26,3 +26,34 @@ export async function createClient() {
     }
   );
 }
+
+/**
+ * Creates a Supabase client using the service-role key.
+ *
+ * Server-only: use only for trusted server-to-server callbacks such as
+ * Cashfree webhooks where no user session cookie is available.
+ */
+export function createServiceRoleClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error("Supabase service-role configuration is missing.");
+  }
+
+  return createServerClient(url, serviceRoleKey, {
+    cookies: {
+      getAll() {
+        return [];
+      },
+      setAll() {
+        // Service-role webhook clients do not use user session cookies.
+      },
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
