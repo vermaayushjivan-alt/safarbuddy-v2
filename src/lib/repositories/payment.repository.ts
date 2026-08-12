@@ -1,40 +1,41 @@
-import { BaseRepository } from './base.repository';
+import { BaseRepository } from "./base.repository";
 import {
   SupabaseClientType,
   DatabaseRecord,
   FilterOptions,
-} from './types';
+} from "./types";
 
 export type PaymentStatus =
-  | 'pending'
-  | 'success'
-  | 'failed'
-  | 'cancelled'
-  | 'refunded'
-  | 'partially_refunded';
+  | "initiated"
+  | "processing"
+  | "paid"
+  | "failed"
+  | "flagged";
 
 export interface PaymentRecord extends DatabaseRecord {
   id: string;
   booking_id: string;
   user_id: string;
+  cf_order_id: string;
+  cf_payment_id: string | null;
+  payment_session_id: string | null;
   amount: number;
-  currency_code: string;
-  payment_gateway: 'cashfree' | 'razorpay' | 'stripe' | 'phonepe';
-  payment_method: string | null;
-  gateway_order_id: string | null;
-  gateway_payment_id: string | null;
+  currency: string;
   status: PaymentStatus;
-  initiated_at: string | null;
-  completed_at: string | null;
+  cf_payment_status: string | null;
+  payment_method: string | null;
   failure_reason: string | null;
+  initiated_at: string;
+  completed_at: string | null;
 }
 
 type PaymentUpdateData =
-  Parameters<BaseRepository<PaymentRecord>['update']>[1];
+  Parameters<BaseRepository<PaymentRecord>["update"]>[1];
 
 export interface UpdatePaymentStatusData {
   status: PaymentStatus;
-  gateway_payment_id?: string | null;
+  cf_payment_status?: string | null;
+  cf_payment_id?: string | null;
   payment_method?: string | null;
   failure_reason?: string | null;
   completed_at?: string | null;
@@ -43,14 +44,14 @@ export interface UpdatePaymentStatusData {
 export class PaymentRepository extends BaseRepository<PaymentRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
-      tableName: 'payments',
+      tableName: "payments",
       softDelete: true,
-      softDeleteColumn: 'deleted_at',
+      softDeleteColumn: "deleted_at",
     });
   }
 
   async createPayment(
-    data: Parameters<BaseRepository<PaymentRecord>['create']>[0]
+    data: Parameters<BaseRepository<PaymentRecord>["create"]>[0]
   ): Promise<PaymentRecord> {
     return this.create(data);
   }
@@ -60,21 +61,17 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
   }
 
   async getPaymentByOrderId(
-    gatewayOrderId: string
+    orderId: string
   ): Promise<PaymentRecord | null> {
     return this.findOne([
-      {
-        column: 'gateway_order_id',
-        operator: 'eq',
-        value: gatewayOrderId,
-      },
+      { column: "cf_order_id", operator: "eq", value: orderId },
     ]);
   }
 
   async getPaymentsByBookingId(bookingId: string): Promise<PaymentRecord[]> {
     return this.findMany({
-      filters: [{ column: 'booking_id', operator: 'eq', value: bookingId }],
-      sort: { column: 'initiated_at', ascending: false },
+      filters: [{ column: "booking_id", operator: "eq", value: bookingId }],
+      sort: { column: "initiated_at", ascending: false },
     });
   }
 
@@ -82,8 +79,8 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     bookingId: string
   ): Promise<PaymentRecord | null> {
     const results = await this.findMany({
-      filters: [{ column: 'booking_id', operator: 'eq', value: bookingId }],
-      sort: { column: 'initiated_at', ascending: false },
+      filters: [{ column: "booking_id", operator: "eq", value: bookingId }],
+      sort: { column: "initiated_at", ascending: false },
       pagination: { page: 1, limit: 1 },
     });
 
@@ -94,17 +91,26 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     id: string,
     data: UpdatePaymentStatusData
   ): Promise<PaymentRecord> {
-    const updateData: PaymentUpdateData = { status: data.status };
+    const updateData: PaymentUpdateData = {
+      status: data.status,
+    };
 
-    if (data.gateway_payment_id !== undefined) {
-      updateData.gateway_payment_id = data.gateway_payment_id;
+    if (data.cf_payment_status !== undefined) {
+      updateData.cf_payment_status = data.cf_payment_status;
     }
+
+    if (data.cf_payment_id !== undefined) {
+      updateData.cf_payment_id = data.cf_payment_id;
+    }
+
     if (data.payment_method !== undefined) {
       updateData.payment_method = data.payment_method;
     }
+
     if (data.failure_reason !== undefined) {
       updateData.failure_reason = data.failure_reason;
     }
+
     if (data.completed_at !== undefined) {
       updateData.completed_at = data.completed_at;
     }
@@ -118,12 +124,12 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     status?: PaymentStatus
   ) {
     const filters: FilterOptions[] = status
-      ? [{ column: 'status', operator: 'eq', value: status }]
+      ? [{ column: "status", operator: "eq", value: status }]
       : [];
 
     return this.findWithPagination({
       filters,
-      sort: { column: 'created_at', ascending: false },
+      sort: { column: "created_at", ascending: false },
       pagination: { page, limit },
     });
   }
