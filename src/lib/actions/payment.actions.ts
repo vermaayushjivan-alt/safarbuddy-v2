@@ -1,37 +1,36 @@
 // src/lib/actions/payment.actions.ts
 // PAY-02 — Cashfree payment initiation using the LIVE public.payments contract.
 
-'use server';
+"use server";
 
-import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
-import { getAuthUser, requireRole } from '@/lib/auth/session';
-import { BookingRepository } from '@/lib/repositories/booking.repository';
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+import { getAuthUser, requireRole } from "@/lib/auth/session";
+import { BookingRepository } from "@/lib/repositories/booking.repository";
 import {
   PaymentRepository,
   PaymentRecord,
   PaymentStatus,
-} from '@/lib/repositories/payment.repository';
+} from "@/lib/repositories/payment.repository";
 import {
   createCashfreeOrder,
   CashfreeOrderPayload,
-} from '@/lib/cashfree/cashfree.client';
+} from "@/lib/cashfree/cashfree.client";
 
 const PAYMENT_STATUSES = [
-  'pending',
-  'success',
-  'failed',
-  'cancelled',
-  'refunded',
-  'partially_refunded',
+  "initiated",
+  "processing",
+  "paid",
+  "failed",
+  "flagged",
 ] as const;
 
 const bookingIdSchema = z.object({
-  bookingId: z.string().uuid('Invalid booking ID'),
+  bookingId: z.string().uuid("Invalid booking ID"),
 });
 
 const paymentIdSchema = z.object({
-  id: z.string().uuid('Invalid payment ID'),
+  id: z.string().uuid("Invalid payment ID"),
 });
 
 const paginationSchema = z.object({
@@ -47,56 +46,67 @@ async function createNewPayment(bookingId: string): Promise<{
   currency: string;
 }> {
   const authUser = await getAuthUser();
-  if (!authUser) throw new Error('UNAUTHENTICATED');
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({ bookingId });
+  if (!authUser) {
+    throw new Error("UNAUTHENTICATED");
+  }
+
+  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
+    bookingId,
+  });
+
   const supabase = await createClient();
+
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
   const booking = await bookingRepo.getBookingById(validatedBookingId);
+
   if (!booking || booking.user_id !== authUser.id) {
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
-  if (booking.status !== 'pending') {
-    throw new Error('Only pending bookings can be paid');
+  if (booking.status !== "pending") {
+    throw new Error("Only pending bookings can be paid");
   }
 
-  const existingPayments = await paymentRepo.getPaymentsByBookingId(validatedBookingId);
-  if (existingPayments.some((p) => p.status === 'success')) {
-    throw new Error('This booking has already been paid.');
+  const existingPayments =
+    await paymentRepo.getPaymentsByBookingId(validatedBookingId);
+
+  if (existingPayments.some((p) => p.status === "paid")) {
+    throw new Error("This booking has already been paid.");
   }
 
   const { data: userProfile, error: profileError } = await supabase
-    .from('users')
-    .select('phone')
-    .eq('id', authUser.id)
+    .from("users")
+    .select("phone")
+    .eq("id", authUser.id)
     .single();
 
   if (
     profileError ||
     !userProfile ||
-    typeof userProfile.phone !== 'string' ||
-    userProfile.phone.trim() === ''
+    typeof userProfile.phone !== "string" ||
+    userProfile.phone.trim() === ""
   ) {
     throw new Error(
-      'A valid phone number is required to make a payment. Please update your profile.'
+      "A valid phone number is required to make a payment. Please update your profile."
     );
   }
 
   const amount = Number(booking.price_snapshot);
-  const currency = String(booking.currency || 'INR').toUpperCase();
+  const currency = String(booking.currency || "INR").toUpperCase();
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('Invalid booking amount');
+    throw new Error("Invalid booking amount");
   }
 
-  const gatewayOrderId = `SF-${validatedBookingId.split('-')[0]}-${Date.now()}`;
+  const gatewayOrderId = `SF-${validatedBookingId.split("-")[0]}-${Date.now()}`;
+
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    'http://localhost:3000';
+    "http://localhost:3000";
 
   const cashfreePayload: CashfreeOrderPayload = {
     order_id: gatewayOrderId,
@@ -104,11 +114,13 @@ async function createNewPayment(bookingId: string): Promise<{
     order_currency: currency,
     customer_details: {
       customer_id: authUser.id,
-      customer_email: authUser.email ?? '',
+      customer_email: authUser.email ?? "",
       customer_phone: userProfile.phone.trim(),
     },
     order_meta: {
-      return_url: `${siteUrl}/payment/success?order_id=${encodeURIComponent(gatewayOrderId)}&booking_id=${encodeURIComponent(booking.id)}`,
+      return_url: `${siteUrl}/payment/success?order_id=${encodeURIComponent(
+        gatewayOrderId
+      )}&booking_id=${encodeURIComponent(booking.id)}`,
       notify_url: `${siteUrl}/api/public/cashfree/webhook`,
     },
   };
@@ -119,12 +131,13 @@ async function createNewPayment(bookingId: string): Promise<{
     booking_id: booking.id,
     user_id: authUser.id,
     amount,
-    currency_code: currency,
-    payment_gateway: 'cashfree',
+    cf_order_id: gatewayOrderId,
+    cf_payment_id: null,
+    payment_session_id: cashfreeOrder.payment_session_id,
+    status: "initiated",
+    cf_payment_status: null,
+    currency,
     payment_method: null,
-    gateway_order_id: gatewayOrderId,
-    gateway_payment_id: null,
-    status: 'pending',
     initiated_at: new Date().toISOString(),
     completed_at: null,
     failure_reason: null,
@@ -152,16 +165,24 @@ export async function getMyPaymentForBooking(
   bookingId: string
 ): Promise<PaymentRecord | null> {
   const authUser = await getAuthUser();
-  if (!authUser) throw new Error('UNAUTHENTICATED');
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({ bookingId });
+  if (!authUser) {
+    throw new Error("UNAUTHENTICATED");
+  }
+
+  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
+    bookingId,
+  });
+
   const supabase = await createClient();
+
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
   const booking = await bookingRepo.getBookingById(validatedBookingId);
+
   if (!booking || booking.user_id !== authUser.id) {
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
   return paymentRepo.getLatestPaymentForBooking(validatedBookingId);
@@ -171,16 +192,24 @@ export async function getMyBookingPayments(
   bookingId: string
 ): Promise<PaymentRecord[]> {
   const authUser = await getAuthUser();
-  if (!authUser) throw new Error('UNAUTHENTICATED');
 
-  const { bookingId: validatedBookingId } = bookingIdSchema.parse({ bookingId });
+  if (!authUser) {
+    throw new Error("UNAUTHENTICATED");
+  }
+
+  const { bookingId: validatedBookingId } = bookingIdSchema.parse({
+    bookingId,
+  });
+
   const supabase = await createClient();
+
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
   const booking = await bookingRepo.getBookingById(validatedBookingId);
+
   if (!booking || booking.user_id !== authUser.id) {
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
   return paymentRepo.getPaymentsByBookingId(validatedBookingId);
@@ -191,19 +220,33 @@ export async function getAllPaymentsAdmin(
   limit: number = 20,
   status?: PaymentStatus
 ) {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = paginationSchema.parse({ page, limit, status });
+  await requireRole(["admin", "super_admin"]);
+
+  const parsed = paginationSchema.parse({
+    page,
+    limit,
+    status,
+  });
+
   const supabase = await createClient();
   const paymentRepo = new PaymentRepository(supabase);
-  return paymentRepo.getAllPayments(parsed.page, parsed.limit, parsed.status);
+
+  return paymentRepo.getAllPayments(
+    parsed.page,
+    parsed.limit,
+    parsed.status
+  );
 }
 
 export async function getPaymentByIdAdmin(
   id: string
 ): Promise<PaymentRecord | null> {
-  await requireRole(['admin', 'super_admin']);
+  await requireRole(["admin", "super_admin"]);
+
   const { id: validatedId } = paymentIdSchema.parse({ id });
+
   const supabase = await createClient();
   const paymentRepo = new PaymentRepository(supabase);
+
   return paymentRepo.getPaymentById(validatedId);
 }
