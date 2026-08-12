@@ -18,10 +18,10 @@
 // without introducing a new page. The webhook remains the authoritative
 // processor either way.
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { initiatePayment } from '@/lib/actions/payment.actions';
+import { useState } from "react";
+import { initiatePayment } from "@/lib/actions/payment.actions";
 
 interface PayNowButtonProps {
   bookingId: string;
@@ -30,73 +30,104 @@ interface PayNowButtonProps {
 // Cashfree JS SDK type — loaded from CDN at runtime.
 declare global {
   interface Window {
-    Cashfree?: (config: { mode: string }) => {
+    Cashfree?: (config: {
+      mode: string;
+    }) => {
       checkout: (options: {
         paymentSessionId: string;
-        returnUrl: string;
-      }) => Promise<{ error?: { message?: string } }>;
+        redirectTarget?:
+          | "_self"
+          | "_blank"
+          | "_top";
+      }) => Promise<{
+        error?: {
+          message?: string;
+        };
+      }>;
     };
   }
 }
 
-export function PayNowButton({ bookingId }: PayNowButtonProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function PayNowButton({
+  bookingId,
+}: PayNowButtonProps) {
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   async function handlePayNow() {
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Call server action — auth, ownership, Cashfree order creation.
-      //    Amount and currency come from the server. Never from this component.
-      const result = await initiatePayment(bookingId);
+      // 1. Call server action — auth,
+      // ownership, Cashfree order creation.
+      // Amount and currency come from
+      // the server. Never from this component.
+      const result =
+        await initiatePayment(bookingId);
 
-      // 2. Load Cashfree JS SDK from CDN if not already present.
+      if (!result.success) {
+        throw new Error(
+          result.error
+        );
+      }
+
+      // 2. Load Cashfree JS SDK from CDN
+      // if not already present.
       await loadCashfreeScript();
 
       if (!window.Cashfree) {
         throw new Error(
-          'Cashfree checkout could not be loaded. Please try again.'
+          "Cashfree checkout could not be loaded. Please try again."
         );
       }
 
-      // 3. Initialise Cashfree SDK mode from public env variable.
+      // 3. Initialise Cashfree SDK mode
+      // from public env variable.
       const mode =
-        process.env.NEXT_PUBLIC_CASHFREE_ENV === 'production'
-          ? 'production'
-          : 'sandbox';
+        process.env.NEXT_PUBLIC_CASHFREE_ENV ===
+        "production"
+          ? "production"
+          : "sandbox";
 
-      const cashfree = window.Cashfree({ mode });
+      const cashfree =
+        window.Cashfree({
+          mode,
+        });
 
-      // 4. Return URL points to /payment/success — the same neutral
-      //    verification page payment.actions.ts already sets as the
-      //    server-side order_meta.return_url. The webhook is the
-      //    authoritative payment processor; this page does not claim
-      //    success or failure on its own.
-      const returnUrl =
-        `${window.location.origin}/payment/success` +
-        `?order_id=${result.gatewayOrderId}` +
-        `&booking_id=${bookingId}`;
+      // 4. Cashfree uses the return_url
+      // configured on the server-side order.
+      // The webhook remains authoritative
+      // for payment status.
+      const checkoutResult =
+        await cashfree.checkout({
+          paymentSessionId:
+            result.data.paymentSessionId,
+          redirectTarget: "_self",
+        });
 
-      const checkoutResult = await cashfree.checkout({
-        paymentSessionId: result.paymentSessionId,
-        returnUrl,
-      });
-
-      if (checkoutResult?.error?.message) {
-        throw new Error(checkoutResult.error.message);
+      if (
+        checkoutResult?.error?.message
+      ) {
+        throw new Error(
+          checkoutResult.error.message
+        );
       }
-
     } catch (err) {
       const message =
         err instanceof Error
           ? err.message
-          : 'Payment could not be initiated. Please try again.';
+          : "Payment could not be initiated. Please try again.";
+
       setError(message);
       setLoading(false);
     }
-    // setLoading(false) not called on success — Cashfree redirects the page.
+
+    // setLoading(false) not called on success —
+    // Cashfree redirects the page.
   }
 
   return (
@@ -106,41 +137,79 @@ export function PayNowButton({ bookingId }: PayNowButtonProps) {
           {error}
         </div>
       )}
+
       <button
         type="button"
         onClick={handlePayNow}
         disabled={loading}
         className="w-full rounded-xl bg-orange px-6 py-3 font-heading text-[15px] font-bold text-white transition hover:bg-orange/90 disabled:opacity-60"
       >
-        {loading ? 'Preparing payment…' : 'Pay Now'}
+        {loading
+          ? "Preparing payment…"
+          : "Pay Now"}
       </button>
     </div>
   );
 }
 
 function loadCashfreeScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.Cashfree) {
-      resolve();
-      return;
-    }
+  return new Promise(
+    (resolve, reject) => {
+      if (window.Cashfree) {
+        resolve();
+        return;
+      }
 
-    const existing = document.getElementById('cashfree-js-sdk');
-    if (existing) {
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () =>
-        reject(new Error('Failed to load Cashfree SDK'))
+      const existing =
+        document.getElementById(
+          "cashfree-js-sdk"
+        );
+
+      if (existing) {
+        existing.addEventListener(
+          "load",
+          () => resolve()
+        );
+
+        existing.addEventListener(
+          "error",
+          () =>
+            reject(
+              new Error(
+                "Failed to load Cashfree SDK"
+              )
+            )
+        );
+
+        return;
+      }
+
+      const script =
+        document.createElement(
+          "script"
+        );
+
+      script.id =
+        "cashfree-js-sdk";
+
+      script.src =
+        "https://sdk.cashfree.com/js/v3/cashfree.js";
+
+      script.async = true;
+
+      script.onload = () =>
+        resolve();
+
+      script.onerror = () =>
+        reject(
+          new Error(
+            "Failed to load Cashfree SDK"
+          )
+        );
+
+      document.body.appendChild(
+        script
       );
-      return;
     }
-
-    const script = document.createElement('script');
-    script.id = 'cashfree-js-sdk';
-    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () =>
-      reject(new Error('Failed to load Cashfree SDK'));
-    document.body.appendChild(script);
-  });
+  );
 }
