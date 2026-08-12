@@ -10,7 +10,7 @@ import {
 import { getAllVendorsForDropdown } from "@/app/actions/vendor.actions";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
 
-const STATUS_OPTIONS = ["DRAFT", "ACTIVE", "INACTIVE"] as const;
+const STATUS_OPTIONS = ["pending", "ACTIVE", "INACTIVE"] as const;
 
 interface HotelFormProps {
   mode: "create" | "edit";
@@ -42,7 +42,7 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
     star_rating: hotel?.star_rating ?? undefined,
     starting_price: hotel?.starting_price ?? undefined,
     is_featured: hotel?.is_featured ?? false,
-    status: (hotel?.status as HotelInput["status"]) ?? "DRAFT",
+    status: (hotel?.status as HotelInput["status"]) ?? "pending",
 
     // vendor_id — preselected from existing hotel when editing;
     // empty string as initial create state.
