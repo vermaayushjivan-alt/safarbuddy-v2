@@ -158,13 +158,13 @@ export type BookingStatus =
 /**
  * Payment status
  */
-export type PaymentStatus = 
+export type PaymentStatus =
   | 'pending'
-  | 'processing'
   | 'success'
   | 'failed'
+  | 'cancelled'
   | 'refunded'
-  | 'partial_refund';
+  | 'partially_refunded';
 
 /**
  * Booking type (service type)
