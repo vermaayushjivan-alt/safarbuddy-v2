@@ -110,6 +110,8 @@ Created:
 
 src/app/admin/hotels/[id]/rooms/page.tsx
 
+src/app/admin/hotels/[id]/rooms/new/page.tsx
+
 src/app/admin/hotels/[id]/rooms/[roomId]/edit/page.tsx
 
 src/components/admin/rooms/RoomTypeForm.tsx
@@ -132,7 +134,31 @@ src/components/admin/layout/AdminSidebar.tsx
 
 Scope: ROOM-01 only. ROOM-02 room images, ROOM-03 room rates, ROOM-04 room inventory/availability, and ROOM-05 booking-room linkage are separate future milestones.
 
-Fixes completed: Missing RoomTypeForm export, RoomTypeFormProps/mode mismatch, and room-list return-shape TypeScript mismatch were resolved.
+Fixes completed: Missing RoomTypeForm export, RoomTypeFormProps/mode mismatch, and room-list return-shape TypeScript mismatch were resolved. The rooms/new route (referenced by the room list's "Add Room Type" link but never created) was added, reusing the existing RoomTypeForm in create mode.
+
+Final status: Deployment Ready.
+
+ROOM-02 (Room Image Management) — COMPLETE — Frozen
+
+Room-type image upload, listing, primary-image selection, reordering, and deletion via Supabase Storage (room-images bucket) + the room_images table.
+
+Features:
+
+RoomImageManager admin component.
+
+Upload / list / set-primary / reorder / delete actions in room-type.actions.ts.
+
+/admin/hotels/[id]/rooms/[roomId]/images page.
+
+Hardening applied in the pre-ROOM-03 audit:
+
+Server-side ownership verification: setPrimaryRoomImage, updateRoomImageSortOrder, and deleteRoomImageRow are now scoped to both id and room_type_id, so an image belonging to a different room type can no longer be mutated. reorderRoomImageAdmin and deleteRoomImageAdmin now take roomTypeId as a required parameter.
+
+Upload failure handling: if the DB insert fails after a successful Storage upload, the orphaned Storage object is now removed automatically.
+
+Delete ordering changed to DB-row-delete-first, then Storage removal, so a Storage failure can no longer leave a DB row pointing at a deleted file. A Storage-removal failure after a successful DB delete is now logged as a non-fatal orphaned-object warning instead of throwing.
+
+Created: src/app/admin/hotels/[id]/rooms/[roomId]/images/page.tsx, src/components/admin/rooms/RoomImageManager.tsx (pre-existing, from ROOM-02 implementation).
 
 Final status: Deployment Ready.
 
@@ -144,8 +170,6 @@ Room/departure inventory, availability calendars, coupons, commissions, invoices
 
 Room Management — future milestones
 
-ROOM-02 — Room Image Management
-
 ROOM-03 — Room Rates
 
 ROOM-04 — Room Inventory / Availability
@@ -156,17 +180,23 @@ Do not combine these with ADMIN-10 without explicit milestone approval.
 
 Architecture Cleanup
 
-src/lib/repository/ — dead duplicate repository tree.
+src/lib/repository/ — dead duplicate repository tree (confirmed in pre-ROOM-03 audit: zero imports anywhere in src/).
 
-src/lib/repositories/user.repository.ts — unused legacy repository.
+src/lib/repositories/user.repository.ts — unused legacy repository (confirmed zero imports; only self-referenced by the also-unused src/lib/repositories/index.ts barrel).
 
-src/lib/repositories/hotel.repository.ts ts — stray file.
+src/lib/db/index.ts — unused duplicate DB client (confirmed zero imports; src/db/index.ts is the one actually used, by src/lib/auth/session.ts and src/app/api/health/route.ts).
 
 src/lib/auth/redirect.ts — unused legacy helper.
 
 src/lib/auth/server.ts — unused legacy helper.
 
+Root-level components/, lib/, home.ts (outside src/) — appear to be stray duplicates of files that also exist under src/; not verified as part of the active Next.js app dir, left untouched pending confirmation.
+
 Cleanup requires a dedicated milestone and explicit sign-off.
+
+Documentation Gap — ROOM-01 Migration
+
+src/db/sql/005_room01_schema.sql does not exist and was never listed as "Created" in the ROOM-01 CHANGELOG entry, consistent with DATABASE_BIBLE.md's documented pattern for "content tables" (created directly in Supabase, not via a committed migration). room_types itself is not in question — 006_room02_schema.sql's FK to it works and ROOM-01/02 are functionally complete — but the exact live column types/constraints/defaults are unverified beyond what RoomTypeRepository's RoomTypeRecord interface already states. LIVE VERIFICATION REQUIRED: pull the actual live schema (e.g. via Supabase dashboard or `pg_dump --schema-only`) before writing a documentation-only migration file. Do not guess the DDL.
 
 Role-Based Dashboard Pages
 
@@ -198,9 +228,9 @@ Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
 Next Development Phase
 
-ROOM-02 — Room Image Management
+ROOM-03 — Room Rates
 
-Before coding, perform the required RULE 15 readiness audit and confirm the approved schema. Do not invent ROOM-02 schema.
+Before coding, perform the required RULE 15 readiness audit and confirm the approved schema. Do not invent ROOM-03 schema.
 
 Dedicated Architecture Cleanup
 
@@ -227,3 +257,5 @@ v6 (2026-08-08) — BOOKING-01 completed/frozen.
 v7 (2026-08-12) — PAY-01/PAY-02 documentation backfill and PAY-03 admin UI.
 
 v8 (2026-08-12) — ADMIN-10 / ROOM-01 completed/frozen. Room type list/edit flow, form, repository, actions and Zod schema completed. Build/type errors related to RoomTypeForm and room-list return shape resolved. Deployment-ready state recorded.
+
+v9 (2026-08-12) — Pre-ROOM-03 hardening pass. Missing rooms/new route created (reuses RoomTypeForm). ROOM-02 image ownership vulnerability fixed (reorder/set-primary/delete now scoped to room_type_id). Upload/delete Storage↔DB failure handling hardened. ROOM-02 marked COMPLETE — Frozen. .gitignore restored from misnamed `gitignore` file (repo secrets were previously untracked-by-name only, not actually git-ignored); .env.example added. Two confirmed-unused stray files removed (stray-extension repository file, duplicate next.config). 005_room01_schema.sql confirmed genuinely absent — flagged LIVE VERIFICATION REQUIRED rather than reconstructed. src/lib/repository/, user.repository.ts, and src/lib/db/index.ts confirmed fully unused (documented for future cleanup, not deleted). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning). Production build: blocked by sandbox network restriction on Google Fonts fetch (environment-only, not a code defect — see PAY-03 note above for precedent).
