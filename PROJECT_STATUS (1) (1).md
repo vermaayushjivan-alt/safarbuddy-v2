@@ -1,262 +1,229 @@
-# PROJECT_STATUS.md
+PROJECT_STATUS.md
 
-Single source of truth for SafarBuddy V2 progress. Update existing entries in place — do not create duplicate milestone headings. See `## Version History` at the bottom for a log of when this file itself was revised.
+Single source of truth for SafarBuddy V2 progress.
 
----
+Completed
 
-## Completed
+HOME-01 — COMPLETE — Frozen
 
-### HOME-01 — COMPLETE — Frozen
+HOME-02 — COMPLETE — Frozen
 
-### HOME-02 — COMPLETE — Frozen
-
-### HOME-03 — COMPLETE — Frozen
+HOME-03 — COMPLETE — Frozen
 
 Features: Image fallback, Storage integration, Placeholder fallback.
 
-### ADMIN-01 — COMPLETE — Frozen
+ADMIN-01 — COMPLETE — Frozen
 
 Features: Admin Dashboard, Role protection, Admin layout.
 
-### ADMIN-02 — COMPLETE — Frozen
+ADMIN-02 — COMPLETE — Frozen
 
 Features: Hotel CRUD, Repository, Server Actions, Hotel Form, Hotel Edit.
 
-### ADMIN-03 — COMPLETE — Frozen
+ADMIN-03 — COMPLETE — Frozen
 
 Features: Hotel Image Upload, Storage Upload, Primary Image, Gallery, Delete, Sort Order.
 
-### ADMIN-04 (Package CRUD) — COMPLETE — Frozen
+ADMIN-04 (Package CRUD) — COMPLETE — Frozen
 
-### ADMIN-05 (Package Image Management) — COMPLETE — Frozen
+ADMIN-05 (Package Image Management) — COMPLETE — Frozen
 
-### AUTH-05 (Role-Based Authentication) — COMPLETE — Frozen
+AUTH-05 (Role-Based Authentication) — COMPLETE — Frozen
 
-Features: `requireRole()` / session helpers (`src/lib/auth/session.ts`, `server.ts`, `client.ts`, `route-guards.ts`, `api-guard.ts`), middleware session refresh + public-route allowlist (`middleware.ts`), protected layout shells with role guards for `dashboard`, `hotel-owner`, `travel-agent`, `super-admin`, and `vendor`, `/unauthorized` page, DB role seed (`src/db/sql/002_role_seed_auth05.sql`).
+Role protection, session helpers, middleware session refresh, protected layouts, /unauthorized, and role seed.
 
-**2026-08-08 stabilization:** Role-name normalization was added in `src/lib/auth/session.ts` so database role names such as `Super Admin` resolve correctly to the application's `super_admin` role value. Super Admin access to `/admin` is now working in the live environment.
+2026-08-08 stabilization: Database role names such as Super Admin are normalized to the application's super_admin role. Super Admin access to /admin is working.
 
-### AUTH-06 (Public Route Allowlist) — COMPLETE — Frozen
+AUTH-06 (Public Route Allowlist) — COMPLETE — Frozen
 
-Middleware recognizes `/hotels`, `/destinations`, `/about`, `/contact` as public (no session check), plus the `/hotels/*` and `/destinations/*` dynamic detail routes. All four listed pages exist under `src/app/`.
+Public /hotels, /destinations, /about, /contact routes and their dynamic detail routes are allowed by middleware.
 
-### ADMIN-06 (Destination CRUD) — COMPLETE — Frozen
+ADMIN-06 (Destination CRUD) — COMPLETE — Frozen
 
-Features: Destination CRUD (create/read/update/delete), Repository extension (`getAllDestinations`, `getDestinationById`, `createDestination`, `updateDestination`, `deleteDestination`), Server Actions (Zod-validated, `requireRole(['admin','super_admin'])`), Destination Form, Destination list/new/edit admin pages.
+Destination CRUD, repository methods, Zod-validated Server Actions, role protection, and admin list/new/edit pages.
 
-**Stability hardening:** Destination edit and image routes now validate dynamic UUID parameters before querying the repository, preventing malformed values such as `%5Bid%5D` from reaching PostgreSQL as UUID parameters.
+Stability hardening: Destination edit/image routes validate UUID parameters before database access.
 
-### ADMIN-07 (Destination Image Management) — COMPLETE — Frozen
+ADMIN-07 (Destination Image Management) — COMPLETE — Frozen
 
-Features: `DestinationRepository` image methods (`listDestinationImages`, `getDestinationImageById`, `insertDestinationImageRow`, `setPrimaryDestinationImage`, `updateDestinationImageSortOrder`, `deleteDestinationImageRow`), matching admin actions in `destination.actions.ts` (`getDestinationImagesAdmin`, `uploadDestinationImageAdmin`, `setPrimaryDestinationImageAdmin`, `reorderDestinationImageAdmin`, `deleteDestinationImageAdmin`), `DestinationImageManager` component, `/admin/destinations/[id]/images` page.
+Destination image list/upload/primary/reorder/delete flow and admin image manager.
 
-**Stability hardening:** Invalid destination IDs are rejected at the route boundary instead of producing database UUID errors.
+Important: Supabase Storage/RLS live upload behavior has not been independently verified.
 
-**Important:** Supabase Storage/RLS live upload behavior has not been independently verified in the current stabilization pass.
+ADMIN-08 (Offers) — COMPLETE — Frozen
 
-### ADMIN-08 (Offers) — COMPLETE — Frozen
+Offer repository, Zod/role-protected actions, create/edit form, admin pages, and public homepage offers integration.
 
-Features: `OfferRepository` (`getActiveOffers`, `getAllOffers`, `getOfferById`, `createOffer`, `updateOffer`, `deleteOffer`), `offer.actions.ts` (Zod-validated, `requireRole(['admin','super_admin'])`), `OfferForm` component (supports `create` and `edit` modes), `/admin/offers` list page, `/admin/offers/new` page, `/admin/offers/[id]/edit` page, public `getActiveOffers()` wired into the homepage `Offers` section.
+ADMIN-09 (Vendor Management) — COMPLETE — Frozen
 
-### ADMIN-09 (Vendor Management) — COMPLETE — Frozen
+Vendor CRUD, vendor branches, role-protected actions, VendorForm, VendorBranchManager, and admin vendor pages.
 
-Features: `VendorRepository` extends `BaseRepository` for vendor CRUD (`getAllVendors`, `getVendorById`, `createVendor`, `updateVendor`, `deleteVendor` with soft-delete via `deleted_at`), direct Supabase calls for `vendor_branches` (`listVendorBranches`, `getVendorBranchById`, `createVendorBranch`, `updateVendorBranch`, `deleteVendorBranch`), `vendor.actions.ts` with role protection and validation, `VendorForm`, `VendorBranchManager`, `/admin/vendors`, `/admin/vendors/new`, `/admin/vendors/[id]/edit`, `/admin/vendors/[id]/branches`.
+2026-08-09 VENDOR-01 field-mapping correction: Reconciled the application to the live public.vendors columns (vendor_name, vendor_type, owner_user_id, business_email, business_phone, gstin, pan_number, status). No SQL/schema/data migration was performed.
 
-**Stability hardening:** `src/lib/repositories/base.repository.ts` was corrected after a production/build parsing failure so the repository layer can be imported safely by vendor and other repository consumers.
+BOOKING-01 (Hotel + Package Bookings) — COMPLETE — Frozen
 
-### BOOKING-01 (Hotel + Package Bookings) — COMPLETE — Frozen
+Authenticated hotel/package booking, booking repository, customer/admin actions, booking pages, My Bookings, and admin bookings management. Room/departure inventory, availability, guest checkout, vendor booking access and related features remain deferred.
 
-Authenticated-customer booking for hotels and packages, decoupled from payment. Approved schema: single `bookings` table (`booking_type` discriminator, mutually-exclusive `hotel_id`/`package_id`, `price_snapshot` captured at creation from the hotel/package's current `starting_price`, lifecycle `pending → confirmed/cancelled → completed`). No room/departure inventory, no availability engine, no guest checkout, no payment, no vendor access — all deferred per approved scope.
+PAY-01 (Payments Schema) — COMPLETE — Frozen
+
+public.payments schema plus matching Drizzle schema/types. Multiple payment attempts supported; refunds out of scope.
+
+PAY-02 (Cashfree Integration) — COMPLETE — Frozen
+
+Payment repository, Cashfree client, customer payment actions, signature-verified/idempotent webhook, and customer pay flow.
+
+PAY-03 (Admin Payment Management UI) — COMPLETE — Frozen
+
+/admin/payments paginated payment list with status filters.
+
+/admin/payments/[id] payment detail and linked booking summary.
+
+Payments card on /admin.
+
+Reuses existing payment/booking actions; no schema change.
+
+Verification: TypeScript PASS, ESLint PASS (0 errors; one pre-existing unrelated warning). Previous sandbox Google Fonts restriction was environment-only.
+
+ADMIN-10 (Hotel Room Type Management / ROOM-01) — COMPLETE — Frozen
+
+Hotel-nested room type management is complete and deployment-ready.
 
 Features:
-- DB: `bookings` table added to `src/db/schema.ts` (Drizzle — schema/type source of truth only, per BOOKING-01 approval; the repository itself uses the same Supabase-client `BaseRepository` pattern as `hotels`/`packages`, consistent with `DATABASE_BIBLE.md`) and `src/db/sql/003_booking01_schema.sql` (raw SQL, additive only, includes CHECK constraints for `booking_type`, `status`, `num_guests > 0`, and the hotel/package XOR rule).
-- Repository: `BookingRepository` (`createBooking`, `getBookingById`, `getMyBookings`, `getAllBookings`, `cancelBooking`, `confirmBooking`, `completeBooking`).
-- Server Actions (`booking.actions.ts`): customer (`createBooking`, `getMyBookings`, `getMyBookingById`, `cancelMyBooking` — ownership-checked, auth-derived `user_id`, never trusted from client) and admin (`getAllBookingsAdmin`, `getBookingByIdAdmin`, `confirmBookingAdmin`, `cancelBookingAdmin`, `completeBookingAdmin` — `requireRole(['admin','super_admin'])`), full Zod validation including hotel/package cross-field rules.
-- One additive public action, `getPackageForBooking(id)`, added to `package.actions.ts` — no public `/packages/[slug]` page exists yet, so package booking is addressed by id, not slug.
-- UI: `/hotels/[slug]/book`, `/packages/[id]/book` (customer booking forms), `/dashboard/bookings` (customer "My Bookings", with cancel), `/admin/bookings` (admin list with status filter, confirm/cancel/complete). Hotel detail page's previously-disabled "Booking coming soon" button now links to `/hotels/[slug]/book`. Admin dashboard and `ProfileMenu` link to the new pages. No existing UI/design system changed — new pages reuse existing Tailwind tokens and component patterns (mirrors `OfferForm`/admin list pages).
-- Auth note: `/hotels/*` is in `middleware.ts`'s public allowlist (AUTH-06, frozen — not modified), so the hotel booking page adds its own explicit `getAuthUser()` guard rather than touching that frozen rule. The package booking page is naturally covered by middleware's default-protected behavior, with the same explicit guard for consistency.
 
-**Verification:** TypeScript PASS, ESLint PASS (0 errors; 1 pre-existing unrelated warning). Production build blocked by the same environment-only Google Fonts network restriction documented in the 2026-08-08 stabilization pass above — not a code error.
+/admin/hotels/[id]/rooms room type list.
 
-### PAY-01 (Payments Schema) — COMPLETE — Frozen
+/admin/hotels/[id]/rooms/[roomId]/edit room type edit.
 
-**Documentation correction:** this milestone's code already existed in the repository (verified in-place) but was never reflected here; this entry backfills that gap rather than re-implementing anything. `public.payments` table (`src/db/sql/004_payment_schema.sql`, additive-only), `payments` table/relations/types added to `src/db/schema.ts` (Drizzle — schema/type source of truth only, same convention as `bookings`). `payments.booking_id → bookings.id` and `payments.user_id → users.id`, both `ON DELETE RESTRICT`. Supports multiple payment attempts per booking (retry model); refunds explicitly out of scope. `amount` is a snapshot, never recalculated or accepted from the client.
+RoomTypeForm.
 
-### PAY-02 (Cashfree Integration) — COMPLETE — Frozen
+RoomTypeRepository.
 
-**Documentation correction:** same as PAY-01 — already implemented, not previously logged here. Features: `PaymentRepository` (`src/lib/repositories/payment.repository.ts`), `src/lib/cashfree/cashfree.client.ts` (order creation, webhook signature verification), `src/lib/actions/payment.actions.ts` (customer `initiatePayment`/`retryPayment`/`getMyPaymentForBooking`/`getMyBookingPayments`, admin `getAllPaymentsAdmin`/`getPaymentByIdAdmin`, all Zod-validated), `src/app/api/public/cashfree/webhook/route.ts` (signature-verified, idempotent — terminal payment states are never downgraded by a duplicate webhook; amount/currency mismatch is treated as a failure and logged; confirms the linked booking only on verified `paid` status), customer UI (`src/components/payment/PayNowButton.tsx`, `src/app/dashboard/bookings/[id]/pay`, `src/app/payment/success`, `src/app/payment/failure`).
+room-type.actions.ts.
 
-### PAY-03 (Admin Payment Management UI) — COMPLETE — Frozen
+room-type.schema.ts.
 
-Gap found during inspection: PAY-02's admin actions (`getAllPaymentsAdmin`, `getPaymentByIdAdmin`) existed but had no UI, unlike every other admin-managed table. View-only admin UI added, mirroring the `/admin/bookings` list pattern and the `isValidUuid` route-param guard used by destinations.
+Existing hotel admin navigation wired to room management.
 
-Features:
-- `/admin/payments` — paginated list, status filter tabs (`initiated`/`processing`/`paid`/`failed`/`flagged`), reuses existing `getAllPaymentsAdmin`.
-- `/admin/payments/[id]` — payment detail (gateway order/payment IDs, raw gateway status, method, timestamps, failure reason) plus its linked booking summary via existing `getBookingByIdAdmin`. No new Server Actions, no schema/mutation added — read-only.
-- `/admin` dashboard gained a "Payments" card, matching the existing card pattern.
+Existing repository/action/form architecture retained.
 
-**Verification:** TypeScript PASS (0 errors), ESLint PASS (0 errors, same 1 pre-existing unrelated `ProfileMenu.tsx` warning). Production build blocked by the same pre-existing sandbox-only Google Fonts restriction — not a code error, not introduced by this change.
+Created:
 
----
+src/app/admin/hotels/[id]/rooms/page.tsx
 
-## Pending
+src/app/admin/hotels/[id]/rooms/[roomId]/edit/page.tsx
 
-### Booking — deferred to a later milestone
+src/components/admin/rooms/RoomTypeForm.tsx
 
-Room/departure inventory, availability calendars, coupons, commissions, invoices, vouchers, notifications, guest checkout, and vendor-facing booking access were explicitly out of scope for BOOKING-01 and remain unbuilt.
+src/lib/actions/room-type.actions.ts
 
-### Architecture Cleanup
+src/lib/repositories/room-type.repository.ts
 
-Pending as a dedicated milestone and must not be bundled into unrelated feature work.
+src/lib/validations/room-type.schema.ts
 
-Known dead/duplicate files requiring explicit cleanup/sign-off:
+Modified:
 
-- `src/lib/repository/` — singular duplicate repository tree.
-- `src/lib/repositories/user.repository.ts` — unused legacy repository.
-- `src/lib/repositories/hotel.repository.ts ts` — stray file.
-- `src/lib/auth/redirect.ts` — unused legacy redirect helper.
-- `src/lib/auth/server.ts` — unused legacy auth helper.
+src/app/admin/hotels/[id]/page.tsx
 
-### Role-Based Dashboard Pages
+src/components/admin/hotels/HotelTable.tsx
 
-The following route shells exist but do not yet have their own `page.tsx`:
+src/lib/validations/index.ts
 
-- `/dashboard`
-- `/hotel-owner`
-- `/travel-agent`
-- `/super-admin`
-- `/vendor`
+src/components/admin/layout/AdminSidebar.tsx
 
-These remain future feature work and are not considered part of the current stability fixes.
+Scope: ROOM-01 only. ROOM-02 room images, ROOM-03 room rates, ROOM-04 room inventory/availability, and ROOM-05 booking-room linkage are separate future milestones.
 
-### Remaining Public Routes
+Fixes completed: Missing RoomTypeForm export, RoomTypeFormProps/mode mismatch, and room-list return-shape TypeScript mismatch were resolved.
 
-The following navigation destinations still do not have corresponding pages:
+Final status: Deployment Ready.
 
-- Flights
-- Bus
-- Train
-- Holiday
-- Visa
-- Forex
-- Careers
-- Blog
-- Privacy Policy
-- Other footer/navigation destinations currently without implemented routes
+Pending
 
-These should be implemented before their navigation links are treated as complete.
+Booking — deferred scope
 
-### Image Storage Verification
+Room/departure inventory, availability calendars, coupons, commissions, invoices, vouchers, notifications, guest checkout, and vendor-facing booking access.
 
-Image-management code exists for destinations, hotels and packages, including upload/list/primary/reorder/delete flows.
+Room Management — future milestones
 
-However, the current pass has **not independently live-verified**:
+ROOM-02 — Room Image Management
 
-- Supabase Storage bucket configuration
-- Storage RLS policies
-- Upload permissions
-- Production image upload success
+ROOM-03 — Room Rates
 
-If image uploads continue to fail after deployment, the exact Supabase/Storage error must be checked before making further application-layer changes.
+ROOM-04 — Room Inventory / Availability
 
----
+ROOM-05 — Booking-Room Linkage
 
-## 2026-08-08 — Authentication & Admin Stability Pass
+Do not combine these with ADMIN-10 without explicit milestone approval.
 
-### Completed during this pass
+Architecture Cleanup
 
-1. **Role normalization**
-   - Updated `src/lib/auth/session.ts`.
-   - Database role names such as `Super Admin` are normalized to the application's `super_admin` role.
-   - Live Super Admin access to `/admin` confirmed working.
+src/lib/repository/ — dead duplicate repository tree.
 
-2. **Users schema issue isolated**
-   - Live `public.users` schema was inspected.
-   - The live table contains `auth_user_id`, `full_name`, `email`, `phone`, `status`, `is_verified` and audit columns.
-   - Legacy fields such as `avatar_url`, `is_active`, `is_email_verified`, etc. are not present in the live table.
-   - The active authentication path was kept independent from those legacy columns.
+src/lib/repositories/user.repository.ts — unused legacy repository.
 
-3. **Destination UUID hardening**
-   - Added reusable UUID validation.
-   - Destination edit/images routes reject malformed IDs such as `[id]` and `%5Bid%5D` before database access.
-   - Prevents PostgreSQL error `22P02` from becoming a generic application crash.
+src/lib/repositories/hotel.repository.ts ts — stray file.
 
-4. **Repository stability**
-   - Corrected `src/lib/repositories/base.repository.ts` after a source parsing/build failure.
-   - Repository imports used by Vendor Management and other repository consumers are now syntactically valid.
+src/lib/auth/redirect.ts — unused legacy helper.
 
-5. **Auth redirect stability**
-   - Client-side protected-route redirects were aligned from the nonexistent `/auth/login` route to the actual `/login` route.
-   - Role-protected layouts distinguish unauthenticated users, unauthorized roles and unexpected errors.
+src/lib/auth/server.ts — unused legacy helper.
 
-### Verification
+Cleanup requires a dedicated milestone and explicit sign-off.
 
-- TypeScript: PASS during the latest Claude verification pass.
-- ESLint: PASS during the latest Claude verification pass, with one pre-existing unrelated warning.
-- Production build: environment-dependent; previous sandbox verification was blocked by external Google Fonts network access, while the application build itself was reported to compile successfully when the network restriction was bypassed.
-- Live Admin access: CONFIRMED.
-- Live Super Admin role authorization: CONFIRMED through successful Admin access.
-- Supabase Storage upload: NOT independently confirmed in this pass.
-- Booking/payment flows: NOT implemented.
+Role-Based Dashboard Pages
 
----
+/dashboard
 
-## Next Development Phase
+/hotel-owner
 
-### 1. Payment Flow — COMPLETE (see PAY-01/PAY-02/PAY-03 above)
+/travel-agent
 
-Previously listed here as pending; PAY-01 (schema), PAY-02 (Cashfree integration), and PAY-03 (admin UI) are now Completed/Frozen entries above. No further payment work is scheduled unless a new milestone is explicitly approved (e.g. refunds, which were explicitly out of scope for PAY-01).
+/super-admin
 
-### 2. Dedicated Architecture Cleanup
+/vendor
 
-After feature milestones are complete:    
+Remaining Public Routes
 
-### ADMIN-09 (Vendor Management) — COMPLETE — Frozen
+Flights, Bus, Train, Holiday, Visa, Forex, Careers, Blog, Privacy Policy, and other currently unimplemented footer/navigation destinations.
 
-Features: `VendorRepository` extends `BaseRepository` for vendor CRUD (`getAllVendors`, `getVendorById`, `createVendor`, `updateVendor`, `deleteVendor` with soft-delete via `deleted_at`), direct Supabase calls for `vendor_branches` (`listVendorBranches`, `getVendorBranchById`, `createVendorBranch`, `updateVendorBranch`, `deleteVendorBranch`), `vendor.actions.ts` with role protection and validation, `VendorForm`, `VendorBranchManager`, `/admin/vendors`, `/admin/vendors/new`, `/admin/vendors/[id]/edit`, `/admin/vendors/[id]/branches`.
+Image Storage Verification
 
-**Stability hardening:** `src/lib/repositories/base.repository.ts` was corrected after a production/build parsing failure so the repository layer can be imported safely by vendor and other repository consumers.
+Still requires independent live verification of Supabase Storage bucket configuration, RLS, upload permissions, and production upload success.
 
-**2026-08-09 — VENDOR-01 field-mapping correction:** An audit proved `VendorRecord`, `vendorInputSchema`, and the vendor admin UI were reading/writing column names (`business_name`, `user_id`, `gst_number`, `is_approved`, `approved_at`) that never existed on the live `public.vendors` table, which uses `vendor_name`, `vendor_type`, `owner_user_id`, `business_email`, `business_phone`, `gstin`, `pan_number`, `status`. The live table was queried correctly and all 3 existing vendor rows were always returned — only the field mapping was wrong, which is why business names rendered blank while the count was correct. Reconciled `src/lib/repositories/vendor.repository.ts` (`VendorRecord`), `src/app/actions/vendor.actions.ts` (`vendorInputSchema`), `src/components/admin/vendors/VendorForm.tsx`, `src/app/admin/vendors/page.tsx`, and `src/app/admin/vendors/[id]/branches/page.tsx` to the real live column names. No schema/SQL change, no data migration — application-layer mapping only. `owner_user_id` is kept nullable/optional (nullability unverified beyond existing rows having it null) and `status` is validated as a non-empty string with no invented enum (its allowed values are unverified). Existing vendor UUIDs (Golden Sands Hospitality, Grand Palace Hospitality Group, SafarBuddy Holidays Pvt Ltd) untouched. `vendor_branches` and its table/columns were not touched — out of scope for this fix. Hotel `vendor_id` creation gap, `findWithPagination` error, and Google OAuth issue remain separate, unfixed, and intentionally out of scope for this milestone.
+Carried-over unresolved issues
 
-- Remove confirmed dead repository tree.
-- Remove unused legacy auth helpers.
-- Remove stray files.
-- Reconcile documentation and source definitions.
-- Verify no active imports depend on the files before deletion.
+Hotel vendor_id creation gap.
 
-### 3. Final Production Hardening
+findWithPagination empty-message production error, pending log evidence.
 
-At the end of the feature roadmap, perform one dedicated final pass covering:
+Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
-- Image uploads / Storage / RLS
-- UUID route handling
-- Database schema consistency
-- Auth and role guards
-- Error boundaries
-- Navigation links
-- Dead code
-- TypeScript
-- ESLint
-- Production build
-- Production deployment verification
+Next Development Phase
 
-**Current strategy:** Do not interrupt upcoming feature milestones for isolated backlog items unless they block the current milestone.
+ROOM-02 — Room Image Management
 
----
+Before coding, perform the required RULE 15 readiness audit and confirm the approved schema. Do not invent ROOM-02 schema.
 
-## Version History
+Dedicated Architecture Cleanup
 
-- **v1** — Reconciled `PROJECT_STATUS.md` with actual repo state. Added AUTH-05, AUTH-06, ADMIN-07 as Completed. Added ADMIN-08 as In Progress with the missing edit route identified. Restructured the file into Completed / Pending / Next Development Phase sections.
+Perform only after explicit cleanup sign-off and dependency/import verification.
 
-- **v2 (2026-08-06 routing audit)** — Verified and moved ADMIN-09 Vendor Management to Completed. Closed ADMIN-08's previously missing edit route. Created missing `/about` and `/contact` pages. Fixed role-protected layout error handling and public-route behavior.
+Final Production Hardening
 
-- **v3 (2026-08-07 stability audit)** — Verified TypeScript and ESLint, audited authentication routing, fixed client-side redirects from nonexistent `/auth/login` to `/login`, and documented additional architecture debt.
+Storage/RLS, UUID routes, schema consistency, auth/role guards, error boundaries, navigation, dead code, TypeScript, ESLint, build and deployment verification.
 
-- **v4 (2026-08-08 auth/database stabilization)** — Fixed role-name normalization in `src/lib/auth/session.ts`, verified live Super Admin access to `/admin`, investigated the live `public.users` schema mismatch, and confirmed that legacy user columns were not part of the active authentication path.
+Version History
 
-- **v5 (2026-08-08 admin routing/repository hardening)** — Added UUID boundary validation for destination edit/images routes, added reusable UUID validation utility, corrected `base.repository.ts` after a parsing/build failure, and documented image Storage/RLS live verification as remaining production-hardening work. Updated this status file to make Booking/Payment the next major development phase while retaining technical debt and stability items for the final hardening pass.
+v1 — Reconciled project status with actual repository state.
 
-- **v6 (2026-08-08 BOOKING-01)** — Implemented BOOKING-01: `bookings` table (schema + SQL migration), `BookingRepository`, `booking.actions.ts`, one additive public `getPackageForBooking()` action, customer booking pages (`/hotels/[slug]/book`, `/packages/[id]/book`), customer "My Bookings" (`/dashboard/bookings`), admin bookings management (`/admin/bookings`). Moved Booking from Pending to Completed/Frozen; Payment remains the next milestone.
+v2 (2026-08-06) — Routing audit and ADMIN-09 completion.
 
-- **v7 (2026-08-12 PAY-01/PAY-02 documentation backfill + PAY-03)** — Inspection found PAY-01 (payments schema) and PAY-02 (Cashfree integration: order creation, signature-verified idempotent webhook, customer pay flow) already fully implemented in the codebase but never logged here; backfilled both as Completed/Frozen entries rather than re-implementing. Removed the stale "Payments — Pending" section and the stale "Payment Flow" next-phase entry, since the actual code was already live. Implemented PAY-03 (Admin Payment Management UI): `/admin/payments` list + `/admin/payments/[id]` detail (view-only, reuses existing `getAllPaymentsAdmin`/`getPaymentByIdAdmin`/`getBookingByIdAdmin`, no schema or Server Action changes), plus a "Payments" card on `/admin`. TypeScript PASS, ESLint PASS (0 errors, 1 pre-existing unrelated warning), production build blocked only by the pre-existing sandbox Google Fonts restriction.
+v3 (2026-08-07) — Stability/auth routing audit.
+
+v4 (2026-08-08) — Auth/database stabilization and Super Admin role normalization.
+
+v5 (2026-08-08) — UUID routing and repository hardening.
+
+v6 (2026-08-08) — BOOKING-01 completed/frozen.
+
+v7 (2026-08-12) — PAY-01/PAY-02 documentation backfill and PAY-03 admin UI.
+
+v8 (2026-08-12) — ADMIN-10 / ROOM-01 completed/frozen. Room type list/edit flow, form, repository, actions and Zod schema completed. Build/type errors related to RoomTypeForm and room-list return shape resolved. Deployment-ready state recorded.
