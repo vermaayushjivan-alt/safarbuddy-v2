@@ -147,6 +147,7 @@ export function RoomImageManager({
     startTransition(async () => {
       try {
         const result = await reorderRoomImageAdmin(
+          roomTypeId,
           imageId,
           sortOrder
         );
@@ -171,7 +172,10 @@ export function RoomImageManager({
 
     startTransition(async () => {
       try {
-        const result = await deleteRoomImageAdmin(imageId);
+        const result = await deleteRoomImageAdmin(
+          roomTypeId,
+          imageId
+        );
 
         if (!result.success) {
           throw new Error(result.error);
