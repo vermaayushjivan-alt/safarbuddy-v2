@@ -1,3 +1,33 @@
+## PAY-03 — Admin Payment Management UI (+ PAY-01/PAY-02 documentation backfill)
+**Date:** 2026-08-12
+
+### Root cause / gap
+Inspection found that PAY-01 (`public.payments` schema, `src/db/sql/004_payment_schema.sql`, `payments` table/relations in `src/db/schema.ts`) and PAY-02 (`PaymentRepository`, `src/lib/cashfree/cashfree.client.ts`, `src/lib/actions/payment.actions.ts`, the signature-verified idempotent Cashfree webhook at `src/app/api/public/cashfree/webhook/route.ts`, and the customer-facing pay flow: `PayNowButton`, `/dashboard/bookings/[id]/pay`, `/payment/success`, `/payment/failure`) were already fully implemented and working — but `PROJECT_STATUS.md` and `SESSION_HANDOFF.md` still listed "Payment Flow" as a not-yet-started future milestone. This was documentation drift, not missing code.
+
+The one genuine gap: PAY-02's admin actions (`getAllPaymentsAdmin`, `getPaymentByIdAdmin`) existed but had no UI — admins could confirm/cancel/complete bookings but had no visibility into whether Cashfree actually charged the customer, unlike every other admin-managed table (hotels, packages, destinations, offers, vendors, bookings all have admin UI).
+
+### New
+- `src/app/admin/payments/page.tsx` — paginated payments list with status filter tabs (`initiated`/`processing`/`paid`/`failed`/`flagged`), mirrors the existing `/admin/bookings` list pattern exactly. Uses the existing `getAllPaymentsAdmin` action — no new Server Action.
+- `src/app/admin/payments/[id]/page.tsx` — payment detail (gateway order/payment IDs, raw gateway status, method, timestamps, failure reason) plus its linked booking summary. Uses the existing `getPaymentByIdAdmin` and `getBookingByIdAdmin` actions and the existing `isValidUuid` route-param guard (same pattern as the destinations admin pages) — no new Server Action, no schema change.
+
+### Modified
+- `src/app/admin/page.tsx` — added a "Payments" card to the admin dashboard, matching the existing card pattern (icon, label, description, href).
+- `PROJECT_STATUS.md` — backfilled PAY-01 and PAY-02 as Completed/Frozen entries (documentation correction only, no code changed for these two), added PAY-03 as a new Completed/Frozen entry, removed the stale "Payments — Pending" section and the stale "Payment Flow" next-development-phase entry, added a v7 version history entry.
+- `SESSION_HANDOFF.md` — rewritten to reflect current state (PAY-03 complete; documentation drift on PAY-01/PAY-02 corrected).
+
+### Not changed (explicitly out of scope for this milestone)
+- No schema, no migration, no SQL change.
+- No new Server Actions — PAY-03 is read-only and reuses `getAllPaymentsAdmin`/`getPaymentByIdAdmin`/`getBookingByIdAdmin` as-is.
+- Refunds, manual payment status override, and payment export/reporting were not addressed — out of scope, not previously approved.
+- Booking, PAY-01, PAY-02, and every other frozen milestone's files were not touched.
+
+### Verification
+- TypeScript (`npx tsc --noEmit`): PASS, 0 errors.
+- ESLint (`npx eslint .`): PASS, 0 errors, 1 pre-existing unrelated warning (`components/layout/ProfileMenu.tsx`, `<img>` usage — not introduced or touched this session).
+- Production build (`npm run build`): blocked by the same pre-existing sandbox-only Google Fonts network restriction documented in prior entries (`next/font/google` fetch of `Inter` returns 403 in this sandbox's network policy) — not a code error, not introduced by this change.
+
+---
+
 ## VENDOR-01 — ADMIN-09 Field-Mapping Correction
 **Date:** 2026-08-09
 
