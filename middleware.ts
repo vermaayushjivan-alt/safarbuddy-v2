@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
   // AUTH-06 Public Marketing Pages
   "/hotels",
   "/destinations",
+  "/packages",
   "/about",
   "/contact",
 ];
