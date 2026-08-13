@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 import { HotelRepository } from '@/lib/repositories/hotel.repository';
 import { RoomTypeRepository } from '@/lib/repositories/room-type.repository';
 import { RoomPriceManager } from '@/components/admin/rooms/RoomPriceManager';
@@ -13,8 +14,9 @@ interface AdminHotelRoomsPageProps {
 export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPageProps) {
   const { id: hotelId } = await params;
 
-  const hotelRepo = new HotelRepository();
-  const roomRepo = new RoomTypeRepository();
+  const supabase = await createClient();
+  const hotelRepo = new HotelRepository(supabase);
+  const roomRepo = new RoomTypeRepository(supabase);
 
   const [hotelResult, roomsResult] = await Promise.all([
     hotelRepo.getHotelById(hotelId),
