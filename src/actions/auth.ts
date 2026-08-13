@@ -46,6 +46,27 @@ export type AuthActionState = {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Site URL                                                                   */
+/* -------------------------------------------------------------------------- */
+
+// P0 fix: NEXT_PUBLIC_SITE_URL is not part of the validated env schema
+// (src/lib/config/env.ts) and is not documented in .env.example — if
+// unset, the three redirect URLs below previously resolved to the
+// literal string "undefined/auth/callback...", which Google/Supabase
+// reject as an invalid redirect_uri. NEXT_PUBLIC_APP_URL is the
+// canonical, validated variable (validated with a default in env.ts,
+// documented in .env.example) — same fallback order already used by
+// src/lib/actions/payment.actions.ts's siteUrl helper, reused here
+// rather than inventing a new pattern.
+function getSiteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000"
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Email / Password Login                                                     */
 /* -------------------------------------------------------------------------- */
 
@@ -100,7 +121,7 @@ export async function registerAction(
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      emailRedirectTo: `${getSiteUrl()}/auth/callback`,
     },
   });
 
@@ -126,7 +147,7 @@ export async function googleLoginAction(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback${
+      redirectTo: `${getSiteUrl()}/auth/callback${
         typeof redirectTo === "string" && redirectTo
           ? `?redirectTo=${encodeURIComponent(redirectTo)}`
           : ""
@@ -165,7 +186,7 @@ export async function forgotPasswordAction(
   const { error } = await supabase.auth.resetPasswordForEmail(
     parsed.data.email,
     {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
+      redirectTo: `${getSiteUrl()}/auth/callback?next=/reset-password`,
     }
   );
 
