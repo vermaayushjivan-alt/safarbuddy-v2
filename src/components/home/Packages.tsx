@@ -113,9 +113,14 @@ function formatPrice(price: number | null): string {
   return price.toLocaleString("en-IN");
 }
 
+// P0 fix — PACKAGE-HOME-01: there is no /packages/[slug] detail page
+// (only /packages/[id]/book — see PackageGrid.tsx's PACKAGE-PUBLIC-01
+// note for the same finding). This previously linked to a slug-based
+// detail route that 404'd. Route straight to the existing booking
+// page, mirroring PackageGrid.tsx's packageBookHref(), rather than
+// inventing a new detail page outside this fix's confirmed scope.
 function packageHref(p: PackageRecord): string {
-  const slug = p.slug && p.slug.trim().length > 0 ? p.slug : String(p.id);
-  return `/packages/${slug}`;
+  return `/packages/${p.id}/book`;
 }
 
 function PackageSkeleton() {
@@ -320,12 +325,12 @@ export default function Packages() {
                     >
                       View details
                     </Link>
-                    <button
-                      type="button"
-                      className="focus-ring flex-1 rounded-xl bg-deep py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
+                    <Link
+                      href={packageHref(p)}
+                      className="focus-ring flex-1 rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
                     >
                       Book now
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </div>
