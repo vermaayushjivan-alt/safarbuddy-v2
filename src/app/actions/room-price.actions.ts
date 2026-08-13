@@ -72,7 +72,7 @@ export async function createRoomPriceAction(input: unknown): Promise<ActionResul
       validated.roomId,
       validated.hotelId,
       user.id,
-      user.role
+      user.roles
     );
 
     if (!isAuthorized) {
@@ -111,7 +111,7 @@ export async function updateRoomPriceAction(input: unknown): Promise<ActionResul
       validated.roomId,
       validated.hotelId,
       user.id,
-      user.role
+      user.roles
     );
 
     if (!isAuthorized) {
@@ -149,7 +149,7 @@ export async function deleteRoomPriceAction(input: unknown): Promise<ActionResul
       validated.roomId,
       validated.hotelId,
       user.id,
-      user.role
+      user.roles
     );
 
     if (!isAuthorized) {
@@ -177,7 +177,7 @@ export async function getRoomPricesAction(input: unknown): Promise<ActionResult<
       validated.roomId,
       validated.hotelId,
       user.id,
-      user.role
+      user.roles
     );
 
     if (!isAuthorized) {
