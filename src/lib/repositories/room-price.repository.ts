@@ -56,7 +56,7 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
     });
   }
 
-  async verifyRoomOwnership(priceId: string | null, roomId: string, hotelId: string, userId: string, role: string): Promise<boolean> {
+  async verifyRoomOwnership(priceId: string | null, roomId: string, hotelId: string, userId: string, roles: string[]): Promise<boolean> {
     return this.executeQuery(async (client) => {
       // 1. Verify room belongs to hotel
       const { data: room, error: roomError } = await client
@@ -85,7 +85,7 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
       }
 
       // 3. Admin / Super admin bypass
-      if (role === 'admin' || role === 'super_admin') {
+      if (roles.includes('admin') || roles.includes('super_admin')) {
         return true;
       }
 
@@ -118,7 +118,6 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
 
   async createRoomPrice(input: CreateRoomPriceInput): Promise<RepositoryResult<RoomPrice>> {
     return this.executeQuery(async (client) => {
-      // If setting as default, unmark other defaults for this room
       if (input.isDefault) {
         await client
           .from('room_prices')
@@ -152,7 +151,6 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
 
   async updateRoomPrice(id: string, input: UpdateRoomPriceInput): Promise<RepositoryResult<RoomPrice>> {
     return this.executeQuery(async (client) => {
-      // Fetch current record to get room_id
       const { data: current } = await client
         .from('room_prices')
         .select('room_id')
