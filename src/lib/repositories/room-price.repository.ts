@@ -83,8 +83,12 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
 
   async verifyRoomOwnership(priceId: string | null, roomId: string, hotelId: string, userId: string, roles: string[]): Promise<boolean> {
     // 1. Verify room belongs to hotel
+    // NOTE: room_types does not exist in production (PGRST205 — confirmed
+    // via live information_schema query). The real parent table for
+    // room_prices.room_id is hotel_rooms (room_prices_room_id_fkey ->
+    // hotel_rooms.id), so ownership must be checked against hotel_rooms.
     const { data: room, error: roomError } = await this.supabase
-      .from('room_types')
+      .from('hotel_rooms')
       .select('id, hotel_id')
       .eq('id', roomId)
       .is('deleted_at', null)
