@@ -51,16 +51,17 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
         getCurrenciesAction(),
       ]);
 
-      if (pricesRes.success && pricesRes.data) {
-        setPrices(pricesRes.data);
-      } else if (pricesRes.error) {
+      if (pricesRes.success) {
+        setPrices(pricesRes.data || []);
+      } else {
         setError(pricesRes.error.message);
       }
 
-      if (currRes.success && currRes.data) {
-        setCurrencies(currRes.data);
-        if (currRes.data.length > 0 && !currencyId) {
-          const inr = currRes.data.find((c) => c.code === 'INR') || currRes.data[0];
+      if (currRes.success) {
+        const currList = currRes.data || [];
+        setCurrencies(currList);
+        if (currList.length > 0 && !currencyId) {
+          const inr = currList.find((c) => c.code === 'INR') || currList[0];
           setCurrencyId(inr.id);
         }
       }
@@ -138,7 +139,7 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
         });
 
         if (!res.success) {
-          setError(res.error?.message || 'Failed to update rate');
+          setError(res.error.message);
           setSaving(false);
           return;
         }
@@ -157,7 +158,7 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
         });
 
         if (!res.success) {
-          setError(res.error?.message || 'Failed to create rate');
+          setError(res.error.message);
           setSaving(false);
           return;
         }
@@ -180,7 +181,7 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
       if (res.success) {
         await loadData();
       } else {
-        alert(res.error?.message || 'Failed to delete room rate');
+        alert(res.error.message);
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Delete failed');
