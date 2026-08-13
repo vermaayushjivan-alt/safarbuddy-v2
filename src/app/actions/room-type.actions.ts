@@ -19,15 +19,18 @@ import {
 
 const MAX_ROOM_PRICE = 99_999_999.99;
 
+// Field set matches the live public.hotel_rooms columns (confirmed via
+// information_schema). room_types never existed in production, so there
+// is no `description` or `display_order` column to map here — they have
+// been dropped rather than invented. `room_type` and `max_occupancy` are
+// real, required (NOT NULL) hotel_rooms columns that the old room_types
+// -based schema never modeled, so they've been added.
 const roomTypeInputSchema = z.object({
   hotel_id: z.string().uuid('A valid hotel is required'),
 
-  name: z.string().min(1, 'Room type name is required'),
+  room_name: z.string().min(1, 'Room name is required'),
 
-  description: z.preprocess(
-    emptyToNull,
-    z.string().nullable().optional()
-  ),
+  room_type: z.string().min(1, 'Room type is required'),
 
   base_price: z
     .number()
@@ -37,17 +40,22 @@ const roomTypeInputSchema = z.object({
       'The amount is too large. Please enter a smaller value.'
     ),
 
-  max_adults: z
+  capacity_adults: z
     .number()
     .int()
     .min(1, 'At least 1 adult is required'),
 
-  max_children: z
+  capacity_children: z
     .number()
     .int()
     .min(0, 'Cannot be negative'),
 
-  bed_config: z.preprocess(
+  max_occupancy: z
+    .number()
+    .int()
+    .min(1, 'Max occupancy must be at least 1'),
+
+  bed_type: z.preprocess(
     emptyToNull,
     z.string().nullable().optional()
   ),
@@ -60,11 +68,6 @@ const roomTypeInputSchema = z.object({
   status: z.enum(ROOM_TYPE_STATUS_VALUES, {
     message: `Status must be one of: ${ROOM_TYPE_STATUS_VALUES.join(', ')}.`,
   }),
-
-  display_order: z.preprocess(
-    emptyToNull,
-    z.number().int().min(0).nullable().optional()
-  ),
 });
 
 export type RoomTypeInput = z.infer<typeof roomTypeInputSchema>;
@@ -335,7 +338,7 @@ export async function deleteRoomImageAdmin(
 
     const row = await repo.getRoomImageById(imageId);
 
-    if (!row || row.room_type_id !== roomTypeId) {
+    if (!row || row.room_id !== roomTypeId) {
       throw new Error('Image not found for this room type.');
     }
 
@@ -343,7 +346,7 @@ export async function deleteRoomImageAdmin(
       normalizeRoomStoragePath(row.storage_path);
 
     // DB row is the source of truth for the UI, so it is deleted first
-    // (scoped to id AND room_type_id as a second ownership check). If the
+    // (scoped to id AND room_id as a second ownership check). If the
     // subsequent Storage removal fails, the DB is already consistent and
     // the leftover Storage object is a harmless, non-user-visible orphan
     // that can be cleaned up separately — the reverse order would risk a
