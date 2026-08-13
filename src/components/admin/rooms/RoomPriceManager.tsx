@@ -54,7 +54,7 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
       if (pricesRes.success) {
         setPrices(pricesRes.data || []);
       } else {
-        setError(pricesRes.error.message);
+        setError(pricesRes.error || 'Failed to fetch room prices');
       }
 
       if (currRes.success) {
@@ -139,7 +139,7 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
         });
 
         if (!res.success) {
-          setError(res.error.message);
+          setError(res.error || 'Failed to update rate');
           setSaving(false);
           return;
         }
@@ -158,7 +158,7 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
         });
 
         if (!res.success) {
-          setError(res.error.message);
+          setError(res.error || 'Failed to create rate');
           setSaving(false);
           return;
         }
@@ -181,7 +181,7 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
       if (res.success) {
         await loadData();
       } else {
-        alert(res.error.message);
+        alert(res.error || 'Failed to delete room rate');
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Delete failed');
