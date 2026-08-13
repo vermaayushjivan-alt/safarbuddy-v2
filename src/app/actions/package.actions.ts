@@ -20,6 +20,15 @@ export async function getFeaturedPackages(): Promise<PackageRecord[]> {
   return repo.getFeaturedPackages(8);
 }
 
+// --- P1 fix: public listing for the new /packages page ---
+// Mirrors getPublishedHotels (hotel.actions.ts) exactly.
+export async function getPublishedPackages(page: number = 1, limit: number = 20) {
+  const supabase = await createClient();
+  const repo = new PackageRepository(supabase);
+
+  return repo.getPublishedPackages(page, limit);
+}
+
 // --- BOOKING-01: Package lookup for customer booking ---
 // Read-only lookup used by /packages/[id]/book.
 // This is intentionally not admin-only because authenticated customers
