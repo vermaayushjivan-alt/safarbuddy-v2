@@ -23,12 +23,12 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
     roomRepo.getRoomTypesByHotel(hotelId),
   ]);
 
-  if (hotelResult.error || !hotelResult.data) {
+  if (!hotelResult || hotelResult.error || !hotelResult.data) {
     notFound();
   }
 
   const hotel = hotelResult.data;
-  const rooms = roomsResult.data || [];
+  const rooms = roomsResult?.data || [];
 
   return (
     <div className="space-y-6">
