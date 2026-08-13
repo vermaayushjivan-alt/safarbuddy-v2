@@ -18,7 +18,7 @@ import {
   UpdateData,
 } from "./types";
 
-export abstract class BaseRepository<
+export abstract class BaseRepository
   T extends DatabaseRecord
 > {
   protected tableName: string;
@@ -491,6 +491,17 @@ export abstract class BaseRepository<
       } = await countQuery;
 
       if (countError) {
+        // DIAGNOSTIC (Part 2 investigation): handleDatabaseError() converts
+        // countError into a DatabaseError, which the outer catch below
+        // rethrows via the `instanceof DatabaseError` branch WITHOUT ever
+        // reaching the console.error further down — so failures on this
+        // specific query (the count-only HEAD request) were previously
+        // logged with no table name at all. Logging here closes that gap.
+        console.error(
+          `[${this.tableName}] findWithPagination count query failed`,
+          countError
+        );
+
         throw handleDatabaseError(
           countError
         );
@@ -518,7 +529,7 @@ export abstract class BaseRepository<
         limit: pagination.limit,
         totalPages,
         hasNext:
-          pagination.page <
+          pagination.page 
           totalPages,
         hasPrev:
           pagination.page > 1,
@@ -555,7 +566,7 @@ export abstract class BaseRepository<
       } = await this.supabase
         .from(this.tableName)
         .insert(
-          data as Record<
+          data as Record
             string,
             unknown
           >
@@ -613,7 +624,7 @@ export abstract class BaseRepository<
       } = await this.supabase
         .from(this.tableName)
         .insert(
-          data as Record<
+          data as Record
             string,
             unknown
           >[]
@@ -666,7 +677,7 @@ export abstract class BaseRepository<
         this.supabase
           .from(this.tableName)
           .update(
-            data as Record<
+            data as Record
               string,
               unknown
             >
@@ -741,7 +752,7 @@ export abstract class BaseRepository<
         this.supabase
           .from(this.tableName)
           .update(
-            data as Record<
+            data as Record
               string,
               unknown
             >
@@ -903,7 +914,7 @@ export abstract class BaseRepository<
     }
 
     try {
-      const updateData: Record<
+      const updateData: Record
         string,
         unknown
       > = {
@@ -984,7 +995,7 @@ export abstract class BaseRepository<
     }
 
     try {
-      const updateData: Record<
+      const updateData: Record
         string,
         unknown
       > = {
