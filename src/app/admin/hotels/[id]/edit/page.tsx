@@ -40,6 +40,13 @@ export default async function EditHotelPage({
             Manage Images
           </Link>
 
+          <Link
+            href={`/admin/hotels/${hotel.id}/rooms`}
+            className="focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
+          >
+            Manage Rooms
+          </Link>
+
           {/* SESSION 03: status contract updated to lowercase to match
               hotels_status_check DB constraint. */}
           {hotel.status === "active" && (
