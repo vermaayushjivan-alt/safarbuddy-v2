@@ -25,7 +25,20 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // P0 fix: Supabase/Google redirect back here with ?error=... and
+  // ?error_description=... (not a "code") when the OAuth provider
+  // itself fails (e.g. redirect_uri_mismatch, unexpected_failure).
+  // Previously that case fell through to a generic "Invalid or
+  // expired link" message identical to a genuinely expired magic
+  // link, which made real provider misconfiguration indistinguishable
+  // from an expired link. Surface the real reason when Supabase
+  // supplies one; keep the generic message as the fallback for the
+  // "no code, no error param" case only.
+  const providerError = searchParams.get("error_description") ?? searchParams.get("error");
+
   return NextResponse.redirect(
-    `${origin}/login?error=${encodeURIComponent("Invalid or expired link.")}`
+    `${origin}/login?error=${encodeURIComponent(
+      providerError ?? "Invalid or expired link."
+    )}`
   );
 }
