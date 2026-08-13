@@ -1,41 +1,56 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
-// RoomTypeRecord mirrors public.room_types as created by
-// src/db/sql/005_room01_schema.sql (ROOM-01). This is a "content table"
-// in the same sense as hotels/offers/destinations per DATABASE_BIBLE.md
-// — accessed directly via the Supabase client through BaseRepository,
-// not via Drizzle.
+// RoomTypeRecord mirrors public.hotel_rooms (live production table,
+// confirmed via information_schema — see PROJECT_STATUS.md Phase 1 note).
 //
-// ROOM-01 scope only. Do NOT add columns here for room_images (ROOM-02),
-// room_rates (ROOM-03), room_inventory (ROOM-04), or booking_rooms
-// (ROOM-05) — those are separate future milestones.
+// The table this repository originally targeted, public.room_types, does
+// not exist in production (PGRST205). No 005_room01_schema.sql migration
+// was ever applied for it. The real, live schema for this admin surface
+// is hotel_rooms / hotel_room_images / room_prices / room_inventory, with
+// hotel_rooms as the parent row (hotel_rooms.hotel_id -> hotels.id) and
+// the others referencing hotel_rooms.id via room_id.
+//
+// Class/method names are kept as RoomTypeRepository / getRoomTypesByHotel
+// etc. to minimize churn in call sites (page.tsx, room-type.actions.ts,
+// RoomTypeForm), even though the underlying table is hotel_rooms, not a
+// literal "room type" table.
+//
+// ROOM-01/02 scope only. Do NOT add columns here for room_prices
+// (ROOM-03) or room_inventory (ROOM-04) — those are separate repositories
+// / milestones.
 export interface RoomTypeRecord extends DatabaseRecord {
   id: string;
   hotel_id: string;
 
-  name: string;
-  description: string | null;
+  room_name: string;
+  room_type: string;
 
   base_price: number;
 
-  max_adults: number;
-  max_children: number;
+  capacity_adults: number;
+  capacity_children: number;
+  max_occupancy: number;
 
-  bed_config: string | null;
+  bed_type: string | null;
   room_size_sqft: number | null;
 
   status: RoomTypeStatus;
-  display_order: number;
 }
 
-// Matches room_types_status_check in 005_room01_schema.sql.
+// hotel_rooms.status is `text NOT NULL DEFAULT 'active'` live — no CHECK
+// constraint has been confirmed, so these values are an app-level
+// convention (matching the values already used by the existing admin
+// UI), not a verified DB constraint. Do not assume more values exist
+// without confirming against the live schema first.
 export const ROOM_TYPE_STATUS_VALUES = ['active', 'inactive'] as const;
 export type RoomTypeStatus = (typeof ROOM_TYPE_STATUS_VALUES)[number];
 
+// Mirrors public.hotel_room_images (live). The table this originally
+// targeted, public.room_images, does not exist in production.
 export interface RoomImageRow {
   id: string;
-  room_type_id: string;
+  room_id: string;
   storage_path: string;
   is_primary: boolean;
   sort_order: number;
@@ -44,7 +59,7 @@ export interface RoomImageRow {
 export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
-      tableName: 'room_types',
+      tableName: 'hotel_rooms',
       softDelete: true,
       softDeleteColumn: 'deleted_at',
     });
@@ -53,10 +68,13 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
   // Room types are managed per-hotel (nested admin route), not via a
   // top-level paginated list — mirrors VendorRepository.listVendorBranches,
   // the closest existing "children of a parent" admin pattern.
+  //
+  // Sorted by created_at (real column) instead of display_order —
+  // hotel_rooms has no display_order column live.
   async getRoomTypesByHotel(hotelId: string): Promise<RoomTypeRecord[]> {
     return this.findMany({
       filters: [{ column: 'hotel_id', operator: 'eq', value: hotelId }],
-      sort: { column: 'display_order', ascending: true },
+      sort: { column: 'created_at', ascending: true },
     });
   }
 
@@ -81,14 +99,17 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
     return this.softDeleteById(id).then(() => true);
   }
 
-  // --- ROOM-02: room_images table CRUD only.
+  // --- ROOM-02: hotel_room_images table CRUD only.
   // No Storage calls here — those live in room-type.actions.ts.
+  //
+  // Parameter is still named roomTypeId (it's a hotel_rooms.id) to keep
+  // call sites unchanged; the column queried is hotel_room_images.room_id.
 
   async listRoomImages(roomTypeId: string): Promise<RoomImageRow[]> {
     const { data, error } = await this.supabase
-      .from('room_images')
-      .select('id, room_type_id, storage_path, is_primary, sort_order')
-      .eq('room_type_id', roomTypeId)
+      .from('hotel_room_images')
+      .select('id, room_id, storage_path, is_primary, sort_order')
+      .eq('room_id', roomTypeId)
       .order('sort_order', { ascending: true });
 
     if (error) {
@@ -100,8 +121,8 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
 
   async getRoomImageById(imageId: string): Promise<RoomImageRow | null> {
     const { data, error } = await this.supabase
-      .from('room_images')
-      .select('id, room_type_id, storage_path, is_primary, sort_order')
+      .from('hotel_room_images')
+      .select('id, room_id, storage_path, is_primary, sort_order')
       .eq('id', imageId)
       .single();
 
@@ -120,14 +141,14 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
     sortOrder: number
   ): Promise<RoomImageRow> {
     const { data, error } = await this.supabase
-      .from('room_images')
+      .from('hotel_room_images')
       .insert({
-        room_type_id: roomTypeId,
+        room_id: roomTypeId,
         storage_path: storagePath,
         is_primary: isPrimary,
         sort_order: sortOrder,
       })
-      .select('id, room_type_id, storage_path, is_primary, sort_order')
+      .select('id, room_id, storage_path, is_primary, sort_order')
       .single();
 
     if (error) {
@@ -142,9 +163,9 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
     imageId: string
   ): Promise<void> {
     const { error: clearError } = await this.supabase
-      .from('room_images')
+      .from('hotel_room_images')
       .update({ is_primary: false })
-      .eq('room_type_id', roomTypeId);
+      .eq('room_id', roomTypeId);
 
     if (clearError) {
       throw new Error(
@@ -153,14 +174,14 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
     }
 
     // Ownership check: the image being promoted must actually belong to
-    // roomTypeId. Scoping the update to both id AND room_type_id (instead
+    // roomTypeId. Scoping the update to both id AND room_id (instead
     // of id alone) means a mismatched imageId affects zero rows instead of
-    // silently flipping is_primary on another room type's image.
+    // silently flipping is_primary on another room's image.
     const { data: setData, error: setError } = await this.supabase
-      .from('room_images')
+      .from('hotel_room_images')
       .update({ is_primary: true })
       .eq('id', imageId)
-      .eq('room_type_id', roomTypeId)
+      .eq('room_id', roomTypeId)
       .select('id');
 
     if (setError) {
@@ -179,12 +200,12 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
     imageId: string,
     sortOrder: number
   ): Promise<void> {
-    // Scoped to id AND room_type_id — see setPrimaryRoomImage above.
+    // Scoped to id AND room_id — see setPrimaryRoomImage above.
     const { data, error } = await this.supabase
-      .from('room_images')
+      .from('hotel_room_images')
       .update({ sort_order: sortOrder })
       .eq('id', imageId)
-      .eq('room_type_id', roomTypeId)
+      .eq('room_id', roomTypeId)
       .select('id');
 
     if (error) {
@@ -202,12 +223,12 @@ export class RoomTypeRepository extends BaseRepository<RoomTypeRecord> {
     roomTypeId: string,
     imageId: string
   ): Promise<void> {
-    // Scoped to id AND room_type_id — see setPrimaryRoomImage above.
+    // Scoped to id AND room_id — see setPrimaryRoomImage above.
     const { data, error } = await this.supabase
-      .from('room_images')
+      .from('hotel_room_images')
       .delete()
       .eq('id', imageId)
-      .eq('room_type_id', roomTypeId)
+      .eq('room_id', roomTypeId)
       .select('id');
 
     if (error) {
