@@ -18,7 +18,7 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
   const hotelRepo = new HotelRepository(supabase);
   const roomRepo = new RoomTypeRepository(supabase);
 
-  const [hotelResult, roomsResult] = await Promise.all([
+  const [hotelResult, rooms] = await Promise.all([
     hotelRepo.getHotelById(hotelId),
     roomRepo.getRoomTypesByHotel(hotelId),
   ]);
@@ -28,7 +28,7 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
   }
 
   const hotel = hotelResult.data;
-  const rooms = roomsResult?.data || [];
+  const roomList = rooms || [];
 
   return (
     <div className="space-y-6">
@@ -55,13 +55,13 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
         </Link>
       </div>
 
-      {rooms.length === 0 ? (
+      {roomList.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-500">
           No room types created for this hotel yet.
         </div>
       ) : (
         <div className="space-y-6">
-          {rooms.map((room) => (
+          {roomList.map((room) => (
             <div
               key={room.id}
               className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4"
