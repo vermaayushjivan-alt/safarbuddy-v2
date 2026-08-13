@@ -63,7 +63,7 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
         <div className="space-y-6">
           {roomList.map((room) => {
             const roomId = String(room.id ?? '');
-            const roomName = String(room.name ?? '');
+            const roomName = String(room.room_name ?? '');
             const description = room.description ? String(room.description) : '';
             const capacityAdults = Number(room.capacity_adults ?? 0);
             const capacityChildren = Number(room.capacity_children ?? 0);
