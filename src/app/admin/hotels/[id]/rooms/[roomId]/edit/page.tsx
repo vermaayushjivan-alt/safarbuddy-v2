@@ -48,7 +48,7 @@ export default async function EditRoomTypePage({
           </h1>
 
           <p className="mt-2 text-[14px] text-ink/60">
-            {hotel.hotel_name} — {roomType.name}
+            {hotel.hotel_name} — {roomType.room_name}
           </p>
         </div>
 
