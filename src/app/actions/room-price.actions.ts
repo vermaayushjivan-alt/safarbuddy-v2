@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import { createClient } from '@/lib/supabase/server';
 import { runAction, type ActionResult } from '@/lib/actions/action-result';
 import { requireRole } from '@/lib/auth/session';
 import { RoomPriceRepository, type RoomPrice } from '@/lib/repositories/room-price.repository';
@@ -66,7 +67,8 @@ export async function createRoomPriceAction(input: unknown): Promise<ActionResul
     const user = await requireRole(['admin', 'hotel_owner']);
     const validated = createRoomPriceSchema.parse(input);
 
-    const repo = new RoomPriceRepository();
+    const supabase = await createClient();
+    const repo = new RoomPriceRepository(supabase);
     const isAuthorized = await repo.verifyRoomOwnership(
       null,
       validated.roomId,
@@ -79,7 +81,7 @@ export async function createRoomPriceAction(input: unknown): Promise<ActionResul
       throw new Error('Unauthorized access to hotel room pricing');
     }
 
-    const result = await repo.createRoomPrice({
+    return repo.createRoomPrice({
       roomId: validated.roomId,
       currencyId: validated.currencyId,
       basePrice: validated.basePrice,
@@ -91,12 +93,6 @@ export async function createRoomPriceAction(input: unknown): Promise<ActionResul
       status: validated.status,
       createdBy: user.id,
     });
-
-    if (result.error || !result.data) {
-      throw new Error(result.error?.message || 'Failed to create room rate');
-    }
-
-    return result.data;
   });
 }
 
@@ -105,7 +101,8 @@ export async function updateRoomPriceAction(input: unknown): Promise<ActionResul
     const user = await requireRole(['admin', 'hotel_owner']);
     const validated = updateRoomPriceSchema.parse(input);
 
-    const repo = new RoomPriceRepository();
+    const supabase = await createClient();
+    const repo = new RoomPriceRepository(supabase);
     const isAuthorized = await repo.verifyRoomOwnership(
       validated.id,
       validated.roomId,
@@ -118,7 +115,7 @@ export async function updateRoomPriceAction(input: unknown): Promise<ActionResul
       throw new Error('Unauthorized access to hotel room pricing');
     }
 
-    const result = await repo.updateRoomPrice(validated.id, {
+    return repo.updateRoomPrice(validated.id, {
       currencyId: validated.currencyId,
       basePrice: validated.basePrice,
       discountAmount: validated.discountAmount,
@@ -129,12 +126,6 @@ export async function updateRoomPriceAction(input: unknown): Promise<ActionResul
       status: validated.status,
       updatedBy: user.id,
     });
-
-    if (result.error || !result.data) {
-      throw new Error(result.error?.message || 'Failed to update room rate');
-    }
-
-    return result.data;
   });
 }
 
@@ -143,7 +134,8 @@ export async function deleteRoomPriceAction(input: unknown): Promise<ActionResul
     const user = await requireRole(['admin', 'hotel_owner']);
     const validated = deleteRoomPriceSchema.parse(input);
 
-    const repo = new RoomPriceRepository();
+    const supabase = await createClient();
+    const repo = new RoomPriceRepository(supabase);
     const isAuthorized = await repo.verifyRoomOwnership(
       validated.id,
       validated.roomId,
@@ -156,11 +148,7 @@ export async function deleteRoomPriceAction(input: unknown): Promise<ActionResul
       throw new Error('Unauthorized access to hotel room pricing');
     }
 
-    const result = await repo.deleteRoomPrice(validated.id);
-
-    if (result.error) {
-      throw new Error(result.error.message || 'Failed to delete room rate');
-    }
+    await repo.deleteRoomPrice(validated.id);
 
     return { success: true };
   });
@@ -171,7 +159,8 @@ export async function getRoomPricesAction(input: unknown): Promise<ActionResult<
     const user = await requireRole(['admin', 'hotel_owner']);
     const validated = getRoomPricesSchema.parse(input);
 
-    const repo = new RoomPriceRepository();
+    const supabase = await createClient();
+    const repo = new RoomPriceRepository(supabase);
     const isAuthorized = await repo.verifyRoomOwnership(
       null,
       validated.roomId,
@@ -184,24 +173,15 @@ export async function getRoomPricesAction(input: unknown): Promise<ActionResult<
       throw new Error('Unauthorized access to hotel room pricing');
     }
 
-    const result = await repo.getPricesByRoom(validated.roomId);
-
-    if (result.error) {
-      throw new Error(result.error.message || 'Failed to fetch room rates');
-    }
-
-    return result.data || [];
+    return repo.getPricesByRoom(validated.roomId);
   });
 }
 
 export async function getCurrenciesAction(): Promise<ActionResult<Array<{ id: string; code: string; name: string; symbol: string }>>> {
   return runAction(async () => {
     await requireRole(['admin', 'hotel_owner']);
-    const repo = new RoomPriceRepository();
-    const result = await repo.getCurrencies();
-    if (result.error) {
-      throw new Error(result.error.message || 'Failed to fetch currencies');
-    }
-    return result.data || [];
+    const supabase = await createClient();
+    const repo = new RoomPriceRepository(supabase);
+    return repo.getCurrencies();
   });
 }
