@@ -1,245 +1,865 @@
-'use server';
+"use server";
 
-import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
-import { requireRole, getAuthUser } from '@/lib/auth/session';
+import { z } from "zod";
+
+import { createClient } from "@/lib/supabase/server";
+import {
+  requireRole,
+  getAuthUser,
+} from "@/lib/auth/session";
+
 import {
   BookingRepository,
   BookingRecord,
   BookingStatus,
-} from '@/lib/repositories/booking.repository';
-import { HotelRepository } from '@/lib/repositories/hotel.repository';
-import { PackageRepository } from '@/lib/repositories/package.repository';
+  BookingType,
+} from "@/lib/repositories/booking.repository";
 
-// --- BOOKING-01: Hotel + Package bookings, authenticated customers only ---
-// Payment is NOT part of this milestone. price_snapshot is always derived
-// server-side from the current hotel/package starting_price at creation
-// time — never trusted from the client — and never recalculated after
-// creation.
+import { HotelRepository } from "@/lib/repositories/hotel.repository";
+import { PackageRepository } from "@/lib/repositories/package.repository";
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const dateString = z.string().regex(DATE_PATTERN, 'Invalid date (expected YYYY-MM-DD)');
+// -----------------------------------------------------------------------------
+// VALIDATION
+// -----------------------------------------------------------------------------
 
-const createBookingBaseSchema = z.object({
-  booking_type: z.enum(['hotel', 'package']),
-  hotel_id: z.string().uuid().nullable().optional(),
-  package_id: z.string().uuid().nullable().optional(),
-  check_in_date: dateString.nullable().optional(),
-  check_out_date: dateString.nullable().optional(),
-  travel_date: dateString.nullable().optional(),
-  num_guests: z.number().int().min(1, 'At least 1 guest is required'),
-});
+const DATE_PATTERN =
+  /^\d{4}-\d{2}-\d{2}$/;
 
-const createBookingSchema = createBookingBaseSchema.superRefine((val, ctx) => {
-  if (val.booking_type === 'hotel') {
-    if (!val.hotel_id) {
-      ctx.addIssue({ code: 'custom', path: ['hotel_id'], message: 'hotel_id is required for hotel bookings' });
+const dateString =
+  z
+    .string()
+    .regex(
+      DATE_PATTERN,
+      "Invalid date (expected YYYY-MM-DD)"
+    );
+
+const createBookingBaseSchema =
+  z.object({
+    booking_type:
+      z.enum([
+        "hotel",
+        "package",
+      ]),
+
+    hotel_id:
+      z.string()
+        .uuid()
+        .nullable()
+        .optional(),
+
+    package_id:
+      z.string()
+        .uuid()
+        .nullable()
+        .optional(),
+
+    check_in_date:
+      dateString
+        .nullable()
+        .optional(),
+
+    check_out_date:
+      dateString
+        .nullable()
+        .optional(),
+
+    travel_date:
+      dateString
+        .nullable()
+        .optional(),
+
+    num_guests:
+      z.number()
+        .int()
+        .min(
+          1,
+          "At least 1 guest is required"
+        ),
+  });
+
+const createBookingSchema =
+  createBookingBaseSchema.superRefine(
+    (val, ctx) => {
+      if (
+        val.booking_type ===
+        "hotel"
+      ) {
+        if (!val.hotel_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["hotel_id"],
+            message:
+              "hotel_id is required for hotel bookings",
+          });
+        }
+
+        if (val.package_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["package_id"],
+            message:
+              "package_id must not be set for hotel bookings",
+          });
+        }
+
+        if (!val.check_in_date) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["check_in_date"],
+            message:
+              "check_in_date is required for hotel bookings",
+          });
+        }
+
+        if (!val.check_out_date) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["check_out_date"],
+            message:
+              "check_out_date is required for hotel bookings",
+          });
+        }
+
+        if (
+          val.check_in_date &&
+          val.check_out_date &&
+          val.check_out_date <=
+            val.check_in_date
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["check_out_date"],
+            message:
+              "check_out_date must be after check_in_date",
+          });
+        }
+
+        if (val.travel_date) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["travel_date"],
+            message:
+              "travel_date must not be set for hotel bookings",
+          });
+        }
+      }
+
+      if (
+        val.booking_type ===
+        "package"
+      ) {
+        if (!val.package_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["package_id"],
+            message:
+              "package_id is required for package bookings",
+          });
+        }
+
+        if (val.hotel_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["hotel_id"],
+            message:
+              "hotel_id must not be set for package bookings",
+          });
+        }
+
+        if (!val.travel_date) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["travel_date"],
+            message:
+              "travel_date is required for package bookings",
+          });
+        }
+
+        if (
+          val.check_in_date ||
+          val.check_out_date
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["check_in_date"],
+            message:
+              "check_in_date/check_out_date must not be set for package bookings",
+          });
+        }
+      }
     }
-    if (val.package_id) {
-      ctx.addIssue({ code: 'custom', path: ['package_id'], message: 'package_id must not be set for hotel bookings' });
-    }
-    if (!val.check_in_date) {
-      ctx.addIssue({ code: 'custom', path: ['check_in_date'], message: 'check_in_date is required for hotel bookings' });
-    }
-    if (!val.check_out_date) {
-      ctx.addIssue({ code: 'custom', path: ['check_out_date'], message: 'check_out_date is required for hotel bookings' });
-    }
-    if (val.check_in_date && val.check_out_date && val.check_out_date <= val.check_in_date) {
-      ctx.addIssue({ code: 'custom', path: ['check_out_date'], message: 'check_out_date must be after check_in_date' });
-    }
-    if (val.travel_date) {
-      ctx.addIssue({ code: 'custom', path: ['travel_date'], message: 'travel_date must not be set for hotel bookings' });
-    }
+  );
+
+export type CreateBookingInput =
+  z.infer<
+    typeof createBookingBaseSchema
+  >;
+
+const cancelBookingSchema =
+  z.object({
+    id:
+      z.string().uuid(),
+
+    reason:
+      z.string()
+        .min(
+          1,
+          "A cancellation reason is required"
+        )
+        .max(500),
+  });
+
+// -----------------------------------------------------------------------------
+// HELPERS
+// -----------------------------------------------------------------------------
+
+/**
+ * The authenticated Supabase user ID is auth.users.id.
+ *
+ * The bookings table, however, stores public.users.id in customer_id.
+ *
+ * Resolve the application/public user before touching bookings.
+ */
+async function getPublicUserId(
+  supabase: Awaited<
+    ReturnType<typeof createClient>
+  >,
+  authUserId: string
+): Promise<string> {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("users")
+    .select("id")
+    .eq(
+      "auth_user_id",
+      authUserId
+    )
+    .is(
+      "deleted_at",
+      null
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "[booking] getPublicUserId failed",
+      error
+    );
+
+    throw new Error(
+      "Unable to load your user profile."
+    );
   }
 
-  if (val.booking_type === 'package') {
-    if (!val.package_id) {
-      ctx.addIssue({ code: 'custom', path: ['package_id'], message: 'package_id is required for package bookings' });
-    }
-    if (val.hotel_id) {
-      ctx.addIssue({ code: 'custom', path: ['hotel_id'], message: 'hotel_id must not be set for package bookings' });
-    }
-    if (!val.travel_date) {
-      ctx.addIssue({ code: 'custom', path: ['travel_date'], message: 'travel_date is required for package bookings' });
-    }
-    if (val.check_in_date || val.check_out_date) {
-      ctx.addIssue({ code: 'custom', path: ['check_in_date'], message: 'check_in_date/check_out_date must not be set for package bookings' });
-    }
+  if (!data?.id) {
+    throw new Error(
+      "USER_PROFILE_NOT_FOUND"
+    );
   }
-});
 
-export type CreateBookingInput = z.infer<typeof createBookingBaseSchema>;
+  return data.id;
+}
 
-const cancelBookingSchema = z.object({
-  id: z.string().uuid(),
-  reason: z.string().min(1, 'A cancellation reason is required').max(500),
-});
+/**
+ * Resolve INR currency.
+ *
+ * bookings.currency_id is NOT nullable, so we cannot simply put "INR"
+ * into the booking row.
+ */
+async function getInrCurrencyId(
+  supabase: Awaited<
+    ReturnType<typeof createClient>
+  >
+): Promise<string> {
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("currencies")
+    .select("id")
+    .eq("code", "INR")
+    .is(
+      "deleted_at",
+      null
+    )
+    .maybeSingle();
 
-// --- Customer actions ---
+  if (error) {
+    console.error(
+      "[booking] getInrCurrencyId failed",
+      error
+    );
 
-export async function createBooking(input: CreateBookingInput): Promise<BookingRecord> {
-  const authUser = await getAuthUser();
+    throw new Error(
+      "Unable to load INR currency."
+    );
+  }
+
+  if (!data?.id) {
+    throw new Error(
+      "INR_CURRENCY_NOT_FOUND"
+    );
+  }
+
+  return data.id;
+}
+
+// -----------------------------------------------------------------------------
+// CUSTOMER - CREATE BOOKING
+// -----------------------------------------------------------------------------
+
+export async function createBooking(
+  input: CreateBookingInput
+): Promise<BookingRecord> {
+  const authUser =
+    await getAuthUser();
+
   if (!authUser) {
-    throw new Error('UNAUTHENTICATED');
+    throw new Error(
+      "UNAUTHENTICATED"
+    );
   }
 
-  const parsed = createBookingSchema.parse(input);
-  const supabase = await createClient();
+  const parsed =
+    createBookingSchema.parse(
+      input
+    );
 
-  let priceSnapshot: number;
+  const supabase =
+    await createClient();
 
-  if (parsed.booking_type === 'hotel') {
-    const hotelRepo = new HotelRepository(supabase);
-    const hotel = await hotelRepo.getHotelById(parsed.hotel_id as string);
+  // ---------------------------------------------------------------------------
+  // IMPORTANT:
+  // auth.users.id != public.users.id
+  // bookings.customer_id expects public.users.id.
+  // ---------------------------------------------------------------------------
+
+  const customerId =
+    await getPublicUserId(
+      supabase,
+      authUser.id
+    );
+
+  // ---------------------------------------------------------------------------
+  // Resolve INR
+  // ---------------------------------------------------------------------------
+
+  const currencyId =
+    await getInrCurrencyId(
+      supabase
+    );
+
+  let priceSnapshot = 0;
+
+  let vendorId:
+    | string
+    | null = null;
+
+  // ---------------------------------------------------------------------------
+  // HOTEL
+  // ---------------------------------------------------------------------------
+
+  if (
+    parsed.booking_type ===
+    "hotel"
+  ) {
+    const hotelRepo =
+      new HotelRepository(
+        supabase
+      );
+
+    const hotel =
+      await hotelRepo.getHotelById(
+        parsed.hotel_id as string
+      );
+
     if (!hotel) {
-      throw new Error('Hotel not found');
+      throw new Error(
+        "Hotel not found"
+      );
     }
-    priceSnapshot = hotel.starting_price ?? 0;
-  } else {
-    const packageRepo = new PackageRepository(supabase);
-    const pkg = await packageRepo.getPackageById(parsed.package_id as string);
+
+    priceSnapshot =
+      Number(
+        hotel.starting_price ?? 0
+      );
+
+    vendorId =
+      hotel.vendor_id ??
+      null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // PACKAGE
+  // ---------------------------------------------------------------------------
+
+  if (
+    parsed.booking_type ===
+    "package"
+  ) {
+    const packageRepo =
+      new PackageRepository(
+        supabase
+      );
+
+    const pkg =
+      await packageRepo.getPackageById(
+        parsed.package_id as string
+      );
+
     if (!pkg) {
-      throw new Error('Package not found');
+      throw new Error(
+        "Package not found"
+      );
     }
-    priceSnapshot = pkg.starting_price ?? 0;
+
+    priceSnapshot =
+      Number(
+        pkg.starting_price ?? 0
+      );
+
+    vendorId =
+      pkg.vendor_id ??
+      null;
   }
 
-  const bookingRepo = new BookingRepository(supabase);
+  if (
+    !Number.isFinite(
+      priceSnapshot
+    ) ||
+    priceSnapshot < 0
+  ) {
+    throw new Error(
+      "Invalid booking price."
+    );
+  }
 
-  return bookingRepo.createBooking({
-    user_id: authUser.id,
-    booking_type: parsed.booking_type,
-    hotel_id: parsed.booking_type === 'hotel' ? (parsed.hotel_id as string) : null,
-    package_id: parsed.booking_type === 'package' ? (parsed.package_id as string) : null,
-    check_in_date: parsed.booking_type === 'hotel' ? (parsed.check_in_date as string) : null,
-    check_out_date: parsed.booking_type === 'hotel' ? (parsed.check_out_date as string) : null,
-    travel_date: parsed.booking_type === 'package' ? (parsed.travel_date as string) : null,
-    num_guests: parsed.num_guests,
-    price_snapshot: priceSnapshot,
-    currency: 'INR',
-    status: 'pending',
-    cancellation_reason: null,
-    cancelled_at: null,
-    created_by: authUser.id,
-    updated_by: authUser.id,
-  } as Parameters<BookingRepository['createBooking']>[0]);
+  // ---------------------------------------------------------------------------
+  // CREATE
+  // ---------------------------------------------------------------------------
+
+  const bookingRepo =
+    new BookingRepository(
+      supabase
+    );
+
+  return bookingRepo.createBooking(
+    {
+      customer_id:
+        customerId,
+
+      vendor_id:
+        vendorId,
+
+      booking_type:
+        parsed.booking_type as BookingType,
+
+      hotel_id:
+        parsed.booking_type ===
+        "hotel"
+          ? parsed.hotel_id
+          : null,
+
+      package_id:
+        parsed.booking_type ===
+        "package"
+          ? parsed.package_id
+          : null,
+
+      check_in_date:
+        parsed.booking_type ===
+        "hotel"
+          ? parsed.check_in_date
+          : null,
+
+      check_out_date:
+        parsed.booking_type ===
+        "hotel"
+          ? parsed.check_out_date
+          : null,
+
+      travel_date:
+        parsed.booking_type ===
+        "package"
+          ? parsed.travel_date
+          : null,
+
+      num_guests:
+        parsed.num_guests,
+
+      price_snapshot:
+        priceSnapshot,
+
+      currency_id:
+        currencyId,
+
+      status:
+        "pending",
+
+      cancellation_reason:
+        null,
+
+      created_by:
+        customerId,
+
+      updated_by:
+        customerId,
+    }
+  );
 }
 
-export async function getMyBookings(page: number = 1, limit: number = 20) {
-  const authUser = await getAuthUser();
+// -----------------------------------------------------------------------------
+// CUSTOMER - MY BOOKINGS
+// -----------------------------------------------------------------------------
+
+export async function getMyBookings(
+  page: number = 1,
+  limit: number = 20
+) {
+  const authUser =
+    await getAuthUser();
+
   if (!authUser) {
-    throw new Error('UNAUTHENTICATED');
+    throw new Error(
+      "UNAUTHENTICATED"
+    );
   }
 
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
-  return repo.getMyBookings(authUser.id, page, limit);
+  const supabase =
+    await createClient();
+
+  const customerId =
+    await getPublicUserId(
+      supabase,
+      authUser.id
+    );
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  return repo.getMyBookings(
+    customerId,
+    page,
+    limit
+  );
 }
 
-export async function getMyBookingById(id: string): Promise<BookingRecord | null> {
-  const authUser = await getAuthUser();
+// -----------------------------------------------------------------------------
+// CUSTOMER - GET ONE
+// -----------------------------------------------------------------------------
+
+export async function getMyBookingById(
+  id: string
+): Promise<BookingRecord | null> {
+  const authUser =
+    await getAuthUser();
+
   if (!authUser) {
-    throw new Error('UNAUTHENTICATED');
+    throw new Error(
+      "UNAUTHENTICATED"
+    );
   }
 
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
-  const booking = await repo.getBookingById(id);
+  const supabase =
+    await createClient();
 
-  if (!booking || booking.user_id !== authUser.id) {
+  const customerId =
+    await getPublicUserId(
+      supabase,
+      authUser.id
+    );
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const booking =
+    await repo.getBookingById(
+      id
+    );
+
+  if (
+    !booking ||
+    booking.customer_id !==
+      customerId
+  ) {
     return null;
   }
 
   return booking;
 }
 
-export async function cancelMyBooking(input: { id: string; reason: string }): Promise<BookingRecord> {
-  const authUser = await getAuthUser();
+// -----------------------------------------------------------------------------
+// CUSTOMER - CANCEL
+// -----------------------------------------------------------------------------
+
+export async function cancelMyBooking(
+  input: {
+    id: string;
+    reason: string;
+  }
+): Promise<BookingRecord> {
+  const authUser =
+    await getAuthUser();
+
   if (!authUser) {
-    throw new Error('UNAUTHENTICATED');
+    throw new Error(
+      "UNAUTHENTICATED"
+    );
   }
 
-  const parsed = cancelBookingSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
+  const parsed =
+    cancelBookingSchema.parse(
+      input
+    );
 
-  const existing = await repo.getBookingById(parsed.id);
-  if (!existing || existing.user_id !== authUser.id) {
-    throw new Error('Booking not found');
+  const supabase =
+    await createClient();
+
+  const customerId =
+    await getPublicUserId(
+      supabase,
+      authUser.id
+    );
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      parsed.id
+    );
+
+  if (
+    !existing ||
+    existing.customer_id !==
+      customerId
+  ) {
+    throw new Error(
+      "Booking not found"
+    );
   }
 
-  if (existing.status !== 'pending' && existing.status !== 'confirmed') {
-    throw new Error('Only pending or confirmed bookings can be cancelled');
+  if (
+    existing.status !==
+      "pending" &&
+    existing.status !==
+      "confirmed"
+  ) {
+    throw new Error(
+      "Only pending or confirmed bookings can be cancelled"
+    );
   }
 
-  return repo.cancelBooking(parsed.id, parsed.reason);
+  return repo.cancelBooking(
+    parsed.id,
+    parsed.reason
+  );
 }
 
-// --- Admin actions ---
+// -----------------------------------------------------------------------------
+// ADMIN - ALL BOOKINGS
+// -----------------------------------------------------------------------------
 
 export async function getAllBookingsAdmin(
   page: number = 1,
   limit: number = 20,
   status?: BookingStatus
 ) {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
-  return repo.getAllBookings(page, limit, status);
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  return repo.getAllBookings(
+    page,
+    limit,
+    status
+  );
 }
 
-export async function getBookingByIdAdmin(id: string): Promise<BookingRecord | null> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
-  return repo.getBookingById(id);
+// -----------------------------------------------------------------------------
+// ADMIN - ONE BOOKING
+// -----------------------------------------------------------------------------
+
+export async function getBookingByIdAdmin(
+  id: string
+): Promise<BookingRecord | null> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  return repo.getBookingById(
+    id
+  );
 }
 
-export async function confirmBookingAdmin(id: string): Promise<BookingRecord> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
+// -----------------------------------------------------------------------------
+// ADMIN - CONFIRM
+// -----------------------------------------------------------------------------
 
-  const existing = await repo.getBookingById(id);
+export async function confirmBookingAdmin(
+  id: string
+): Promise<BookingRecord> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      id
+    );
+
   if (!existing) {
-    throw new Error('Booking not found');
-  }
-  if (existing.status !== 'pending') {
-    throw new Error('Only pending bookings can be confirmed');
+    throw new Error(
+      "Booking not found"
+    );
   }
 
-  return repo.confirmBooking(id);
+  if (
+    existing.status !==
+    "pending"
+  ) {
+    throw new Error(
+      "Only pending bookings can be confirmed"
+    );
+  }
+
+  return repo.confirmBooking(
+    id
+  );
 }
 
-export async function cancelBookingAdmin(input: { id: string; reason: string }): Promise<BookingRecord> {
-  await requireRole(['admin', 'super_admin']);
-  const parsed = cancelBookingSchema.parse(input);
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
+// -----------------------------------------------------------------------------
+// ADMIN - CANCEL
+// -----------------------------------------------------------------------------
 
-  const existing = await repo.getBookingById(parsed.id);
+export async function cancelBookingAdmin(
+  input: {
+    id: string;
+    reason: string;
+  }
+): Promise<BookingRecord> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const parsed =
+    cancelBookingSchema.parse(
+      input
+    );
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      parsed.id
+    );
+
   if (!existing) {
-    throw new Error('Booking not found');
-  }
-  if (existing.status !== 'pending' && existing.status !== 'confirmed') {
-    throw new Error('Only pending or confirmed bookings can be cancelled');
+    throw new Error(
+      "Booking not found"
+    );
   }
 
-  return repo.cancelBooking(parsed.id, parsed.reason);
+  if (
+    existing.status !==
+      "pending" &&
+    existing.status !==
+      "confirmed"
+  ) {
+    throw new Error(
+      "Only pending or confirmed bookings can be cancelled"
+    );
+  }
+
+  return repo.cancelBooking(
+    parsed.id,
+    parsed.reason
+  );
 }
 
-export async function completeBookingAdmin(id: string): Promise<BookingRecord> {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new BookingRepository(supabase);
+// -----------------------------------------------------------------------------
+// ADMIN - COMPLETE
+// -----------------------------------------------------------------------------
 
-  const existing = await repo.getBookingById(id);
+export async function completeBookingAdmin(
+  id: string
+): Promise<BookingRecord> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      id
+    );
+
   if (!existing) {
-    throw new Error('Booking not found');
-  }
-  if (existing.status !== 'confirmed') {
-    throw new Error('Only confirmed bookings can be marked completed');
+    throw new Error(
+      "Booking not found"
+    );
   }
 
-  return repo.completeBooking(id);
+  if (
+    existing.status !==
+    "confirmed"
+  ) {
+    throw new Error(
+      "Only confirmed bookings can be marked completed"
+    );
+  }
+
+  return repo.completeBooking(
+    id
+  );
 }
