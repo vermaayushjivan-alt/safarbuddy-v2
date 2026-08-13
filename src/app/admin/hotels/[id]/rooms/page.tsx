@@ -23,11 +23,11 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
     roomRepo.getRoomTypesByHotel(hotelId),
   ]);
 
-  if (!hotelResult || hotelResult.error || !hotelResult.data) {
+  if (!hotelResult) {
     notFound();
   }
 
-  const hotel = hotelResult.data as Record<string, any>;
+  const hotel = hotelResult as Record<string, any>;
   const roomList = (rooms || []) as Array<Record<string, unknown>>;
 
   return (
