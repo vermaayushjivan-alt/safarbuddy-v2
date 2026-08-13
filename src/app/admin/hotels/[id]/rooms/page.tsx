@@ -27,9 +27,8 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
     notFound();
   }
 
-  // Cast safely to access object fields returned by repository query
   const hotel = hotelResult.data as Record<string, any>;
-  const roomList = rooms || [];
+  const roomList = (rooms || []) as Array<Record<string, unknown>>;
 
   return (
     <div className="space-y-6">
@@ -42,7 +41,7 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
             &larr; Back to Hotels
           </Link>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Rooms for {hotel.name}
+            Rooms for {String(hotel.name ?? '')}
           </h1>
           <p className="text-sm text-slate-500">
             Manage room types, images, and pricing rates for this hotel.
@@ -62,47 +61,59 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
         </div>
       ) : (
         <div className="space-y-6">
-          {roomList.map((room) => (
-            <div
-              key={room.id}
-              className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">{room.name}</h2>
-                  <p className="text-sm text-slate-500 mt-1">{room.description}</p>
-                  <div className="flex items-center space-x-4 mt-2 text-xs text-slate-600">
-                    <span>Capacity: {room.capacity_adults} Adults, {room.capacity_children} Children</span>
-                    <span>Max Occupancy: {room.max_occupancy}</span>
-                    <span>Base Price: ₹{room.base_price}</span>
+          {roomList.map((room) => {
+            const roomId = String(room.id ?? '');
+            const roomName = String(room.name ?? '');
+            const description = room.description ? String(room.description) : '';
+            const capacityAdults = Number(room.capacity_adults ?? 0);
+            const capacityChildren = Number(room.capacity_children ?? 0);
+            const maxOccupancy = Number(room.max_occupancy ?? 0);
+            const basePrice = Number(room.base_price ?? 0);
+
+            return (
+              <div
+                key={roomId}
+                className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900">{roomName}</h2>
+                    {description && (
+                      <p className="text-sm text-slate-500 mt-1">{description}</p>
+                    )}
+                    <div className="flex items-center space-x-4 mt-2 text-xs text-slate-600">
+                      <span>Capacity: {capacityAdults} Adults, {capacityChildren} Children</span>
+                      <span>Max Occupancy: {maxOccupancy}</span>
+                      <span>Base Price: ₹{basePrice}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Link
+                      href={`/admin/hotels/${hotelId}/rooms/${roomId}/images`}
+                      className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded text-slate-700 hover:bg-slate-50"
+                    >
+                      Images
+                    </Link>
+                    <Link
+                      href={`/admin/hotels/${hotelId}/rooms/${roomId}/edit`}
+                      className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded text-slate-700 hover:bg-slate-50"
+                    >
+                      Edit
+                    </Link>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Link
-                    href={`/admin/hotels/${hotelId}/rooms/${room.id}/images`}
-                    className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded text-slate-700 hover:bg-slate-50"
-                  >
-                    Images
-                  </Link>
-                  <Link
-                    href={`/admin/hotels/${hotelId}/rooms/${room.id}/edit`}
-                    className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded text-slate-700 hover:bg-slate-50"
-                  >
-                    Edit
-                  </Link>
+
+                {/* ROOM-03 Integration: Room Price / Rates Manager */}
+                <div className="pt-4 border-t border-slate-100">
+                  <RoomPriceManager
+                    hotelId={hotelId}
+                    roomId={roomId}
+                    roomName={roomName}
+                  />
                 </div>
               </div>
-
-              {/* ROOM-03 Integration: Room Price / Rates Manager */}
-              <div className="pt-4 border-t border-slate-100">
-                <RoomPriceManager
-                  hotelId={hotelId}
-                  roomId={room.id}
-                  roomName={room.name}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
