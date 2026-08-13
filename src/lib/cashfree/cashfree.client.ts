@@ -12,7 +12,15 @@ import { createHmac } from 'crypto';
 // ---------------------------------------------------------------------------
 
 function getCashfreeBaseUrl(): string {
-  const env = process.env.CASHFREE_ENV;
+  // P0 fix: this previously read CASHFREE_ENV, a server-only variable
+  // that is not part of the validated env schema (src/lib/config/env.ts)
+  // and not documented in .env.example. The client SDK
+  // (PayNowButton.tsx) reads NEXT_PUBLIC_CASHFREE_ENV — the only one of
+  // the two that is actually validated/documented — so an unset
+  // CASHFREE_ENV silently created sandbox orders even when the client
+  // checkout ran in production mode. Both sides now read the same
+  // canonical, validated variable.
+  const env = process.env.NEXT_PUBLIC_CASHFREE_ENV;
   if (env === 'production') {
     return 'https://api.cashfree.com/pg';
   }
