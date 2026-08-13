@@ -1,182 +1,107 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { Plus, Pencil } from "lucide-react";
-import {
-  getRoomTypesByHotelAdmin,
-  deleteRoomTypeAdmin,
-} from "@/app/actions/room-type.actions";
-import { getHotelByIdAdmin } from "@/app/actions/hotel.actions";
-import { isValidUuid } from "@/lib/utils/uuid";
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { HotelRepository } from '@/lib/repositories/hotel.repository';
+import { RoomTypeRepository } from '@/lib/repositories/room-type.repository';
+import { RoomPriceManager } from '@/components/admin/rooms/RoomPriceManager';
 
-export default async function AdminRoomTypesListPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+interface AdminHotelRoomsPageProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPageProps) {
   const { id: hotelId } = await params;
 
-  if (!isValidUuid(hotelId)) {
+  const hotelRepo = new HotelRepository();
+  const roomRepo = new RoomTypeRepository();
+
+  const [hotelResult, roomsResult] = await Promise.all([
+    hotelRepo.getHotelById(hotelId),
+    roomRepo.getRoomTypesByHotel(hotelId),
+  ]);
+
+  if (hotelResult.error || !hotelResult.data) {
     notFound();
   }
 
-  const hotel = await getHotelByIdAdmin(hotelId);
-
-  if (!hotel) {
-    notFound();
-  }
-
-  const roomTypes = await getRoomTypesByHotelAdmin(hotelId);
-
-  const total = roomTypes.length;
-
-  async function handleDelete(formData: FormData) {
-    "use server";
-
-    const id = formData.get("id");
-
-    if (typeof id !== "string" || !id) {
-      return;
-    }
-
-    const result = await deleteRoomTypeAdmin(id);
-
-    if (!result.success) {
-      console.error("[deleteRoomTypeAdmin]", result.error);
-    }
-  }
+  const hotel = hotelResult.data;
+  const rooms = roomsResult.data || [];
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <Link
-            href={`/admin/hotels/${hotel.id}/edit`}
-            className="mb-2 inline-block text-[13px] font-semibold text-deep/60 transition hover:text-deep"
+            href="/admin/hotels"
+            className="text-sm text-blue-600 hover:underline mb-2 inline-block"
           >
-            ← Back to {hotel.hotel_name}
+            &larr; Back to Hotels
           </Link>
-
-          <h1 className="font-display text-3xl text-deep">
-            Room Types
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Rooms for {hotel.name}
           </h1>
-
-          <p className="mt-2 text-[14px] text-ink/60">
-            {total} room type{total === 1 ? "" : "s"} for{" "}
-            {hotel.hotel_name}
+          <p className="text-sm text-slate-500">
+            Manage room types, images, and pricing rates for this hotel.
           </p>
         </div>
-
         <Link
-          href={`/admin/hotels/${hotel.id}/rooms/new`}
-          className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-deep px-4 py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2"
+          href={`/admin/hotels/${hotelId}/rooms/new`}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
         >
-          <Plus size={14} aria-hidden />
-          Add Room Type
+          Add New Room Type
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-deep/15 bg-white">
-        <table className="w-full text-left text-[13px]">
-          <thead className="border-b border-deep/10 bg-mist text-[11px] uppercase tracking-wide text-ink/50">
-            <tr>
-              <th className="px-4 py-3 font-heading font-semibold">
-                Name
-              </th>
+      {rooms.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-500">
+          No room types created for this hotel yet.
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {rooms.map((room) => (
+            <div
+              key={room.id}
+              className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">{room.name}</h2>
+                  <p className="text-sm text-slate-500 mt-1">{room.description}</p>
+                  <div className="flex items-center space-x-4 mt-2 text-xs text-slate-600">
+                    <span>Capacity: {room.capacity_adults} Adults, {room.capacity_children} Children</span>
+                    <span>Max Occupancy: {room.max_occupancy}</span>
+                    <span>Base Price: ₹{room.base_price}</span>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Link
+                    href={`/admin/hotels/${hotelId}/rooms/${room.id}/images`}
+                    className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded text-slate-700 hover:bg-slate-50"
+                  >
+                    Images
+                  </Link>
+                  <Link
+                    href={`/admin/hotels/${hotelId}/rooms/${room.id}/edit`}
+                    className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded text-slate-700 hover:bg-slate-50"
+                  >
+                    Edit
+                  </Link>
+                </div>
+              </div>
 
-              <th className="px-4 py-3 font-heading font-semibold">
-                Occupancy
-              </th>
-
-              <th className="px-4 py-3 font-heading font-semibold">
-                Base Price
-              </th>
-
-              <th className="px-4 py-3 font-heading font-semibold">
-                Status
-              </th>
-
-              <th className="px-4 py-3 text-right font-heading font-semibold">
-                Actions
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {roomTypes.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-10 text-center text-ink/50"
-                >
-                  No room types yet.
-                </td>
-              </tr>
-            ) : (
-              roomTypes.map((roomType) => (
-                <tr
-                  key={roomType.id}
-                  className="border-b border-deep/10 last:border-0"
-                >
-                  <td className="px-4 py-3 font-medium text-deep">
-                    {roomType.name}
-                  </td>
-
-                  <td className="px-4 py-3 text-ink/70">
-                    {roomType.max_adults} adult
-                    {roomType.max_adults === 1 ? "" : "s"}
-
-                    {roomType.max_children > 0
-                      ? `, ${roomType.max_children} child${
-                          roomType.max_children === 1
-                            ? ""
-                            : "ren"
-                        }`
-                      : ""}
-                  </td>
-
-                  <td className="px-4 py-3 text-ink/70">
-                    ₹
-                    {roomType.base_price.toLocaleString("en-IN")}
-                  </td>
-
-                  <td className="px-4 py-3">
-                    <span className="inline-flex rounded-full bg-mist px-2 py-0.5 text-[11px] font-semibold text-deep">
-                      {roomType.status}
-                    </span>
-                  </td>
-
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        href={`/admin/hotels/${hotel.id}/rooms/${roomType.id}/edit`}
-                        className="focus-ring inline-flex items-center gap-1 rounded-lg border border-deep/15 px-2.5 py-1.5 text-[12px] font-semibold text-deep transition hover:bg-mist"
-                      >
-                        <Pencil size={12} aria-hidden />
-                        Edit
-                      </Link>
-
-                      <form action={handleDelete}>
-                        <input
-                          type="hidden"
-                          name="id"
-                          value={roomType.id}
-                        />
-
-                        <button
-                          type="submit"
-                          className="focus-ring rounded-lg border border-red-200 px-2.5 py-1.5 text-[12px] font-semibold text-red-600 transition hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              {/* ROOM-03 Integration: Room Price / Rates Manager */}
+              <div className="pt-4 border-t border-slate-100">
+                <RoomPriceManager
+                  hotelId={hotelId}
+                  roomId={room.id}
+                  roomName={room.name}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
