@@ -24,28 +24,26 @@ export function RoomTypeForm({
 }: RoomTypeFormProps) {
   const router = useRouter();
 
-  const [name, setName] = useState(roomType?.name ?? "");
-  const [description, setDescription] = useState(
-    roomType?.description ?? ""
-  );
+  const [roomName, setRoomName] = useState(roomType?.room_name ?? "");
+  const [roomType_, setRoomType_] = useState(roomType?.room_type ?? "");
   const [basePrice, setBasePrice] = useState(
     roomType?.base_price?.toString() ?? ""
   );
-  const [maxAdults, setMaxAdults] = useState(
-    roomType?.max_adults?.toString() ?? "2"
+  const [capacityAdults, setCapacityAdults] = useState(
+    roomType?.capacity_adults?.toString() ?? "2"
   );
-  const [maxChildren, setMaxChildren] = useState(
-    roomType?.max_children?.toString() ?? "0"
+  const [capacityChildren, setCapacityChildren] = useState(
+    roomType?.capacity_children?.toString() ?? "0"
   );
-  const [bedConfig, setBedConfig] = useState(roomType?.bed_config ?? "");
+  const [maxOccupancy, setMaxOccupancy] = useState(
+    roomType?.max_occupancy?.toString() ?? "2"
+  );
+  const [bedType, setBedType] = useState(roomType?.bed_type ?? "");
   const [roomSizeSqft, setRoomSizeSqft] = useState(
     roomType?.room_size_sqft?.toString() ?? ""
   );
   const [status, setStatus] = useState<RoomTypeStatus>(
     roomType?.status ?? "active"
-  );
-  const [displayOrder, setDisplayOrder] = useState(
-    roomType?.display_order?.toString() ?? "0"
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -60,15 +58,15 @@ export function RoomTypeForm({
     try {
       const payload = {
         hotel_id: hotelId,
-        name: name.trim(),
-        description: description.trim() || null,
+        room_name: roomName.trim(),
+        room_type: roomType_.trim(),
         base_price: Number(basePrice),
-        max_adults: Number(maxAdults),
-        max_children: Number(maxChildren),
-        bed_config: bedConfig.trim() || null,
+        capacity_adults: Number(capacityAdults),
+        capacity_children: Number(capacityChildren),
+        max_occupancy: Number(maxOccupancy),
+        bed_type: bedType.trim() || null,
         room_size_sqft: roomSizeSqft ? Number(roomSizeSqft) : null,
         status,
-        display_order: Number(displayOrder),
       };
 
       const result =
@@ -103,39 +101,39 @@ export function RoomTypeForm({
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
-        <div className="md:col-span-2">
+        <div>
           <label
-            htmlFor="name"
+            htmlFor="roomName"
             className="mb-1.5 block text-sm font-semibold text-deep"
           >
-            Room Type Name
+            Room Name
           </label>
           <input
-            id="name"
-            name="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            id="roomName"
+            name="roomName"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
             required
             className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
             placeholder="Deluxe Room"
           />
         </div>
 
-        <div className="md:col-span-2">
+        <div>
           <label
-            htmlFor="description"
+            htmlFor="roomType"
             className="mb-1.5 block text-sm font-semibold text-deep"
           >
-            Description
+            Room Type
           </label>
-          <textarea
-            id="description"
-            name="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
+          <input
+            id="roomType"
+            name="roomType"
+            value={roomType_}
+            onChange={(e) => setRoomType_(e.target.value)}
+            required
             className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
-            placeholder="Describe the room type..."
+            placeholder="Deluxe, Suite, Standard..."
           />
         </div>
 
@@ -162,16 +160,16 @@ export function RoomTypeForm({
 
         <div>
           <label
-            htmlFor="bedConfig"
+            htmlFor="bedType"
             className="mb-1.5 block text-sm font-semibold text-deep"
           >
             Bed Configuration
           </label>
           <input
-            id="bedConfig"
-            name="bedConfig"
-            value={bedConfig}
-            onChange={(e) => setBedConfig(e.target.value)}
+            id="bedType"
+            name="bedType"
+            value={bedType}
+            onChange={(e) => setBedType(e.target.value)}
             className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
             placeholder="1 King Bed"
           />
@@ -179,18 +177,18 @@ export function RoomTypeForm({
 
         <div>
           <label
-            htmlFor="maxAdults"
+            htmlFor="capacityAdults"
             className="mb-1.5 block text-sm font-semibold text-deep"
           >
             Max Adults
           </label>
           <input
-            id="maxAdults"
-            name="maxAdults"
+            id="capacityAdults"
+            name="capacityAdults"
             type="number"
             min="1"
-            value={maxAdults}
-            onChange={(e) => setMaxAdults(e.target.value)}
+            value={capacityAdults}
+            onChange={(e) => setCapacityAdults(e.target.value)}
             required
             className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
           />
@@ -198,18 +196,37 @@ export function RoomTypeForm({
 
         <div>
           <label
-            htmlFor="maxChildren"
+            htmlFor="capacityChildren"
             className="mb-1.5 block text-sm font-semibold text-deep"
           >
             Max Children
           </label>
           <input
-            id="maxChildren"
-            name="maxChildren"
+            id="capacityChildren"
+            name="capacityChildren"
             type="number"
             min="0"
-            value={maxChildren}
-            onChange={(e) => setMaxChildren(e.target.value)}
+            value={capacityChildren}
+            onChange={(e) => setCapacityChildren(e.target.value)}
+            required
+            className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="maxOccupancy"
+            className="mb-1.5 block text-sm font-semibold text-deep"
+          >
+            Max Occupancy
+          </label>
+          <input
+            id="maxOccupancy"
+            name="maxOccupancy"
+            type="number"
+            min="1"
+            value={maxOccupancy}
+            onChange={(e) => setMaxOccupancy(e.target.value)}
             required
             className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
           />
@@ -253,24 +270,6 @@ export function RoomTypeForm({
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor="displayOrder"
-            className="mb-1.5 block text-sm font-semibold text-deep"
-          >
-            Display Order
-          </label>
-          <input
-            id="displayOrder"
-            name="displayOrder"
-            type="number"
-            min="0"
-            value={displayOrder}
-            onChange={(e) => setDisplayOrder(e.target.value)}
-            className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
-          />
         </div>
       </div>
 
