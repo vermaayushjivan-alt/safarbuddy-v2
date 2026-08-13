@@ -46,6 +46,24 @@ export class PackageRepository extends BaseRepository<PackageRecord> {
     return this.resolveImages(packages);
   }
 
+  // P1 fix — PACKAGE-PUBLIC-01: public paginated listing for the new
+  // /packages page (src/app/packages/page.tsx). Mirrors
+  // HotelRepository.getPublishedHotels exactly (same filter/sort/
+  // pagination shape); uses 'ACTIVE' per the status convention already
+  // established by getFeaturedPackages above.
+  async getPublishedPackages(page: number = 1, limit: number = 20) {
+    const result = await this.findWithPagination({
+      filters: [{ column: 'status', operator: 'eq', value: 'ACTIVE' }],
+      sort: { column: 'created_at', ascending: false },
+      pagination: { page, limit },
+    });
+
+    return {
+      ...result,
+      data: await this.resolveImages(result.data),
+    };
+  }
+
   /**
    * Populates the existing `thumbnail` field using a 2-tier fallback:
    * 1. Real image from package_images (Supabase Storage public URL)
