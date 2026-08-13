@@ -18,7 +18,7 @@ import {
   UpdateData,
 } from "./types";
 
-export abstract class BaseRepository<
+export abstract class BaseRepository
   T extends DatabaseRecord
 > {
   protected tableName: string;
@@ -32,7 +32,8 @@ export abstract class BaseRepository<
   ) {
     this.supabase = supabase;
     this.tableName = config.tableName;
-    this.softDelete = config.softDelete ?? false;
+    this.softDelete =
+      config.softDelete ?? false;
     this.softDeleteColumn =
       config.softDeleteColumn ?? "deleted_at";
   }
@@ -265,7 +266,8 @@ export abstract class BaseRepository<
 
       if (error) {
         if (
-          error.code === "PGRST116" ||
+          error.code ===
+            "PGRST116" ||
           error.code === "22P02"
         ) {
           return null;
@@ -331,7 +333,8 @@ export abstract class BaseRepository<
 
       if (error) {
         if (
-          error.code === "PGRST116" ||
+          error.code ===
+            "PGRST116" ||
           error.code === "22P02"
         ) {
           return null;
@@ -488,6 +491,12 @@ export abstract class BaseRepository<
       } = await countQuery;
 
       if (countError) {
+        // DIAGNOSTIC (Part 2 investigation): handleDatabaseError() converts
+        // countError into a DatabaseError, which the outer catch below
+        // rethrows via the `instanceof DatabaseError` branch WITHOUT ever
+        // reaching the console.error further down — so failures on this
+        // specific query (the count-only HEAD request) were previously
+        // logged with no table name at all. Logging here closes that gap.
         console.error(
           `[${this.tableName}] findWithPagination count query failed`,
           countError
@@ -520,7 +529,7 @@ export abstract class BaseRepository<
         limit: pagination.limit,
         totalPages,
         hasNext:
-          pagination.page <
+          pagination.page 
           totalPages,
         hasPrev:
           pagination.page > 1,
@@ -557,7 +566,7 @@ export abstract class BaseRepository<
       } = await this.supabase
         .from(this.tableName)
         .insert(
-          data as Record<
+          data as Record
             string,
             unknown
           >
@@ -566,6 +575,11 @@ export abstract class BaseRepository<
         .single();
 
       if (error) {
+        /*
+         * IMPORTANT:
+         * Do not replace this with a generic DatabaseError.
+         * handleDatabaseError preserves the actual PostgreSQL code/details.
+         */
         throw handleDatabaseError(
           error
         );
@@ -610,7 +624,7 @@ export abstract class BaseRepository<
       } = await this.supabase
         .from(this.tableName)
         .insert(
-          data as Record<
+          data as Record
             string,
             unknown
           >[]
@@ -663,7 +677,7 @@ export abstract class BaseRepository<
         this.supabase
           .from(this.tableName)
           .update(
-            data as Record<
+            data as Record
               string,
               unknown
             >
@@ -687,7 +701,8 @@ export abstract class BaseRepository<
 
       if (error) {
         if (
-          error.code === "PGRST116"
+          error.code ===
+          "PGRST116"
         ) {
           throw new NotFoundError(
             "Record not found"
@@ -737,7 +752,7 @@ export abstract class BaseRepository<
         this.supabase
           .from(this.tableName)
           .update(
-            data as Record<
+            data as Record
               string,
               unknown
             >
@@ -760,8 +775,7 @@ export abstract class BaseRepository<
       const {
         data: result,
         error,
-      } = await queryBuilder
-        .select();
+      } = await queryBuilder.select();
 
       if (error) {
         throw handleDatabaseError(
@@ -791,12 +805,12 @@ export abstract class BaseRepository<
   }
 
   // -------------------------------------------------------------------------
-  // SOFT DELETE
+  // DELETE
   // -------------------------------------------------------------------------
 
-  protected async softDeleteById(
+  protected async delete(
     id: string
-  ): Promise<T> {
+  ): Promise<boolean> {
     try {
       if (!id || !id.trim()) {
         throw new ValidationError(
@@ -804,10 +818,113 @@ export abstract class BaseRepository<
         );
       }
 
-      if (!this.softDelete) {
-        throw new ValidationError(
-          "Soft delete is not enabled for this repository"
+      const {
+        error,
+      } = await this.supabase
+        .from(this.tableName)
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        throw handleDatabaseError(
+          error
         );
+      }
+
+      return true;
+    } catch (error) {
+      if (
+        error instanceof DatabaseError
+      ) {
+        throw error;
+      }
+
+      console.error(
+        `[${this.tableName}] delete failed`,
+        error
+      );
+
+      throw new DatabaseError(
+        "Failed to delete record"
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // DELETE MANY
+  // -------------------------------------------------------------------------
+
+  protected async deleteMany(
+    filters: FilterOptions[]
+  ): Promise<number> {
+    try {
+      let queryBuilder =
+        this.supabase
+          .from(this.tableName)
+          .delete();
+
+      queryBuilder =
+        this.applyFilters(
+          queryBuilder,
+          filters
+        );
+
+      const {
+        data,
+        error,
+      } = await queryBuilder.select();
+
+      if (error) {
+        throw handleDatabaseError(
+          error
+        );
+      }
+
+      return data?.length ?? 0;
+    } catch (error) {
+      if (
+        error instanceof DatabaseError
+      ) {
+        throw error;
+      }
+
+      console.error(
+        `[${this.tableName}] deleteMany failed`,
+        error
+      );
+
+      throw new DatabaseError(
+        "Failed to delete records"
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // SOFT DELETE
+  // -------------------------------------------------------------------------
+
+  protected async softDeleteById(
+    id: string,
+    deletedBy?: string
+  ): Promise<T> {
+    if (!this.softDelete) {
+      throw new ValidationError(
+        "Soft delete is not enabled for this repository"
+      );
+    }
+
+    try {
+      const updateData: Record
+        string,
+        unknown
+      > = {
+        [this.softDeleteColumn]:
+          new Date().toISOString(),
+      };
+
+      if (deletedBy) {
+        updateData.deleted_by =
+          deletedBy;
       }
 
       const {
@@ -815,10 +932,7 @@ export abstract class BaseRepository<
         error,
       } = await this.supabase
         .from(this.tableName)
-        .update({
-          [this.softDeleteColumn]:
-            new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", id)
         .is(
           this.softDeleteColumn,
@@ -829,10 +943,11 @@ export abstract class BaseRepository<
 
       if (error) {
         if (
-          error.code === "PGRST116"
+          error.code ===
+          "PGRST116"
         ) {
           throw new NotFoundError(
-            "Record not found"
+            "Record not found or already deleted"
           );
         }
 
@@ -843,7 +958,7 @@ export abstract class BaseRepository<
 
       if (!data) {
         throw new NotFoundError(
-          "Record not found"
+          "Record not found or already deleted"
         );
       }
 
@@ -861,60 +976,70 @@ export abstract class BaseRepository<
       );
 
       throw new DatabaseError(
-        "Failed to delete record"
+        "Failed to soft delete record"
       );
     }
   }
 
   // -------------------------------------------------------------------------
-  // SOFT DELETE MANY
+  // RESTORE
   // -------------------------------------------------------------------------
 
-  protected async softDeleteMany(
-    filters: FilterOptions[]
-  ): Promise<T[]> {
+  protected async restore(
+    id: string
+  ): Promise<T> {
+    if (!this.softDelete) {
+      throw new ValidationError(
+        "Soft delete is not enabled for this repository"
+      );
+    }
+
     try {
-      if (!this.softDelete) {
-        throw new ValidationError(
-          "Soft delete is not enabled for this repository"
-        );
-      }
-
-      let queryBuilder =
-        this.supabase
-          .from(this.tableName)
-          .update({
-            [this.softDeleteColumn]:
-              new Date().toISOString(),
-          });
-
-      queryBuilder =
-        this.applyFilters(
-          queryBuilder,
-          filters
-        );
-
-      queryBuilder =
-        queryBuilder.is(
-          this.softDeleteColumn,
-          null
-        );
+      const updateData: Record
+        string,
+        unknown
+      > = {
+        [this.softDeleteColumn]:
+          null,
+      };
 
       const {
         data,
         error,
-      } = await queryBuilder
-        .select();
+      } = await this.supabase
+        .from(this.tableName)
+        .update(updateData)
+        .eq("id", id)
+        .not(
+          this.softDeleteColumn,
+          "is",
+          null
+        )
+        .select()
+        .single();
 
       if (error) {
+        if (
+          error.code ===
+          "PGRST116"
+        ) {
+          throw new NotFoundError(
+            "Record not found or not deleted"
+          );
+        }
+
         throw handleDatabaseError(
           error
         );
       }
 
-      return data
-        ? (data as unknown as T[])
-        : [];
+      if (!data) {
+        throw new NotFoundError(
+          "Record not found or not deleted"
+        );
+      }
+
+      return data as unknown as T;
     } catch (error) {
       if (
         error instanceof DatabaseError
@@ -923,12 +1048,12 @@ export abstract class BaseRepository<
       }
 
       console.error(
-        `[${this.tableName}] softDeleteMany failed`,
+        `[${this.tableName}] restore failed`,
         error
       );
 
       throw new DatabaseError(
-        "Failed to delete records"
+        "Failed to restore record"
       );
     }
   }
