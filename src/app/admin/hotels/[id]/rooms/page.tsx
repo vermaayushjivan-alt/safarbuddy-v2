@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { HotelRepository } from '@/lib/repositories/hotel.repository';
+import { HotelRepository, type Hotel } from '@/lib/repositories/hotel.repository';
 import { RoomTypeRepository } from '@/lib/repositories/room-type.repository';
 import { RoomPriceManager } from '@/components/admin/rooms/RoomPriceManager';
 
@@ -27,7 +27,7 @@ export default async function AdminHotelRoomsPage({ params }: AdminHotelRoomsPag
     notFound();
   }
 
-  const hotel = hotelResult.data;
+  const hotel = hotelResult.data as Hotel;
   const roomList = rooms || [];
 
   return (
