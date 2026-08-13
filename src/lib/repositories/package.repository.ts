@@ -13,6 +13,7 @@ export interface PackageRecord extends DatabaseRecord {
   starting_price: number | null;
   is_featured: boolean;
   status: string;
+  vendor_id: string | null;
 }
 
 export interface PackageImageRow {
