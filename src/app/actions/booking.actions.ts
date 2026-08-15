@@ -267,6 +267,18 @@ async function getPublicUserId(
  *
  * bookings.currency_id is NOT nullable, so we cannot simply put "INR"
  * into the booking row.
+ *
+ * ROOT CAUSE FIX (production 500 — INR_CURRENCY_NOT_FOUND):
+ * This query previously filtered on `.is("deleted_at", null)`. The
+ * `currencies` table's active/inactive state is NOT governed by
+ * `deleted_at` — the already-working sibling query in
+ * `room-price.repository.ts`'s `getCurrencies()` (wired up and used by
+ * the admin Room Price manager) confirms the real gating column is
+ * `is_active`. Filtering on the wrong column meant a real, active INR
+ * row could still fail to match here, throwing INR_CURRENCY_NOT_FOUND
+ * even though INR is configured. Reusing the confirmed-correct filter
+ * from that sibling repository (RULE 9 — reuse existing architecture)
+ * instead of inventing a new one.
  */
 async function getInrCurrencyId(
   supabase: Awaited<
@@ -280,9 +292,9 @@ async function getInrCurrencyId(
     .from("currencies")
     .select("id")
     .eq("code", "INR")
-    .is(
-      "deleted_at",
-      null
+    .eq(
+      "is_active",
+      true
     )
     .maybeSingle();
 
