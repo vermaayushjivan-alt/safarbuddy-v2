@@ -40,7 +40,7 @@ export type CreateRoomPriceInput = {
   createdBy?: string | null;
 };
 
-export type UpdateRoomPriceInput = Partial
+export type UpdateRoomPriceInput = Partial<
   Omit<CreateRoomPriceInput, 'roomId' | 'priceDate'>
 > & {
   updatedBy?: string | null;
@@ -306,7 +306,7 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
     return true;
   }
 
-  async getCurrencies(): Promise
+  async getCurrencies(): Promise<
     Array<{ id: string; code: string; name: string; symbol: string }>
   > {
     const { data, error } = await this.supabase
