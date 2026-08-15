@@ -180,22 +180,76 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   //
   // ROOT CAUSE FIX (public hotel 404): hotelInputSchema now canonicalizes
   // every slug on write (see hotel.actions.ts), but rows saved before
-  // that fix may still hold a non-canonical value (spaces/mixed case).
-  // The exact-value lookup is tried first, unchanged, so already-correct
-  // slugs behave exactly as before. Only if that finds nothing do we
-  // retry with the slug run through the same slugify() used on write —
-  // this lets a legacy row still resolve via its canonical URL without
-  // a data migration, while never resolving an unrelated hotel.
+  // that fix may still hold a non-canonical value (spaces/mixed case,
+  // e.g. "shri sitaram seva trust"). That earlier fix added an
+  // exact-then-canonical lookup, but a literal `.eq('slug', canonical)`
+  // query only ever matches a row that was ALREADY saved with the
+  // canonical value — it can never match a legacy row whose stored slug
+  // canonicalizes to the same thing (different raw string). Since we
+  // must not require re-saving every legacy hotel, this adds a third,
+  // safe, self-healing step for exactly that case.
+  //
+  // Resolution order:
+  //   1. Exact incoming slug value (unchanged from before — legacy rows
+  //      whose stored slug happens to equal the raw URL param resolve
+  //      here, as does any already-canonical row).
+  //   2. Canonicalized incoming slug queried directly against `slug`
+  //      (unchanged from before — rows already saved canonically).
+  //   3. NEW — legacy self-heal: canonicalize every published hotel's
+  //      stored slug/hotel_name in application code and compare to the
+  //      requested canonical value. Only returns a hotel when exactly
+  //      one candidate matches (never guesses / never falls back to
+  //      "first hotel" — see resolveLegacySlug).
   async getHotelBySlug(slug: string): Promise<HotelRecord | null> {
-    const exact = await this.queryHotelBySlugValue(slug);
+    const trimmedSlug = slug.trim();
+
+    const exact = await this.queryHotelBySlugValue(trimmedSlug);
     if (exact) return exact;
 
-    const canonical = slugify(slug);
-    if (canonical && canonical !== slug) {
-      return this.queryHotelBySlugValue(canonical);
+    const canonical = slugify(trimmedSlug);
+    if (!canonical) return null;
+
+    if (canonical !== trimmedSlug) {
+      const canonicalMatch = await this.queryHotelBySlugValue(canonical);
+      if (canonicalMatch) return canonicalMatch;
     }
 
-    return null;
+    return this.resolveLegacySlug(canonical);
+  }
+
+  // Legacy-slug self-heal (see getHotelBySlug above). Only scans
+  // hotels that the public route is already allowed to show (status
+  // 'active', not soft-deleted) — this never widens what's publicly
+  // visible, it only widens which URL can reach an already-visible
+  // hotel. Returns a hotel ONLY when the canonical target is
+  // unambiguous: zero matches -> null, 2+ matches -> null (refuse to
+  // guess). No "first hotel" fallback of any kind.
+  private async resolveLegacySlug(
+    canonicalTarget: string
+  ): Promise<HotelRecord | null> {
+    const { data, error } = await this.supabase
+      .from('hotels')
+      .select('*')
+      .eq('status', 'active')
+      .is('deleted_at', null);
+
+    if (error || !data) return null;
+
+    const candidates = (data as HotelRecord[]).filter((hotel) => {
+      return (
+        slugify(hotel.slug) === canonicalTarget ||
+        slugify(hotel.hotel_name) === canonicalTarget
+      );
+    });
+
+    if (candidates.length !== 1) {
+      return null;
+    }
+
+    const [resolved] = await this.resolveImages([
+      withLegacyDefaults(candidates[0]),
+    ]);
+    return resolved;
   }
 
   private async queryHotelBySlugValue(
@@ -240,116 +294,4 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     return hotel ? withLegacyDefaults(hotel) : null;
   }
 
-  async createHotel(data: Parameters<BaseRepository<HotelRecord>['create']>[0]) {
-    const created = await this.create(data);
-    return withLegacyDefaults(created);
-  }
-
-  async updateHotel(
-    id: string,
-    data: Parameters<BaseRepository<HotelRecord>['update']>[1]
-  ) {
-    const updated = await this.update(id, data);
-    return withLegacyDefaults(updated);
-  }
-
-  async deleteHotel(id: string): Promise<boolean> {
-    return this.softDeleteById(id).then(() => true);
-  }
-
-  // ADMIN-03 hotel_images table CRUD only. No Storage calls here.
-  async listHotelImages(hotelId: string): Promise<HotelImageRow[]> {
-    const { data, error } = await this.supabase
-      .from('hotel_images')
-      .select('id, hotel_id, storage_path, is_primary, sort_order')
-      .eq('hotel_id', hotelId)
-      .order('sort_order', { ascending: true });
-
-    if (error) {
-      throw new Error(`Failed to list hotel images: ${error.message}`);
-    }
-
-    return (data ?? []) as HotelImageRow[];
-  }
-
-  async getHotelImageById(imageId: string): Promise<HotelImageRow | null> {
-    const { data, error } = await this.supabase
-      .from('hotel_images')
-      .select('id, hotel_id, storage_path, is_primary, sort_order')
-      .eq('id', imageId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw new Error(`Failed to get hotel image: ${error.message}`);
-    }
-
-    return data as HotelImageRow;
-  }
-
-  async insertHotelImageRow(
-    hotelId: string,
-    storagePath: string,
-    isPrimary: boolean,
-    sortOrder: number
-  ): Promise<HotelImageRow> {
-    const { data, error } = await this.supabase
-      .from('hotel_images')
-      .insert({
-        hotel_id: hotelId,
-        storage_path: storagePath,
-        is_primary: isPrimary,
-        sort_order: sortOrder,
-      })
-      .select('id, hotel_id, storage_path, is_primary, sort_order')
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to insert hotel image row: ${error.message}`);
-    }
-
-    return data as HotelImageRow;
-  }
-
-  async setPrimaryHotelImage(hotelId: string, imageId: string): Promise<void> {
-    const { error: clearError } = await this.supabase
-      .from('hotel_images')
-      .update({ is_primary: false })
-      .eq('hotel_id', hotelId);
-
-    if (clearError) {
-      throw new Error(`Failed to clear primary flags: ${clearError.message}`);
-    }
-
-    const { error: setError } = await this.supabase
-      .from('hotel_images')
-      .update({ is_primary: true })
-      .eq('id', imageId);
-
-    if (setError) {
-      throw new Error(`Failed to set primary image: ${setError.message}`);
-    }
-  }
-
-  async updateHotelImageSortOrder(imageId: string, sortOrder: number): Promise<void> {
-    const { error } = await this.supabase
-      .from('hotel_images')
-      .update({ sort_order: sortOrder })
-      .eq('id', imageId);
-
-    if (error) {
-      throw new Error(`Failed to update sort order: ${error.message}`);
-    }
-  }
-
-  async deleteHotelImageRow(imageId: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('hotel_images')
-      .delete()
-      .eq('id', imageId);
-
-    if (error) {
-      throw new Error(`Failed to delete hotel image row: ${error.message}`);
-    }
-  }
-}
+  async createHotel(data:
