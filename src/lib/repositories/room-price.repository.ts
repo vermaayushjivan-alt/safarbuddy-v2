@@ -306,13 +306,17 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
     return true;
   }
 
+  // CORRECTION: previously filtered on `.eq('is_active', true)`, which
+  // does not exist on the live public.currencies table (confirmed
+  // columns: id, code, name, symbol, created_at, updated_at, created_by,
+  // updated_by, deleted_at). Fixed to use the real soft-delete column.
   async getCurrencies(): Promise<
     Array<{ id: string; code: string; name: string; symbol: string }>
   > {
     const { data, error } = await this.supabase
       .from('currencies')
       .select('id, code, name, symbol')
-      .eq('is_active', true)
+      .is('deleted_at', null)
       .order('code', { ascending: true });
 
     if (error) {
