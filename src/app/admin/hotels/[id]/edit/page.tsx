@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getHotelByIdAdmin } from "@/app/actions/hotel.actions";
 import { HotelForm } from "@/components/admin/hotels/HotelForm";
+import { slugify } from "@/lib/utils/format";
 
 export default async function EditHotelPage({
   params,
@@ -48,10 +49,15 @@ export default async function EditHotelPage({
           </Link>
 
           {/* SESSION 03: status contract updated to lowercase to match
-              hotels_status_check DB constraint. */}
+              hotels_status_check DB constraint.
+              HOTEL 404 FIX: display the canonical slug even if this row's
+              stored `slug` is still a legacy/non-canonical value (e.g.
+              contains spaces). getHotelBySlug() resolves this canonical
+              URL for legacy rows without requiring a save, so the link
+              always opens correctly. */}
           {hotel.status === "active" && (
             <Link
-              href={`/hotels/${hotel.slug}`}
+              href={`/hotels/${slugify(hotel.slug)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="focus-ring rounded-full bg-deep px-4 py-2 text-[13px] font-semibold text-cream transition hover:bg-deep-2"
