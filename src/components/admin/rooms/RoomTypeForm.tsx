@@ -6,9 +6,11 @@ import {
   createRoomTypeAdmin,
   updateRoomTypeAdmin,
 } from "@/app/actions/room-type.actions";
-import type {
-  RoomTypeRecord,
-  RoomTypeStatus,
+import {
+  ROOM_TYPE_VALUES,
+  type RoomTypeRecord,
+  type RoomTypeStatus,
+  type RoomTypeValue,
 } from "@/lib/repositories/room-type.repository";
 
 interface RoomTypeFormProps {
@@ -17,21 +19,23 @@ interface RoomTypeFormProps {
   roomType?: RoomTypeRecord;
 }
 
-// Common room-type presets for the datalist below. This is a UI
-// convenience only — room_type remains a free-text column on hotel_rooms
-// (no enum/constraint has been confirmed live), so any custom value the
-// admin types is still accepted. See DEVELOPMENT_BIBLE RULE 8 — never
-// invent a DB enum.
-const ROOM_TYPE_PRESETS = [
-  "Standard",
-  "Deluxe",
-  "Superior",
-  "Executive",
-  "Suite",
-  "Family",
-  "Premium",
-  "Dormitory",
-];
+// Human-readable labels for each DB-allowed room_type value. Derived from
+// ROOM_TYPE_VALUES (the live hotel_rooms_room_type_check constraint) so
+// the dropdown can never offer a value the database would reject.
+const ROOM_TYPE_LABELS: Record<RoomTypeValue, string> = {
+  single: "Single Room",
+  double: "Double Room",
+  twin: "Twin Room",
+  suite: "Suite",
+  deluxe: "Deluxe Room",
+  executive: "Executive Room",
+  family: "Family Room",
+};
+
+const ROOM_TYPE_OPTIONS = ROOM_TYPE_VALUES.map((value) => ({
+  value,
+  label: ROOM_TYPE_LABELS[value],
+}));
 
 const BED_TYPE_PRESETS = [
   "1 King Bed",
@@ -101,7 +105,9 @@ export function RoomTypeForm({
   const router = useRouter();
 
   const [roomName, setRoomName] = useState(roomType?.room_name ?? "");
-  const [roomType_, setRoomType_] = useState(roomType?.room_type ?? "");
+  const [roomType_, setRoomType_] = useState<RoomTypeValue | "">(
+    roomType?.room_type ?? ""
+  );
   const [basePrice, setBasePrice] = useState(
     roomType?.base_price?.toString() ?? ""
   );
@@ -132,13 +138,19 @@ export function RoomTypeForm({
     event.preventDefault();
 
     setError(null);
+
+    if (!roomType_) {
+      setError("Please select a room type.");
+      return;
+    }
+
     setSaving(true);
 
     try {
       const payload = {
         hotel_id: hotelId,
         room_name: roomName.trim(),
-        room_type: roomType_.trim(),
+        room_type: roomType_,
         base_price: Number(basePrice),
         capacity_adults: Number(capacityAdults),
         capacity_children: Number(capacityChildren),
@@ -200,23 +212,27 @@ export function RoomTypeForm({
           <Field
             label="Room Type"
             htmlFor="roomType"
-            hint="Pick a common type or type your own."
+            hint="Determines pricing and availability rules for this room."
           >
-            <input
+            <select
               id="roomType"
               name="roomType"
-              list="roomTypePresets"
               value={roomType_}
-              onChange={(e) => setRoomType_(e.target.value)}
+              onChange={(e) =>
+                setRoomType_(e.target.value as RoomTypeValue)
+              }
               required
               className={inputClass}
-              placeholder="Deluxe, Suite, Standard..."
-            />
-            <datalist id="roomTypePresets">
-              {ROOM_TYPE_PRESETS.map((preset) => (
-                <option key={preset} value={preset} />
+            >
+              <option value="" disabled>
+                Select a room type
+              </option>
+              {ROOM_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
-            </datalist>
+            </select>
           </Field>
 
           <Field
