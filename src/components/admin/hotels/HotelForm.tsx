@@ -9,6 +9,7 @@ import {
 } from "@/app/actions/hotel.actions";
 import { getAllVendorsForDropdown } from "@/app/actions/vendor.actions";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
+import { slugify } from "@/lib/utils/format";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
@@ -33,6 +34,16 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
   >([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
   const [vendorsError, setVendorsError] = useState<string | null>(null);
+
+  // Tracks whether the admin has manually typed into the Slug field.
+  // Until they do, the slug auto-follows the hotel name (canonicalized)
+  // so a URL-safe slug is the default rather than something staff has to
+  // remember to format correctly by hand. Existing hotels (edit mode)
+  // already have a slug, so auto-following is off from the start —
+  // editing the name shouldn't silently change a live hotel's URL.
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(
+    mode === "edit"
+  );
 
   const [form, setForm] = useState<HotelInput>({
     hotel_name: hotel?.hotel_name ?? "",
@@ -145,21 +156,30 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           type="text"
           required
           value={form.hotel_name}
-          onChange={(e) =>
-            handleChange("hotel_name", e.target.value)
-          }
+          onChange={(e) => {
+            const value = e.target.value;
+            handleChange("hotel_name", value);
+            if (!slugManuallyEdited) {
+              handleChange("slug", slugify(value));
+            }
+          }}
           className={inputClass}
         />
       </Field>
 
-      <Field label="Slug" required>
+      <Field
+        label="Slug"
+        required
+        hint="Used in the public hotel URL. Auto-generated from the hotel name — edit only if you need a different one."
+      >
         <input
           type="text"
           required
           value={form.slug}
-          onChange={(e) =>
-            handleChange("slug", e.target.value)
-          }
+          onChange={(e) => {
+            setSlugManuallyEdited(true);
+            handleChange("slug", e.target.value);
+          }}
           className={inputClass}
         />
       </Field>
@@ -415,10 +435,12 @@ const inputClass =
 function Field({
   label,
   required,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -431,6 +453,7 @@ function Field({
       </label>
 
       {children}
+      {hint && <p className="mt-1 text-[12px] text-ink/45">{hint}</p>}
     </div>
   );
 }
