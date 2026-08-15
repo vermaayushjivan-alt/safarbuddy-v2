@@ -1,10 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { MapPin, Star } from "lucide-react";
 import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { getHotelBySlug } from "@/app/actions/hotel.actions";
+import { slugify } from "@/lib/utils/format";
 
 // HOTEL 404 FIX: this page fetches from Supabase inside a Server
 // Component. Next.js caches such fetches/route output by default
@@ -39,34 +40,38 @@ export default async function HotelDetailPage({
 }) {
   const { slug } = await params;
 
-  // TEMPORARY DIAGNOSTIC — encoded-legacy-URL 404 investigation.
-  // Safe: logs only the slug param and lookup outcome, no secrets,
-  // no cookies, no auth headers, no PII. Remove once the encoded
-  // legacy URL (/hotels/shri%20sitaram%20seva%20trust) is confirmed
-  // working, or once Vercel Runtime Logs confirm whether this
-  // Server Component is even being invoked for that request.
-  console.log("[hotel-detail-diagnostic] incoming request", {
-    rawParamSlug: slug,
-    slugLength: slug.length,
-    decodedAttempt: (() => {
-      try {
-        return decodeURIComponent(slug);
-      } catch {
-        return "<decodeURIComponent threw>";
-      }
-    })(),
-  });
-
   const hotel = await getHotelBySlug(slug);
-
-  console.log("[hotel-detail-diagnostic] lookup result", {
-    rawParamSlug: slug,
-    hotelFound: Boolean(hotel),
-    resolvedHotelId: hotel?.id ?? null,
-  });
 
   if (!hotel) {
     notFound();
+  }
+
+  // CANONICAL-REDIRECT FIX (encoded/legacy slug 404):
+  // Vercel Runtime Logs confirmed this function DOES receive legacy
+  // requests (e.g. the %20-encoded URL) and DOES resolve them to the
+  // correct hotel via getHotelBySlug()'s exact -> canonical -> legacy
+  // self-heal chain — the 200 shows up in the logs every time. The
+  // page still intermittently rendered a 404 in the browser because a
+  // non-canonical URL (raw spaces, %20, mixed case, etc.) is its own
+  // distinct cache key, and something between Vercel and the browser
+  // (edge cache / intermediate proxy / browser cache) could still be
+  // holding an old cached response for that exact non-canonical URL,
+  // independent of how correct the underlying lookup is.
+  //
+  // Fix: once the hotel is resolved, if the URL the visitor is on
+  // isn't already the canonical slug, issue a permanent redirect to
+  // the canonical URL instead of rendering content at the
+  // non-canonical one. The legacy URL then only ever needs to serve a
+  // tiny redirect (which itself gets a fresh, correct response every
+  // time this function runs), and every visitor lands on the single
+  // canonical URL that is already proven to work reliably. This never
+  // 404s: getHotelBySlug already returned a hotel above, so canonical
+  // is always derived from real, existing data — never invented, no
+  // extra DB call, no redirect loop (once on the canonical slug, this
+  // check is false and the page renders normally).
+  const canonicalSlug = slugify(hotel.slug);
+  if (canonicalSlug && canonicalSlug !== slug) {
+    permanentRedirect(`/hotels/${canonicalSlug}`);
   }
 
   const hasImage = Boolean(hotel.thumbnail && hotel.thumbnail.trim().length > 0);
@@ -140,7 +145,7 @@ export default async function HotelDetailPage({
             </p>
             {/* BOOKING-01: was a disabled "Booking coming soon" button. */}
             <Link
-              href={`/hotels/${hotel.slug}/book`}
+              href={`/hotels/${canonicalSlug}/book`}
               className="focus-ring mt-5 block w-full rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2"
             >
               Book Now
