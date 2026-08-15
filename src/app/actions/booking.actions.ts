@@ -216,9 +216,25 @@ const cancelBookingSchema =
 /**
  * The authenticated Supabase user ID is auth.users.id.
  *
- * The bookings table, however, stores public.users.id in customer_id.
+ * bookings.customer_id also stores public.users.id — but per the locked
+ * AUTH RULE (src/db/schema.ts header, src/db/sql/001_auth_sync_trigger.sql,
+ * and src/lib/auth/session.ts's getCurrentUser()): public.users.id ===
+ * auth.users.id. There is no separate `auth_user_id` column on
+ * public.users — the sync trigger always writes NEW.id (the auth id)
+ * directly into public.users.id.
  *
- * Resolve the application/public user before touching bookings.
+ * CORRECTION: this function previously queried
+ * `.eq("auth_user_id", authUserId)`. That column does not exist on the
+ * live public.users schema (confirmed by the same trigger/schema.ts
+ * evidence that already made src/lib/auth/session.ts's getCurrentUser()
+ * stop querying public.users for this exact reason). Filtering on a
+ * nonexistent column makes PostgREST return a hard error (not merely
+ * zero rows), which this function then rethrows — inside a "use server"
+ * action, so Next.js redacts it to the generic production 500 the user
+ * sees ("An error occurred in the Server Components render..."). Fixed
+ * to filter on `id` (== authUserId) instead, which still defends against
+ * the (expected-rare) case where the auth-sync trigger hasn't created
+ * the public.users row yet.
  */
 async function getPublicUserId(
   supabase: Awaited<
@@ -233,7 +249,7 @@ async function getPublicUserId(
     .from("users")
     .select("id")
     .eq(
-      "auth_user_id",
+      "id",
       authUserId
     )
     .is(
@@ -241,6 +257,24 @@ async function getPublicUserId(
       null
     )
     .maybeSingle();
+
+  // TEMPORARY DIAGNOSTIC — safe fields only (no keys/tokens/secrets).
+  // Remove once the production root cause is confirmed from Vercel logs.
+  console.error(
+    "[booking-debug] getPublicUserId",
+    {
+      userExists: Boolean(authUserId),
+      data: data ? { id: data.id } : null,
+      error: error
+        ? {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          }
+        : null,
+    }
+  );
 
   if (error) {
     console.error(
@@ -360,8 +394,20 @@ async function getInrCurrencyId(
 export async function createBooking(
   input: CreateBookingInput
 ): Promise<BookingRecord> {
+  // TEMPORARY DIAGNOSTIC — safe, no PII/secrets. Remove once the
+  // production root cause is confirmed from Vercel logs.
+  console.error(
+    "[booking-debug] START",
+    { booking_type: input?.booking_type }
+  );
+
   const authUser =
     await getAuthUser();
+
+  console.error(
+    "[booking-debug] authenticated user",
+    { userExists: Boolean(authUser) }
+  );
 
   if (!authUser) {
     throw new Error(
@@ -369,18 +415,38 @@ export async function createBooking(
     );
   }
 
-  const parsed =
-    createBookingSchema.parse(
-      input
+  let parsed;
+
+  try {
+    parsed =
+      createBookingSchema.parse(
+        input
+      );
+  } catch (validationError) {
+    console.error(
+      "[booking-debug] booking payload validation failed",
+      validationError
     );
+
+    throw new Error(
+      "Invalid booking details. Please check the form and try again."
+    );
+  }
+
+  console.error(
+    "[booking-debug] booking payload validation",
+    { ok: true, booking_type: parsed.booking_type }
+  );
 
   const supabase =
     await createClient();
 
   // ---------------------------------------------------------------------------
-  // IMPORTANT:
-  // auth.users.id != public.users.id
-  // bookings.customer_id expects public.users.id.
+  // IMPORTANT (see getPublicUserId's docstring above for the full
+  // correction): public.users.id === auth.users.id, and
+  // bookings.customer_id expects public.users.id — so this is really a
+  // defensive existence check on the auth-synced profile row, not an
+  // ID translation.
   // ---------------------------------------------------------------------------
 
   const customerId =
@@ -397,6 +463,11 @@ export async function createBooking(
     await getInrCurrencyId(
       supabase
     );
+
+  console.error(
+    "[booking-debug] currency lookup",
+    { ok: true }
+  );
 
   let priceSnapshot = 0;
 
@@ -421,6 +492,11 @@ export async function createBooking(
       await hotelRepo.getHotelById(
         parsed.hotel_id as string
       );
+
+    console.error(
+      "[booking-debug] hotel lookup",
+      { found: Boolean(hotel) }
+    );
 
     if (!hotel) {
       throw new Error(
@@ -492,7 +568,16 @@ export async function createBooking(
       supabase
     );
 
-  return bookingRepo.createBooking(
+  console.error(
+    "[booking-debug] booking insert",
+    {
+      booking_type: parsed.booking_type,
+      hasHotelId: Boolean(parsed.hotel_id),
+      hasPackageId: Boolean(parsed.package_id),
+    }
+  );
+
+  const created = await bookingRepo.createBooking(
     {
       customer_id:
         customerId,
@@ -555,6 +640,18 @@ export async function createBooking(
         customerId,
     }
   );
+
+  console.error(
+    "[booking-debug] booking insert result",
+    { ok: true, id: created?.id }
+  );
+
+  console.error(
+    "[booking-debug] redirect/result",
+    { ok: true }
+  );
+
+  return created;
 }
 
 // -----------------------------------------------------------------------------
