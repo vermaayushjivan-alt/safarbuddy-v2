@@ -14,6 +14,7 @@ import {
   emptyToNull,
   type ActionResult,
 } from '@/lib/actions/action-result';
+import { slugify } from '@/lib/utils/format';
 
 // bookings.price_snapshot is numeric(10,2) — max representable value.
 // hotel/package starting_price is copied into price_snapshot at booking
@@ -63,7 +64,21 @@ export async function getHotelBySlug(
 const hotelInputSchema = z.object({
   hotel_name: z.string().min(1, 'Hotel name is required'),
 
-  slug: z.string().min(1, 'Slug is required'),
+  // ROOT CAUSE FIX (public hotel 404): the admin Slug field was raw free
+  // text with no canonicalization anywhere in the write path, so it could
+  // (and did) get saved with spaces/mixed case — e.g. "shri sitaram seva
+  // trust" — which the public /hotels/[slug] route then failed to match
+  // via an exact-value lookup. Every create/update now runs the value
+  // through the project's existing slugify() (src/lib/utils/format.ts,
+  // previously unused) so a canonical, URL-safe slug is guaranteed
+  // regardless of what staff types.
+  slug: z
+    .string()
+    .min(1, 'Slug is required')
+    .transform((value) => slugify(value))
+    .refine((value) => value.length > 0, {
+      message: 'Slug must contain at least one letter or number.',
+    }),
 
   description: z.preprocess(
     emptyToNull,
