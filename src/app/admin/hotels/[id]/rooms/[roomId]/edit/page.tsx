@@ -58,6 +58,20 @@ export default async function EditRoomTypePage({
         >
           Manage Images
         </Link>
+
+        <Link
+          href={`/admin/hotels/${hotel.id}/rooms/${roomType.id}/pricing`}
+          className="focus-ring inline-flex rounded-full border border-deep/15 px-4 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist"
+        >
+          Pricing
+        </Link>
+
+        <Link
+          href={`/admin/hotels/${hotel.id}/rooms/${roomType.id}/availability`}
+          className="focus-ring inline-flex rounded-full border border-deep/15 px-4 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist"
+        >
+          Availability
+        </Link>
       </div>
 
       <RoomTypeForm
