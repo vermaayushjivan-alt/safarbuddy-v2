@@ -6,6 +6,15 @@ import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { getHotelBySlug } from "@/app/actions/hotel.actions";
 
+// HOTEL 404 FIX: this page fetches from Supabase inside a Server
+// Component. Next.js caches such fetches/route output by default
+// unless told not to — which meant a hotel that 404'd once (e.g.
+// before the slug-resolution fix) could keep 404ing forever from a
+// stale cached result, even after the underlying data/code was
+// correct. Forcing dynamic rendering makes every request re-run the
+// lookup against the live database.
+export const dynamic = "force-dynamic";
+
 // PUBLIC-01 — public detail page for the AUTH-06 `/hotels` allowlist
 // entry. Server component, no auth required. Only renders fields that
 // already exist on HotelRecord — nothing invented.
