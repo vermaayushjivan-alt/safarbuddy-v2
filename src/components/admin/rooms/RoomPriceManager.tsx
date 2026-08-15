@@ -89,6 +89,10 @@ export function RoomPriceManager({ hotelId, roomId, roomName }: RoomPriceManager
   }, [hotelId, roomId]);
 
   useEffect(() => {
+    // fetch-on-mount: loadData syncs component state with data fetched via
+    // server actions (an external source), which is the documented use case
+    // for this rule, not an accidental cascading update.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
 
