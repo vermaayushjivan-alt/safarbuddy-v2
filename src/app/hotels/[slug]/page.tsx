@@ -38,7 +38,32 @@ export default async function HotelDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+
+  // TEMPORARY DIAGNOSTIC — encoded-legacy-URL 404 investigation.
+  // Safe: logs only the slug param and lookup outcome, no secrets,
+  // no cookies, no auth headers, no PII. Remove once the encoded
+  // legacy URL (/hotels/shri%20sitaram%20seva%20trust) is confirmed
+  // working, or once Vercel Runtime Logs confirm whether this
+  // Server Component is even being invoked for that request.
+  console.log("[hotel-detail-diagnostic] incoming request", {
+    rawParamSlug: slug,
+    slugLength: slug.length,
+    decodedAttempt: (() => {
+      try {
+        return decodeURIComponent(slug);
+      } catch {
+        return "<decodeURIComponent threw>";
+      }
+    })(),
+  });
+
   const hotel = await getHotelBySlug(slug);
+
+  console.log("[hotel-detail-diagnostic] lookup result", {
+    rawParamSlug: slug,
+    hotelFound: Boolean(hotel),
+    resolvedHotelId: hotel?.id ?? null,
+  });
 
   if (!hotel) {
     notFound();
