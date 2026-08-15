@@ -8,6 +8,7 @@ import {
   RoomTypeRecord,
   RoomImageRow,
   ROOM_TYPE_STATUS_VALUES,
+  ROOM_TYPE_VALUES,
 } from '@/lib/repositories/room-type.repository';
 import {
   runAction,
@@ -30,7 +31,9 @@ const roomTypeInputSchema = z.object({
 
   room_name: z.string().min(1, 'Room name is required'),
 
-  room_type: z.string().min(1, 'Room type is required'),
+  room_type: z.enum(ROOM_TYPE_VALUES, {
+    message: `Room type must be one of: ${ROOM_TYPE_VALUES.join(', ')}.`,
+  }),
 
   base_price: z
     .number()
