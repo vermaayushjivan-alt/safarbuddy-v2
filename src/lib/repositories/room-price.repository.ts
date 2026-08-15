@@ -1,43 +1,62 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
-// RoomPrice mirrors the actual public.room_prices table shape (snake_case
-// columns), matching the pattern used by HotelRecord/DestinationRecord/
-// BookingRecord elsewhere in this repository layer. This repository talks
-// to Supabase directly via BaseRepository, like every other repository in
-// this project — it does not use Drizzle models or a RepositoryResult
-// wrapper (neither exists in this codebase).
+// RoomPrice mirrors the ACTUAL live public.room_prices table (confirmed
+// via production information_schema query — see PROJECT_STATUS.md /
+// DATABASE_BIBLE.md). This repository talks to Supabase directly via
+// BaseRepository, like every other repository in this project — it does
+// not use Drizzle models or an invented RepositoryResult wrapper.
+//
+// CORRECTION (post-ROOM-01/02 hardening): the previous version of this
+// file targeted start_date / end_date / is_default / status columns that
+// do NOT exist on the live table — every create/update/delete call would
+// have failed in production with "column does not exist". The real
+// production schema is a per-day rate table keyed by price_date, with a
+// stored final_price column (not DB-computed). Confirmed live columns:
+//
+//   id, room_id, price_date, base_price, discount_amount, tax_amount,
+//   final_price, currency_id, created_at, updated_at, created_by,
+//   updated_by, deleted_at
 export interface RoomPrice extends DatabaseRecord {
   id: string;
   room_id: string;
+  price_date: string;
   currency_id: string;
   base_price: number;
   discount_amount: number;
   tax_amount: number;
-  start_date: string | null;
-  end_date: string | null;
-  is_default: boolean;
-  status: 'active' | 'inactive' | 'archived';
+  final_price: number;
   created_by: string | null;
   updated_by: string | null;
 }
 
 export type CreateRoomPriceInput = {
   roomId: string;
+  priceDate: string;
   currencyId: string;
   basePrice: number;
   discountAmount?: number;
   taxAmount?: number;
-  startDate?: string | null;
-  endDate?: string | null;
-  isDefault?: boolean;
-  status?: 'active' | 'inactive' | 'archived';
   createdBy?: string | null;
 };
 
-export type UpdateRoomPriceInput = Partial<Omit<CreateRoomPriceInput, 'roomId'>> & {
+export type UpdateRoomPriceInput = Partial
+  Omit<CreateRoomPriceInput, 'roomId' | 'priceDate'>
+> & {
   updatedBy?: string | null;
 };
+
+// Final price is a real, stored column in production (not DB-computed),
+// so every write path must compute and set it itself. This is the single
+// place that formula lives — see FINAL PRINCIPLE / RULE 9 (no scattered
+// reimplementations).
+export function calculateFinalPrice(
+  basePrice: number,
+  discountAmount: number,
+  taxAmount: number
+): number {
+  return Math.max(0, basePrice - discountAmount + taxAmount);
+}
 
 export class RoomPriceRepository extends BaseRepository<RoomPrice> {
   constructor(supabase: SupabaseClientType) {
@@ -54,11 +73,32 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
       .select('*')
       .eq('room_id', roomId)
       .is('deleted_at', null)
-      .order('is_default', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('price_date', { ascending: true });
 
     if (error) {
       console.error('[room_prices] getPricesByRoom failed', error);
+      throw error;
+    }
+
+    return (data as RoomPrice[]) || [];
+  }
+
+  async getPricesForDateRange(
+    roomId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<RoomPrice[]> {
+    const { data, error } = await this.supabase
+      .from('room_prices')
+      .select('*')
+      .eq('room_id', roomId)
+      .gte('price_date', startDate)
+      .lte('price_date', endDate)
+      .is('deleted_at', null)
+      .order('price_date', { ascending: true });
+
+    if (error) {
+      console.error('[room_prices] getPricesForDateRange failed', error);
       throw error;
     }
 
@@ -81,12 +121,40 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
     return (data as RoomPrice) || null;
   }
 
-  async verifyRoomOwnership(priceId: string | null, roomId: string, hotelId: string, userId: string, roles: string[]): Promise<boolean> {
-    // 1. Verify room belongs to hotel
-    // NOTE: room_types does not exist in production (PGRST205 — confirmed
-    // via live information_schema query). The real parent table for
-    // room_prices.room_id is hotel_rooms (room_prices_room_id_fkey ->
-    // hotel_rooms.id), so ownership must be checked against hotel_rooms.
+  // One rate row per (room_id, price_date) is the intended model, but no
+  // unique constraint on that pair has been confirmed live (Bible RULE 7 —
+  // never invent a constraint that isn't verified), so this checks for an
+  // existing row first rather than relying on upsert/onConflict.
+  async getPriceForDate(
+    roomId: string,
+    priceDate: string
+  ): Promise<RoomPrice | null> {
+    const { data, error } = await this.supabase
+      .from('room_prices')
+      .select('*')
+      .eq('room_id', roomId)
+      .eq('price_date', priceDate)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[room_prices] getPriceForDate failed', error);
+      throw error;
+    }
+
+    return (data as RoomPrice) || null;
+  }
+
+  async verifyRoomOwnership(
+    priceId: string | null,
+    roomId: string,
+    hotelId: string,
+    userId: string,
+    roles: string[]
+  ): Promise<boolean> {
+    // 1. Verify room belongs to hotel. Parent table for room_prices.room_id
+    // is hotel_rooms (room_prices_room_id_fkey -> hotel_rooms.id) — the
+    // production table, not room_types (confirmed absent, PGRST205).
     const { data: room, error: roomError } = await this.supabase
       .from('hotel_rooms')
       .select('id, hotel_id')
@@ -144,26 +212,22 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
   }
 
   async createRoomPrice(input: CreateRoomPriceInput): Promise<RoomPrice> {
-    if (input.isDefault) {
-      await this.supabase
-        .from('room_prices')
-        .update({ is_default: false, updated_at: new Date().toISOString() })
-        .eq('room_id', input.roomId)
-        .eq('is_default', true);
-    }
+    const finalPrice = calculateFinalPrice(
+      input.basePrice,
+      input.discountAmount ?? 0,
+      input.taxAmount ?? 0
+    );
 
     const { data, error } = await this.supabase
       .from('room_prices')
       .insert({
         room_id: input.roomId,
+        price_date: input.priceDate,
         currency_id: input.currencyId,
         base_price: input.basePrice,
         discount_amount: input.discountAmount ?? 0,
         tax_amount: input.taxAmount ?? 0,
-        start_date: input.startDate || null,
-        end_date: input.endDate || null,
-        is_default: input.isDefault ?? false,
-        status: input.status ?? 'active',
+        final_price: finalPrice,
         created_by: input.createdBy || null,
         updated_by: input.createdBy || null,
       })
@@ -182,34 +246,29 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
     return data as RoomPrice;
   }
 
-  async updateRoomPrice(id: string, input: UpdateRoomPriceInput): Promise<RoomPrice> {
-    const { data: current } = await this.supabase
-      .from('room_prices')
-      .select('room_id')
-      .eq('id', id)
-      .single();
+  async updateRoomPrice(
+    id: string,
+    input: UpdateRoomPriceInput
+  ): Promise<RoomPrice> {
+    const existing = await this.getPriceById(id);
 
-    if (input.isDefault && current?.room_id) {
-      await this.supabase
-        .from('room_prices')
-        .update({ is_default: false, updated_at: new Date().toISOString() })
-        .eq('room_id', current.room_id)
-        .eq('is_default', true)
-        .neq('id', id);
+    if (!existing) {
+      throw new Error('Room rate not found.');
     }
+
+    const nextBasePrice = input.basePrice ?? existing.base_price;
+    const nextDiscount = input.discountAmount ?? existing.discount_amount;
+    const nextTax = input.taxAmount ?? existing.tax_amount;
 
     const payload: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
+      final_price: calculateFinalPrice(nextBasePrice, nextDiscount, nextTax),
     };
 
     if (input.currencyId !== undefined) payload.currency_id = input.currencyId;
     if (input.basePrice !== undefined) payload.base_price = input.basePrice;
     if (input.discountAmount !== undefined) payload.discount_amount = input.discountAmount;
     if (input.taxAmount !== undefined) payload.tax_amount = input.taxAmount;
-    if (input.startDate !== undefined) payload.start_date = input.startDate || null;
-    if (input.endDate !== undefined) payload.end_date = input.endDate || null;
-    if (input.isDefault !== undefined) payload.is_default = input.isDefault;
-    if (input.status !== undefined) payload.status = input.status;
     if (input.updatedBy !== undefined) payload.updated_by = input.updatedBy;
 
     const { data, error } = await this.supabase
@@ -236,7 +295,6 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
       .from('room_prices')
       .update({
         deleted_at: new Date().toISOString(),
-        status: 'archived',
       })
       .eq('id', id);
 
@@ -248,24 +306,9 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
     return true;
   }
 
-  async getPricesForDateRange(roomId: string, startDate: string, endDate: string): Promise<RoomPrice[]> {
-    const { data, error } = await this.supabase
-      .from('room_prices')
-      .select('*')
-      .eq('room_id', roomId)
-      .eq('status', 'active')
-      .is('deleted_at', null)
-      .or(`and(start_date.lte.${endDate},end_date.gte.${startDate}),is_default.eq.true`);
-
-    if (error) {
-      console.error('[room_prices] getPricesForDateRange failed', error);
-      throw error;
-    }
-
-    return (data as RoomPrice[]) || [];
-  }
-
-  async getCurrencies(): Promise<Array<{ id: string; code: string; name: string; symbol: string }>> {
+  async getCurrencies(): Promise
+    Array<{ id: string; code: string; name: string; symbol: string }>
+  > {
     const { data, error } = await this.supabase
       .from('currencies')
       .select('id, code, name, symbol')
