@@ -268,17 +268,25 @@ async function getPublicUserId(
  * bookings.currency_id is NOT nullable, so we cannot simply put "INR"
  * into the booking row.
  *
- * ROOT CAUSE FIX (production 500 — INR_CURRENCY_NOT_FOUND):
- * This query previously filtered on `.is("deleted_at", null)`. The
- * `currencies` table's active/inactive state is NOT governed by
- * `deleted_at` — the already-working sibling query in
- * `room-price.repository.ts`'s `getCurrencies()` (wired up and used by
- * the admin Room Price manager) confirms the real gating column is
- * `is_active`. Filtering on the wrong column meant a real, active INR
- * row could still fail to match here, throwing INR_CURRENCY_NOT_FOUND
- * even though INR is configured. Reusing the confirmed-correct filter
- * from that sibling repository (RULE 9 — reuse existing architecture)
- * instead of inventing a new one.
+ * CORRECTION: a previous pass changed this filter to
+ * `.eq("is_active", true)`, based on a sibling query in
+ * room-price.repository.ts. That was wrong — the actual live
+ * public.currencies schema (confirmed via production SQL: id, code,
+ * name, symbol, created_at, updated_at, created_by, updated_by,
+ * deleted_at) has no `is_active` column at all. Reverted to
+ * `.is("deleted_at", null)`, which matches the real schema and matches
+ * the confirmed-live INR row (deleted_at IS NULL).
+ *
+ * Since the INR row is confirmed to exist and is not soft-deleted, but
+ * production still threw INR_CURRENCY_NOT_FOUND, the remaining
+ * candidates are outside what static code inspection can prove:
+ * `currencies` RLS silently returning zero rows for the
+ * anon/authenticated role this Server Action runs as (RLS filters
+ * rows rather than erroring), a production env var pointing at a
+ * different Supabase project, or deployed code lagging behind this
+ * source. The diagnostic log below (safe — no keys/tokens/passwords)
+ * captures exactly which of those it is from the next real request,
+ * without weakening RLS or hardcoding the known UUID as a fallback.
  */
 async function getInrCurrencyId(
   supabase: Awaited<
@@ -290,13 +298,40 @@ async function getInrCurrencyId(
     error,
   } = await supabase
     .from("currencies")
-    .select("id")
+    .select("id, code, deleted_at")
     .eq("code", "INR")
-    .eq(
-      "is_active",
-      true
+    .is(
+      "deleted_at",
+      null
     )
     .maybeSingle();
+
+  // TEMPORARY DIAGNOSTIC — safe fields only (no keys/tokens/secrets).
+  // Remove once the production root cause is confirmed from Vercel logs.
+  console.error(
+    "[booking][currency-debug]",
+    {
+      supabaseProject: process.env.NEXT_PUBLIC_SUPABASE_URL
+        ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
+        : null,
+      requestedCode: "INR",
+      data: data
+        ? {
+            id: data.id,
+            code: data.code,
+            deleted_at: data.deleted_at,
+          }
+        : null,
+      error: error
+        ? {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          }
+        : null,
+    }
+  );
 
   if (error) {
     console.error(
