@@ -24,7 +24,7 @@ export interface RoomTypeRecord extends DatabaseRecord {
   hotel_id: string;
 
   room_name: string;
-  room_type: string;
+  room_type: RoomTypeValue;
 
   base_price: number;
 
@@ -37,6 +37,26 @@ export interface RoomTypeRecord extends DatabaseRecord {
 
   status: RoomTypeStatus;
 }
+
+// hotel_rooms.room_type is `text NOT NULL` with a live CHECK constraint
+// confirmed via information_schema (hotel_rooms_room_type_check):
+//   room_type = ANY (ARRAY['single','double','twin','suite','deluxe',
+//   'executive','family'])
+// This is the single source of truth for allowed room_type values —
+// the form's dropdown and the action's Zod schema both derive from this
+// list so they can never drift out of sync with each other or with the
+// live constraint. Do not add other values without first confirming the
+// live constraint has changed.
+export const ROOM_TYPE_VALUES = [
+  'single',
+  'double',
+  'twin',
+  'suite',
+  'deluxe',
+  'executive',
+  'family',
+] as const;
+export type RoomTypeValue = (typeof ROOM_TYPE_VALUES)[number];
 
 // hotel_rooms.status is `text NOT NULL DEFAULT 'active'` live — no CHECK
 // constraint has been confirmed, so these values are an app-level
