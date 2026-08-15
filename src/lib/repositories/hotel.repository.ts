@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
+import { slugify } from '@/lib/utils/format';
 
 // HotelRecord mirrors the actual public.hotels table shape verified
 // against information_schema (SESSION 03). Do NOT add columns that are
@@ -176,11 +177,34 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   }
 
   // SESSION 03: status filter updated from 'ACTIVE' to 'active'.
+  //
+  // ROOT CAUSE FIX (public hotel 404): hotelInputSchema now canonicalizes
+  // every slug on write (see hotel.actions.ts), but rows saved before
+  // that fix may still hold a non-canonical value (spaces/mixed case).
+  // The exact-value lookup is tried first, unchanged, so already-correct
+  // slugs behave exactly as before. Only if that finds nothing do we
+  // retry with the slug run through the same slugify() used on write —
+  // this lets a legacy row still resolve via its canonical URL without
+  // a data migration, while never resolving an unrelated hotel.
   async getHotelBySlug(slug: string): Promise<HotelRecord | null> {
+    const exact = await this.queryHotelBySlugValue(slug);
+    if (exact) return exact;
+
+    const canonical = slugify(slug);
+    if (canonical && canonical !== slug) {
+      return this.queryHotelBySlugValue(canonical);
+    }
+
+    return null;
+  }
+
+  private async queryHotelBySlugValue(
+    slugValue: string
+  ): Promise<HotelRecord | null> {
     const { data, error } = await this.supabase
       .from('hotels')
       .select('*')
-      .eq('slug', slug)
+      .eq('slug', slugValue)
       .eq('status', 'active')
       .is('deleted_at', null)
       .single();
