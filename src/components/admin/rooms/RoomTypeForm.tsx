@@ -378,7 +378,7 @@ export function RoomTypeForm({
         description="Room photos are managed on a dedicated page, connected to this exact room."
       >
         {mode === "edit" && roomType ? (
-          
+          <a
             href={`/admin/hotels/${hotelId}/rooms/${roomType.id}/images`}
             className="focus-ring inline-flex items-center rounded-full border border-deep/15 px-4 py-2.5 text-sm font-semibold text-deep transition hover:bg-mist"
           >
