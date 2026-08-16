@@ -2,6 +2,23 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-08-16 — PACKAGE-IMG-01 — Package Images production 500 fix
+
+Status: FIXED — code-level root cause identified and corrected.
+
+Bug: Production POST /admin/packages/[id]/images returned 500 ("An error occurred in the Server Components render") when the client-invoked Server Actions for package images failed.
+
+Root cause: getPackageImagesAdmin, uploadPackageImageAdmin, setPrimaryPackageImageAdmin, reorderPackageImageAdmin, and deletePackageImageAdmin (src/app/actions/package.actions.ts) threw raw, unwrapped errors instead of returning the ActionResult<T> safe-result contract that the analogous Hotel image actions (getHotelImagesAdmin etc., ADMIN-03, hotel.actions.ts) already use. Any underlying Supabase/Storage/RLS failure therefore crashed the Server Action boundary instead of resolving to a catchable {success:false, error} result.
+
+Modified
+
+- src/app/actions/package.actions.ts — wrapped all five package image admin functions in runAction(), matching hotel.actions.ts's ActionResult<T> pattern exactly.
+- src/components/admin/packages/PackageImageManager.tsx — updated all five call sites to check result.success and unwrap result.data / result.error, matching HotelImageManager.tsx exactly.
+
+No repository, schema, RLS, or Storage bucket configuration changed.
+
+Not verified from repository inspection alone: the specific underlying condition that caused the original 500 in production (e.g. package_images table/RLS state, storage bucket config) — no migration file for package_images exists in the repo to confirm against. This fix guarantees the failure now surfaces as a graceful inline error instead of a hard 500, regardless of the underlying cause; the underlying cause itself needs production log confirmation (see SESSION_HANDOFF.md).
+
 2026-08-16 — ROOM-03 — Room Rates / Pricing
 
 Status: COMPLETE — Frozen — Deployment Ready
