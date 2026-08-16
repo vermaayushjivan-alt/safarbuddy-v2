@@ -2,6 +2,40 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-08-16 — ROOM-03 — Room Rates / Pricing
+
+Status: COMPLETE — Frozen — Deployment Ready
+
+Audit finding: RoomPriceRepository (src/lib/repositories/room-price.repository.ts), room-price.actions.ts, and RoomPriceManager.tsx were already fully implemented and verified against the live public.room_prices schema by a prior, undocumented session — but RoomPriceManager was never imported by any page (dead code), and no PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF entry existed for it.
+
+Created
+
+src/app/admin/hotels/[id]/rooms/[roomId]/pricing/page.tsx — wires the pre-existing RoomPriceManager into the route already referenced by the rooms list, room edit, and room images pages' navigation.
+
+Modified
+
+None. No repository, action, schema, or RLS files were changed — the existing backend was already correct.
+
+Confirmed live public.room_prices columns (per repository comments, verified via production information_schema): id, room_id, price_date, base_price, discount_amount, tax_amount, final_price, currency_id, created_at, updated_at, created_by, updated_by, deleted_at. Parent table for room_id is hotel_rooms.
+
+Verification
+
+TypeScript: PASS (0 errors).
+
+ESLint: PASS (0 errors, 1 pre-existing unrelated warning).
+
+Build: blocked only by sandbox Google Fonts network restriction (environment-only, not a code defect).
+
+Scope
+
+ROOM-03 implements per-day room pricing only.
+
+Also audited but explicitly deferred: ROOM-04 (room_inventory) has a similarly complete, undocumented backend (RoomInventoryRepository) but no CRUD actions or admin page — flagged as the next milestone, not implemented this session, per RULE 11 (one milestone at a time).
+
+Architecture
+
+Existing repository/action/component architecture retained. No new abstraction layers introduced.
+
 2026-08-12 — ADMIN-10 / ROOM-01 — Hotel Room Type Management
 
 Status: COMPLETE — Frozen — Deployment Ready
