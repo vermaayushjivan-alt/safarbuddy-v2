@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { getTrendingHotels } from "@/app/actions/hotel.actions";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
+import { slugify } from "@/lib/utils/format";
 
 // Static UI-only presentation data — no DB column exists for these yet.
 // Cycled by index against live data, same pattern as Offers/Destinations.
@@ -52,8 +53,16 @@ function formatReviews(count: number | null): string {
   return `${count}`;
 }
 
+// HOTEL 404 FIX: see the matching comment in
+// src/components/public/HotelGrid.tsx — this now links with the
+// canonicalized slug (matching src/app/admin/hotels/[id]/edit/page.tsx's
+// existing `slugify(hotel.slug)` pattern) instead of the raw, possibly
+// space-containing stored value, so the homepage never surfaces the
+// legacy-encoded URL for a hotel saved before slugs were canonicalized
+// on write.
 function hotelHref(h: HotelRecord): string {
-  const slug = h.slug && h.slug.trim().length > 0 ? h.slug : String(h.id);
+  const canonical = h.slug ? slugify(h.slug) : "";
+  const slug = canonical.length > 0 ? canonical : String(h.id);
   return `/hotels/${slug}`;
 }
 
