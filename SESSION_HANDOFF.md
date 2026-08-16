@@ -4,11 +4,21 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
-ROOM-03 — Room Rates / Pricing — COMPLETE — Frozen
+ROOM-03 — Room Rates / Pricing — COMPLETE — Frozen (unaffected by the hotfix below; not reopened).
 
 Deployment-ready. Do not reopen unless a regression/bug is found.
 
-Completed this session (2026-08-16)
+Hotfix this session (2026-08-16 — PACKAGE-IMG-01)
+
+Production bug: POST /admin/packages/[id]/images returned a 500 ("An error occurred in the Server Components render") — reported against deployment dpl_HfD7ephHYjsLPT84oj1V7G3cBLWQ.
+
+Root cause found by comparing ADMIN-05 (package images) against the working ADMIN-03 (hotel images) implementation: the five package image Server Actions in package.actions.ts threw raw errors instead of returning the ActionResult<T> safe-result contract used everywhere else in hotel.actions.ts. An uncaught throw across a client-invoked Server Action boundary produces exactly this generic production 500 instead of a catchable client-side error.
+
+Fix: wrapped all five functions (getPackageImagesAdmin, uploadPackageImageAdmin, setPrimaryPackageImageAdmin, reorderPackageImageAdmin, deletePackageImageAdmin) in runAction(), and updated PackageImageManager.tsx to unwrap ActionResult, matching HotelImageManager.tsx exactly. Files changed: src/app/actions/package.actions.ts, src/components/admin/packages/PackageImageManager.tsx. No repository/schema/RLS/Storage config changes.
+
+Not verified: the specific underlying trigger of the original 500 (e.g. package_images table/RLS state in production) — no migration file for package_images exists in this repo to check against, and I have no production DB or Vercel log access. The fix removes the crash-on-any-failure behavior regardless of the underlying cause, but if the underlying condition (e.g. a missing RLS policy) is still present, the UI will now show a graceful inline error message instead of a 500 — that message should be captured and checked next if the page still doesn't work end-to-end.
+
+Completed previous session (2026-08-16, ROOM-03)
 
 Audited the repository per DEVELOPMENT_BIBLE RULE 13/15 before coding, and found that RoomPriceRepository, room-price.actions.ts, and RoomPriceManager.tsx already existed, fully implemented and schema-verified against the live public.room_prices table — from a prior session that never documented the work and never wired RoomPriceManager to a route. It was dead code.
 
