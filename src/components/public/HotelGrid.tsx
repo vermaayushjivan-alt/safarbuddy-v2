@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Star, BedDouble } from "lucide-react";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
+import { slugify } from "@/lib/utils/format";
 
 // PUBLIC-01 — shared card grid for the public /hotels listing page
 // (src/app/hotels/page.tsx). Mirrors components/public/DestinationGrid.tsx.
@@ -19,8 +20,19 @@ function formatPrice(price: number | null): string {
   return price.toLocaleString("en-IN");
 }
 
+// HOTEL 404 FIX: this used to link with the raw, possibly non-canonical
+// `h.slug` value (e.g. "shri sitaram seva trust", with literal spaces,
+// for any hotel saved before hotel.actions.ts started canonicalizing
+// slugs on write). React/the browser then percent-encodes those spaces,
+// so every "View Hotel" link on this grid pointed visitors at the
+// legacy-encoded URL (`/hotels/shri%20sitaram%20seva%20trust`) instead
+// of the canonical one — the exact non-canonical URL most likely to hit
+// a stale/legacy cache entry. src/app/admin/hotels/[id]/edit/page.tsx
+// already links with `slugify(hotel.slug)`; this now matches that
+// existing pattern instead of inventing a new one.
 function hotelHref(h: HotelRecord): string {
-  const slug = h.slug && h.slug.trim().length > 0 ? h.slug : String(h.id);
+  const canonical = h.slug ? slugify(h.slug) : "";
+  const slug = canonical.length > 0 ? canonical : String(h.id);
   return `/hotels/${slug}`;
 }
 
