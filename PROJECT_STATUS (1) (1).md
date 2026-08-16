@@ -162,6 +162,44 @@ Created: src/app/admin/hotels/[id]/rooms/[roomId]/images/page.tsx, src/component
 
 Final status: Deployment Ready.
 
+ROOM-03 (Room Rates / Pricing) — COMPLETE — Frozen
+
+Per-day room rate management (public.room_prices), confirmed live columns: id, room_id, price_date, base_price, discount_amount, tax_amount, final_price, currency_id, created_at, updated_at, created_by, updated_by, deleted_at. Parent table for room_prices.room_id is hotel_rooms (production; room_types does not exist — PGRST205).
+
+Note: this session found the RoomPriceRepository, room-price.actions.ts, and RoomPriceManager component already implemented and schema-verified from a prior, undocumented session — but with no admin page ever wired up (RoomPriceManager was unreferenced/dead code) and no PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF entry recording the work. This entry backfills that gap and completes the milestone by adding the missing route.
+
+Features:
+
+/admin/hotels/[id]/rooms/[roomId]/pricing — per-room rate management page.
+
+Create / edit / delete a rate for a single date.
+
+Bulk "Apply to Date Range" with a review/confirm step before overwriting existing rates (capped at 366 days per call).
+
+Final price (base − discount + tax, floored at 0) computed and stored server-side, never trusted from the client.
+
+Currency selection sourced from public.currencies (defaults to INR when present).
+
+Server-side ownership verification (verifyRoomOwnership) scoping every mutation to the correct room_id/hotel_id pair before allowing admin/hotel_owner writes — a hotel_owner cannot price another hotel's room.
+
+Loading, empty, validation-error, and success/error states throughout.
+
+Created:
+
+src/app/admin/hotels/[id]/rooms/[roomId]/pricing/page.tsx
+
+Not created (pre-existing from the undocumented prior session, unchanged this session):
+
+src/lib/repositories/room-price.repository.ts
+
+src/app/actions/room-price.actions.ts
+
+src/components/admin/rooms/RoomPriceManager.tsx
+
+Scope: ROOM-03 only. ROOM-04 (room_inventory / availability) backend (RoomInventoryRepository) also already exists but is read-only-wired (a single dashboard summary action) — no create/update/delete actions or admin page exist yet. The /admin/hotels/[id]/rooms/[roomId]/availability route referenced by the pricing/images/edit pages' nav is NOT yet implemented. ROOM-05 booking-room linkage remains untouched.
+
+Final status: Deployment Ready.
+
 Pending
 
 Booking — deferred scope
@@ -170,13 +208,11 @@ Room/departure inventory, availability calendars, coupons, commissions, invoices
 
 Room Management — future milestones
 
-ROOM-03 — Room Rates
-
-ROOM-04 — Room Inventory / Availability
+ROOM-04 — Room Inventory / Availability. Backend groundwork (RoomInventoryRepository, confirmed live room_inventory columns) already exists from a prior undocumented session, but only a single read-only dashboard-summary action is wired up — create/update/delete actions and the /admin/hotels/[id]/rooms/[roomId]/availability admin page do not exist yet.
 
 ROOM-05 — Booking-Room Linkage
 
-Do not combine these with ADMIN-10 without explicit milestone approval.
+Do not combine these with ADMIN-10/ROOM-03 without explicit milestone approval.
 
 Architecture Cleanup
 
@@ -228,9 +264,9 @@ Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
 Next Development Phase
 
-ROOM-03 — Room Rates
+ROOM-04 — Room Inventory / Availability
 
-Before coding, perform the required RULE 15 readiness audit and confirm the approved schema. Do not invent ROOM-03 schema.
+Before coding, perform the required RULE 15 readiness audit. RoomInventoryRepository already exists with confirmed live room_inventory columns (id, room_id, inventory_date, total_rooms, available_rooms, blocked_rooms, booked_rooms, created_at, updated_at, created_by, updated_by, deleted_at) — verify that documentation against the live schema again before extending it, add the missing create/update/delete Server Actions, and build the /admin/hotels/[id]/rooms/[roomId]/availability page already referenced by existing nav links. Do not invent additional schema.
 
 Dedicated Architecture Cleanup
 
@@ -259,3 +295,5 @@ v7 (2026-08-12) — PAY-01/PAY-02 documentation backfill and PAY-03 admin UI.
 v8 (2026-08-12) — ADMIN-10 / ROOM-01 completed/frozen. Room type list/edit flow, form, repository, actions and Zod schema completed. Build/type errors related to RoomTypeForm and room-list return shape resolved. Deployment-ready state recorded.
 
 v9 (2026-08-12) — Pre-ROOM-03 hardening pass. Missing rooms/new route created (reuses RoomTypeForm). ROOM-02 image ownership vulnerability fixed (reorder/set-primary/delete now scoped to room_type_id). Upload/delete Storage↔DB failure handling hardened. ROOM-02 marked COMPLETE — Frozen. .gitignore restored from misnamed `gitignore` file (repo secrets were previously untracked-by-name only, not actually git-ignored); .env.example added. Two confirmed-unused stray files removed (stray-extension repository file, duplicate next.config). 005_room01_schema.sql confirmed genuinely absent — flagged LIVE VERIFICATION REQUIRED rather than reconstructed. src/lib/repository/, user.repository.ts, and src/lib/db/index.ts confirmed fully unused (documented for future cleanup, not deleted). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning). Production build: blocked by sandbox network restriction on Google Fonts fetch (environment-only, not a code defect — see PAY-03 note above for precedent).
+
+v10 (2026-08-16) — ROOM-03 documentation backfill and admin page wiring. Audit found RoomPriceRepository, room-price.actions.ts, and the RoomPriceManager component already implemented and live-schema-verified from an undocumented prior session, but never wired to a route (RoomPriceManager was dead/unreferenced code) and never recorded in PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF. Added the missing /admin/hotels/[id]/rooms/[roomId]/pricing page (existing nav links in the rooms list, edit, and images pages already pointed at this exact route). No repository, action, schema, or RLS changes — only the route was added. ROOM-03 marked COMPLETE — Frozen. Also discovered, but explicitly left out of scope: RoomInventoryRepository (ROOM-04 backend) exists with confirmed live room_inventory columns, but only a read-only summary action and no admin CRUD/page exist yet — documented under Next Development Phase rather than implemented, per RULE 11 (one milestone at a time). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element). Production build: blocked only by the same sandbox Google Fonts network restriction as v9 (403 fetching Inter from fonts.googleapis.com); no code-level build errors.
