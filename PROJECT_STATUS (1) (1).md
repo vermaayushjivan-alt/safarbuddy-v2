@@ -28,6 +28,8 @@ ADMIN-04 (Package CRUD) — COMPLETE — Frozen
 
 ADMIN-05 (Package Image Management) — COMPLETE — Frozen
 
+2026-08-16 hotfix (PACKAGE-IMG-01): getPackageImagesAdmin, uploadPackageImageAdmin, setPrimaryPackageImageAdmin, reorderPackageImageAdmin, and deletePackageImageAdmin in package.actions.ts threw raw errors instead of returning ActionResult<T>, unlike the identical Hotel image actions (ADMIN-03). Any underlying Supabase/Storage/RLS failure on these Server Actions therefore surfaced in production as an opaque 500 ("An error occurred in the Server Components render") on POST /admin/packages/[id]/images instead of a graceful inline error. Fixed by wrapping all five functions in runAction (matching hotel.actions.ts exactly) and updating PackageImageManager.tsx to unwrap the ActionResult, mirroring HotelImageManager.tsx. No repository, schema, RLS, or Storage bucket changes. Underlying trigger for the specific production 500 (e.g. package_images RLS/table state) not independently verified — see SESSION_HANDOFF.md for what remains open.
+
 AUTH-05 (Role-Based Authentication) — COMPLETE — Frozen
 
 Role protection, session helpers, middleware session refresh, protected layouts, /unauthorized, and role seed.
