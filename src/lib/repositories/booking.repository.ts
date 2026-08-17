@@ -426,8 +426,13 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
         convenience_fee:
           0,
 
-        grand_total:
-          data.price_snapshot,
+        // NOTE: `grand_total` is a PostgreSQL generated column
+        // (derived from subtotal/taxes/discount/coupon_discount/
+        // wallet_used/convenience_fee). It must never be supplied
+        // in an INSERT — PostgreSQL rejects that with error 428C9
+        // ("cannot insert a non-DEFAULT value into column
+        // grand_total"). The post-insert `.select("*")` below
+        // re-fetches the DB-computed value.
 
         booking_date:
           new Date().toISOString(),
