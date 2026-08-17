@@ -191,7 +191,7 @@ const createBookingSchema =
   );
 
 export type CreateBookingInput =
-  z.infer<
+  z.infer
     typeof createBookingBaseSchema
   >;
 
@@ -216,28 +216,44 @@ const cancelBookingSchema =
 /**
  * The authenticated Supabase user ID is auth.users.id.
  *
- * bookings.customer_id also stores public.users.id — but per the locked
- * AUTH RULE (src/db/schema.ts header, src/db/sql/001_auth_sync_trigger.sql,
- * and src/lib/auth/session.ts's getCurrentUser()): public.users.id ===
- * auth.users.id. There is no separate `auth_user_id` column on
- * public.users — the sync trigger always writes NEW.id (the auth id)
- * directly into public.users.id.
+ * bookings.customer_id stores public.users.id (the row's own primary
+ * key) — NOT auth.users.id directly. The two are linked via a separate
+ * `public.users.auth_user_id` column, confirmed live via
+ * information_schema.columns (2026-08-17 production audit):
+ *   id uuid, auth_user_id uuid, full_name text, email text, phone text,
+ *   status text, is_verified boolean, created_at/updated_at timestamptz,
+ *   created_by/updated_by uuid, deleted_at timestamptz.
+ * This is also independently confirmed by the live RLS policy
+ * `users_select_self` (`auth_user_id = auth.uid()`), pulled via
+ * pg_policies in the same audit.
  *
- * CORRECTION: this function previously queried
- * `.eq("auth_user_id", authUserId)`. That column does not exist on the
- * live public.users schema (confirmed by the same trigger/schema.ts
- * evidence that already made src/lib/auth/session.ts's getCurrentUser()
- * stop querying public.users for this exact reason). Filtering on a
- * nonexistent column makes PostgREST return a hard error (not merely
- * zero rows), which this function then rethrows — inside a "use server"
- * action, so Next.js redacts it to the generic production 500 the user
- * sees ("An error occurred in the Server Components render..."). Fixed
- * to filter on `id` (== authUserId) instead, which still defends against
- * the (expected-rare) case where the auth-sync trigger hasn't created
- * the public.users row yet.
+ * CORRECTION (supersedes the previous comment in this function, and the
+ * "Auth architecture (LOCKED)" section of DATABASE_BIBLE.md, both of
+ * which incorrectly stated public.users.id === auth.users.id with no
+ * auth_user_id column): a prior session changed this filter from
+ * `.eq("auth_user_id", authUserId)` to `.eq("id", authUserId)` based on
+ * that incorrect documentation. Since `id` and `auth_user_id` are
+ * different columns/values, that query correctly ran but matched zero
+ * rows for every real user (RLS enforces `auth_user_id = auth.uid()`,
+ * so a query filtered on `id` finds nothing), which this function then
+ * throws as USER_PROFILE_NOT_FOUND — surfacing to the client as the
+ * reported production 500 on every hotel/package booking attempt.
+ * Reverted to filter on `auth_user_id`, and the returned value remains
+ * `data.id` (public.users.id, the primary key), which is what
+ * bookings.customer_id actually expects.
+ *
+ * Exported (2026-08-17) so payment.actions.ts and any other server
+ * action that needs to resolve auth.users.id -> public.users.id can
+ * reuse this single implementation instead of re-deriving it
+ * (DEVELOPMENT_BIBLE RULE 1 — never create duplicate code). This is
+ * the same bug class that made payment.actions.ts compare
+ * booking.user_id (public.users.id) directly against authUser.id
+ * (auth.users.id) and insert authUser.id into payments.user_id, which
+ * has a foreign key to public.users(id) — both fixed in this pass by
+ * routing through this function instead.
  */
-async function getPublicUserId(
-  supabase: Awaited<
+export async function getPublicUserId(
+  supabase: Awaited
     ReturnType<typeof createClient>
   >,
   authUserId: string
@@ -249,7 +265,7 @@ async function getPublicUserId(
     .from("users")
     .select("id")
     .eq(
-      "id",
+      "auth_user_id",
       authUserId
     )
     .is(
@@ -323,7 +339,7 @@ async function getPublicUserId(
  * without weakening RLS or hardcoding the known UUID as a fallback.
  */
 async function getInrCurrencyId(
-  supabase: Awaited<
+  supabase: Awaited
     ReturnType<typeof createClient>
   >
 ): Promise<string> {
@@ -442,11 +458,10 @@ export async function createBooking(
     await createClient();
 
   // ---------------------------------------------------------------------------
-  // IMPORTANT (see getPublicUserId's docstring above for the full
-  // correction): public.users.id === auth.users.id, and
-  // bookings.customer_id expects public.users.id — so this is really a
-  // defensive existence check on the auth-synced profile row, not an
-  // ID translation.
+  // See getPublicUserId's docstring above for the full correction:
+  // public.users.id !== auth.users.id (linked via auth_user_id).
+  // bookings.customer_id expects public.users.id, so this resolves the
+  // auth session's id to the actual public.users.id row.
   // ---------------------------------------------------------------------------
 
   const customerId =
