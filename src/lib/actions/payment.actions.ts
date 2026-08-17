@@ -142,17 +142,16 @@ async function createNewPayment(bookingId: string): Promise<{
     booking_id: booking.id,
     user_id: authUser.id,
 
-    cf_order_id: gatewayOrderId,
-    cf_payment_id: null,
-    payment_session_id:
-      cashfreeOrder.payment_session_id,
+    gateway_order_id: gatewayOrderId,
+    gateway_payment_id: null,
+    payment_gateway: "cashfree",
 
     amount,
-    currency,
+    currency_code: currency,
 
     status: "initiated",
 
-    cf_payment_status: null,
+    gateway_payment_status: null,
     payment_method: null,
     failure_reason: null,
 
