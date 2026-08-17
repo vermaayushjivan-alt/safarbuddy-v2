@@ -207,7 +207,7 @@ export async function POST(
 
   if (!payment) {
     console.warn(
-      `[Cashfree Webhook] No payment found for cf_order_id=${merchantOrderId}`
+      `[Cashfree Webhook] No payment found for gateway_order_id=${merchantOrderId}`
     );
 
     return ok();
@@ -237,7 +237,7 @@ export async function POST(
 
     const storedCurrency =
       String(
-        payment.currency || ""
+        payment.currency_code || ""
       ).toUpperCase();
 
     const receivedCurrency =
@@ -274,13 +274,13 @@ export async function POST(
           {
             status: "failed",
 
-            cf_payment_id:
+            gateway_payment_id:
               typeof cfPaymentId ===
               "string"
                 ? cfPaymentId
                 : null,
 
-            cf_payment_status:
+            gateway_payment_status:
               rawStatus,
 
             payment_method:
@@ -315,13 +315,13 @@ export async function POST(
       {
         status: mappedStatus,
 
-        cf_payment_id:
+        gateway_payment_id:
           typeof cfPaymentId ===
           "string"
             ? cfPaymentId
             : undefined,
 
-        cf_payment_status:
+        gateway_payment_status:
           rawStatus,
 
         payment_method:
