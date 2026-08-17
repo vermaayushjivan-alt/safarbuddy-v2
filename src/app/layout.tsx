@@ -8,6 +8,10 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'SafarBuddy - Your Travel Companion',
   description: 'Enterprise-grade travel platform for hotels, resorts, homestays, and tour packages',
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
