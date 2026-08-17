@@ -96,9 +96,9 @@ export default async function AdminPaymentsListPage({
             ) : (
               payments.map((payment: PaymentRecord) => (
                 <tr key={payment.id} className="border-b border-deep/10 last:border-0 align-top">
-                  <td className="px-4 py-3 font-medium text-deep">{payment.cf_order_id}</td>
+                  <td className="px-4 py-3 font-medium text-deep">{payment.gateway_order_id}</td>
                   <td className="px-4 py-3 text-ink/70">
-                    {payment.currency} {Number(payment.amount).toLocaleString('en-IN')}
+                    {payment.currency_code} {Number(payment.amount).toLocaleString('en-IN')}
                   </td>
                   <td className="px-4 py-3 text-ink/70 capitalize">
                     {payment.payment_method ?? '—'}
