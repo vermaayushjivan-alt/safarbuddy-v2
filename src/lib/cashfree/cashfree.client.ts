@@ -105,10 +105,16 @@ export async function createCashfreeOrder(
   }
 
   if (!response.ok) {
-    // Non-2xx from Cashfree — do not forward raw Cashfree error body.
-    // Log status server-side only.
+    // Non-2xx from Cashfree — do not forward raw Cashfree error body
+    // to the client. Log status + body server-side only, for debugging.
+    // TEMP DEBUG (PAY-01): remove this .text() + errorBody log line
+    // once the 401 root cause is confirmed — Cashfree's error body can
+    // contain account-identifying details and should not sit in logs
+    // long-term.
+    const errorBody = await response.text();
     console.error(
-      `[Cashfree] Order creation failed: HTTP ${response.status}`
+      `[Cashfree] Order creation failed: HTTP ${response.status}`,
+      errorBody
     );
     throw new Error(
       'Failed to create payment order. Please try again.'
