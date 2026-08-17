@@ -16,13 +16,13 @@ export interface PaymentRecord extends DatabaseRecord {
   id: string;
   booking_id: string;
   user_id: string;
-  cf_order_id: string;
-  cf_payment_id: string | null;
-  payment_session_id: string | null;
+  gateway_order_id: string;
+  gateway_payment_id: string | null;
+  payment_gateway: string;
   amount: number;
-  currency: string;
+  currency_code: string;
   status: PaymentStatus;
-  cf_payment_status: string | null;
+  gateway_payment_status: string | null;
   payment_method: string | null;
   failure_reason: string | null;
   initiated_at: string | null;
@@ -34,8 +34,8 @@ type PaymentUpdateData =
 
 export interface UpdatePaymentStatusData {
   status: PaymentStatus;
-  cf_payment_id?: string | null;
-  cf_payment_status?: string | null;
+  gateway_payment_id?: string | null;
+  gateway_payment_status?: string | null;
   payment_method?: string | null;
   failure_reason?: string | null;
   completed_at?: string | null;
@@ -61,13 +61,13 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
   }
 
   async getPaymentByOrderId(
-    cfOrderId: string
+    gatewayOrderId: string
   ): Promise<PaymentRecord | null> {
     return this.findOne([
       {
-        column: "cf_order_id",
+        column: "gateway_order_id",
         operator: "eq",
-        value: cfOrderId,
+        value: gatewayOrderId,
       },
     ]);
   }
@@ -97,12 +97,12 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
   ): Promise<PaymentRecord> {
     const updateData: PaymentUpdateData = { status: data.status };
 
-    if (data.cf_payment_id !== undefined) {
-      updateData.cf_payment_id = data.cf_payment_id;
+    if (data.gateway_payment_id !== undefined) {
+      updateData.gateway_payment_id = data.gateway_payment_id;
     }
 
-    if (data.cf_payment_status !== undefined) {
-      updateData.cf_payment_status = data.cf_payment_status;
+    if (data.gateway_payment_status !== undefined) {
+      updateData.gateway_payment_status = data.gateway_payment_status;
     }
 
     if (data.payment_method !== undefined) {
