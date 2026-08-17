@@ -59,7 +59,7 @@ export default async function AdminPaymentDetailPage({
       <div className="mb-8 flex items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl text-deep">Payment Details</h1>
-          <p className="mt-2 text-[14px] text-ink/60">{payment.cf_order_id}</p>
+          <p className="mt-2 text-[14px] text-ink/60">{payment.gateway_order_id}</p>
         </div>
         <Link
           href="/admin/payments"
@@ -84,13 +84,13 @@ export default async function AdminPaymentDetailPage({
         />
         <DetailRow
           label="Amount"
-          value={`${payment.currency} ${Number(payment.amount).toLocaleString('en-IN')}`}
+          value={`${payment.currency_code} ${Number(payment.amount).toLocaleString('en-IN')}`}
         />
-        <DetailRow label="Gateway Order ID" value={payment.cf_order_id} />
-        <DetailRow label="Gateway Payment ID" value={payment.cf_payment_id ?? '—'} />
+        <DetailRow label="Gateway Order ID" value={payment.gateway_order_id} />
+        <DetailRow label="Gateway Payment ID" value={payment.gateway_payment_id ?? '—'} />
         <DetailRow
           label="Gateway Status (raw)"
-          value={payment.cf_payment_status ?? '—'}
+          value={payment.gateway_payment_status ?? '—'}
         />
         <DetailRow
           label="Payment Method"
