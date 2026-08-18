@@ -230,4 +230,40 @@ export class RoomInventoryRepository extends BaseRepository<RoomInventoryRow> {
 
     return data as RoomInventoryRow;
   }
+
+  // Resets a single date back to "not set" (soft-delete). Refuses if any
+  // rooms are already booked for that date — same "never invalidate an
+  // existing booking" guard as setInventoryForDate, since a missing
+  // inventory row is treated as "not managed" by the rest of the app,
+  // and silently discarding a date with live bookings would hide that
+  // fact rather than protect it.
+  async deleteInventoryForDate(
+    roomId: string,
+    inventoryDate: string
+  ): Promise<boolean> {
+    const existing = await this.getInventoryForDate(roomId, inventoryDate);
+
+    if (!existing) {
+      return true;
+    }
+
+    if (existing.booked_rooms > 0) {
+      throw new Error(
+        `Cannot clear availability for ${inventoryDate} — ` +
+        `${existing.booked_rooms} room(s) are already booked for that date.`
+      );
+    }
+
+    const { error } = await this.supabase
+      .from('room_inventory')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', existing.id);
+
+    if (error) {
+      console.error('[room_inventory] deleteInventoryForDate failed', error);
+      throw error;
+    }
+
+    return true;
+  }
 }
