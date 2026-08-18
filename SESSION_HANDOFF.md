@@ -4,11 +4,30 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
-ROOM-03 — Room Rates / Pricing — COMPLETE — Frozen (unaffected by the hotfix below; not reopened).
+ROOM-04 — Room Inventory / Availability — COMPLETE — Frozen (this session).
 
 Deployment-ready. Do not reopen unless a regression/bug is found.
 
-Hotfix this session (2026-08-16 — PACKAGE-IMG-01)
+Completed this session (2026-08-18 — ROOM-04)
+
+Audited the repository per DEVELOPMENT_BIBLE RULE 13/15 before coding, following the same process as the ROOM-03 pass. Found RoomInventoryRepository already existed with getInventoryForRange, getInventoryForDate, getInventoryForRoomsOnDate, verifyRoomOwnership, and setInventoryForDate fully implemented and schema-verified from a prior undocumented session — only the read-only getRoomInventorySummaryForHotelAdmin dashboard action was wired up.
+
+Added the missing pieces, following the ROOM-03 pattern exactly:
+
+- One new repository method: deleteInventoryForDate (soft-delete, refuses if booked_rooms > 0 for that date — same guard principle as the pre-existing setInventoryForDate).
+- Four new Server Actions in room-inventory.actions.ts: setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, bulkSetInventoryAction — Zod-validated, ActionResult<T>, ownership-checked via requireRole + repo.verifyRoomOwnership.
+- New component: src/components/admin/rooms/RoomInventoryManager.tsx.
+- New route: src/app/admin/hotels/[id]/rooms/[roomId]/availability/page.tsx — the exact route the rooms list, room edit, room images, and room pricing pages already linked to.
+
+No schema, RLS, or database changes. No pre-existing method/export was changed, only added to.
+
+Verified TypeScript and ESLint (see Verification below). Production build not run this session — same sandbox Google Fonts network restriction as every prior session.
+
+Updated PROJECT_STATUS.md and CHANGELOG.md with the ROOM-04 record.
+
+ROOM-05 (booking-room linkage) is the next milestone — not started, needs a fresh RULE 15 audit before coding.
+
+Hotfix previous session (2026-08-16 — PACKAGE-IMG-01)
 
 Production bug: POST /admin/packages/[id]/images returned a 500 ("An error occurred in the Server Components render") — reported against deployment dpl_HfD7ephHYjsLPT84oj1V7G3cBLWQ.
 
@@ -82,7 +101,7 @@ ROOM-02 room images — COMPLETE — Frozen.
 
 ROOM-03 room rates/pricing — COMPLETE — Frozen (this session).
 
-ROOM-04 room inventory/availability — NOT implemented. Backend repository exists (read-only wired only); no CRUD actions, no admin page.
+ROOM-04 room inventory/availability — COMPLETE — Frozen (this session).
 
 ROOM-05 booking-room linkage — NOT implemented.
 
@@ -115,9 +134,9 @@ Resolved.
 
 Next action
 
-ROOM-04 — Room Inventory / Availability
+ROOM-05 — Booking-Room Linkage
 
-RoomInventoryRepository already exists (confirmed live room_inventory columns: id, room_id, inventory_date, total_rooms, available_rooms, blocked_rooms, booked_rooms, created_at, updated_at, created_by, updated_by, deleted_at). Only getRoomInventorySummaryForHotelAdmin (read-only) is wired up. Missing: create/update/delete Server Actions in room-inventory.actions.ts, and the /admin/hotels/[id]/rooms/[roomId]/availability admin page (already linked from the pricing/images/edit pages' nav).
+Not started. Requires a fresh DEVELOPMENT_BIBLE RULE 15 readiness audit before coding — confirm the actual live schema and any existing repository/action groundwork before writing anything, same process used for ROOM-03 and ROOM-04.
 
 Before coding:
 
@@ -155,14 +174,14 @@ Google OAuth unexpected_failure.
 
 Frozen milestones
 
-HOME-01, HOME-02, HOME-03, ADMIN-01 through ADMIN-10, AUTH-05, AUTH-06, BOOKING-01, PAY-01, PAY-02, PAY-03, ROOM-01, ROOM-02, and ROOM-03 are frozen unless a real bug/regression requires reopening.
+HOME-01, HOME-02, HOME-03, ADMIN-01 through ADMIN-10, AUTH-05, AUTH-06, BOOKING-01, PAY-01, PAY-02, PAY-03, ROOM-01, ROOM-02, ROOM-03, and ROOM-04 are frozen unless a real bug/regression requires reopening.
 
-Verification (this session, 2026-08-16)
+Verification (this session, 2026-08-18)
 
 TypeScript (`npx tsc --noEmit`): PASS, 0 errors.
 
 ESLint (`npm run lint`): PASS, 0 errors, 1 pre-existing unrelated warning (components/layout/ProfileMenu.tsx, no-img-element).
 
-Production build (`npm run build`): blocked only by the sandbox's Google Fonts network restriction (403 fetching Inter from fonts.googleapis.com) — environment-only, not a code defect, consistent with every prior session's build result in this sandbox.
+Production build (`npm run build`): not run this session — prior sessions' build attempts were blocked only by the sandbox's Google Fonts network restriction (403 fetching Inter from fonts.googleapis.com), which is environment-only and not a code defect; tsc/eslint both clean.
 
 Deployment: READY (pending the same external font-fetch caveat as prior sessions).
