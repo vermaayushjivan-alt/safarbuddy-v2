@@ -1,4 +1,4 @@
-// PATH: src/app/actions/booking.actions.ts  (PART 1 of 2 — lines 1–450)
+// PATH: src/app/actions/booking.actions.ts
 "use server";
 
 import { z } from "zod";
@@ -226,7 +226,7 @@ const cancelBookingSchema =
  * public.users.auth_user_id -> auth.users.id
  * public.users.id           -> bookings.customer_id
  */
-export async function getPublicUserId(
+async function getPublicUserId(
   supabase: Awaited
     ReturnType<typeof createClient>
   >,
@@ -449,7 +449,6 @@ export async function createBooking(
       priceSnapshot
     ) ||
     priceSnapshot < 0
-// PATH: src/app/actions/booking.actions.ts  (PART 2 of 2 — lines 450–891, continues directly from Part 1)
   ) {
     throw new Error(
       "Invalid booking price."
