@@ -260,12 +260,12 @@ export default function Trending() {
                     >
                       View details
                     </Link>
-                    <button
-                      type="button"
-                      className="focus-ring flex-1 rounded-xl bg-deep py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
+                    <Link
+                      href={`${hotelHref(h)}/book`}
+                      className="focus-ring flex-1 rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 active:scale-[0.98]"
                     >
                       Book now
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </div>
