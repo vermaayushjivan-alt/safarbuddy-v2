@@ -14,10 +14,10 @@ function formatDateTime(value: string | null): string {
 
 function statusBadgeClass(status: string): string {
   switch (status) {
-    case 'paid':
+    case 'success':
       return 'bg-mist text-deep';
     case 'failed':
-    case 'flagged':
+    case 'cancelled':
       return 'bg-red-50 text-red-600';
     default:
       return 'bg-orange/10 text-orange';
