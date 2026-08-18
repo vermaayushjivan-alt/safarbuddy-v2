@@ -2,6 +2,36 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-08-18 — ROOM-04 — Room Inventory / Availability
+
+Status: COMPLETE — Frozen — Deployment Ready
+
+Audit finding: RoomInventoryRepository (src/lib/repositories/room-inventory.repository.ts) already existed, live-schema-verified from a prior undocumented session, with getInventoryForRange, getInventoryForDate, getInventoryForRoomsOnDate, verifyRoomOwnership, and setInventoryForDate already implemented. Only a single read-only dashboard-summary Server Action (getRoomInventorySummaryForHotelAdmin) was wired up — no create/update/delete actions and no admin page existed, even though the /admin/hotels/[id]/rooms/[roomId]/availability route was already linked from the rooms list, edit, images, and pricing pages' navigation (all 404ing).
+
+Created
+
+- src/app/admin/hotels/[id]/rooms/[roomId]/availability/page.tsx — wires the new RoomInventoryManager into the route already referenced by existing navigation, following the ROOM-03 pricing page exactly.
+- src/components/admin/rooms/RoomInventoryManager.tsx — client-component admin UI (date-range view, single-date set/edit/clear, bulk date-range apply with confirm step), structured identically to RoomPriceManager.tsx.
+
+Modified
+
+- src/app/actions/room-inventory.actions.ts — added setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, and bulkSetInventoryAction (Zod-validated, ActionResult<T>, ownership-checked), matching room-price.actions.ts's pattern. Pre-existing getRoomInventorySummaryForHotelAdmin left untouched.
+- src/lib/repositories/room-inventory.repository.ts — added one new method, deleteInventoryForDate: soft-deletes a date's inventory row, but refuses (throws) if booked_rooms > 0 for that date — the same "never invalidate an existing booking" guard already used by the pre-existing setInventoryForDate. No other method changed.
+
+Confirmed live public.room_inventory columns (per repository comments from the prior session's audit, unchanged this session): id, room_id, inventory_date, total_rooms, available_rooms, blocked_rooms, booked_rooms, created_at, updated_at, created_by, updated_by, deleted_at.
+
+Verification
+
+TypeScript: PASS (0 errors).
+
+ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element).
+
+Build: not run this session; same sandbox Google Fonts network restriction noted in prior entries applies to any local build attempt — no code-level build errors (tsc/eslint both clean).
+
+Scope
+
+ROOM-04 implements per-day room availability (total/blocked/booked/available counts) only. No schema, RLS, or database changes — this session only added application code on top of the already-confirmed live schema. ROOM-05 (booking-room linkage) remains untouched and is the next milestone.
+
 2026-08-16 — PACKAGE-IMG-01 — Package Images production 500 fix
 
 Status: FIXED — code-level root cause identified and corrected.
@@ -47,7 +77,7 @@ Scope
 
 ROOM-03 implements per-day room pricing only.
 
-Also audited but explicitly deferred: ROOM-04 (room_inventory) has a similarly complete, undocumented backend (RoomInventoryRepository) but no CRUD actions or admin page — flagged as the next milestone, not implemented this session, per RULE 11 (one milestone at a time).
+Also audited but explicitly deferred: ROOM-04 (room_inventory) has a similarly complete, undocumented backend (RoomInventoryRepository) but no CRUD actions or admin page — flagged as the next milestone, not implemented this session, per RULE 11 (one milestone at a time). ROOM-04 completed 2026-08-18, see entry above.
 
 Architecture
 
