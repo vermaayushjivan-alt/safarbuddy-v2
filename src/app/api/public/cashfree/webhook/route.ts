@@ -11,14 +11,19 @@ export const runtime = "nodejs";
 
 const CF_STATUS_MAP: Record<
   string,
-  "processing" | "paid" | "failed" | "flagged"
+  "pending" | "success" | "failed" | "cancelled"
 > = {
-  SUCCESS: "paid",
-  PENDING: "processing",
+  SUCCESS: "success",
+  PENDING: "pending",
   FAILED: "failed",
   USER_DROPPED: "failed",
-  CANCELLED: "failed",
-  FLAGGED: "flagged",
+  CANCELLED: "cancelled",
+  // FLAGGED (fraud/manual review) has no dedicated terminal value in
+  // the live `payments_status_check` constraint. Mapped to "pending"
+  // (not terminal) so a later webhook resolving the review to
+  // SUCCESS/FAILED can still update the row. The raw "FLAGGED" value
+  // is preserved in `gateway_payment_status` for admin/audit visibility.
+  FLAGGED: "pending",
 };
 
 function ok() {
@@ -215,16 +220,22 @@ export async function POST(
 
   // Terminal payment states are idempotent.
   // A duplicate webhook must never downgrade
-  // a paid/failed/flagged payment.
+  // a success/failed/cancelled/refunded payment.
+  // "pending" is intentionally NOT terminal — both the initial
+  // pre-payment state and a Cashfree FLAGGED (manual review) result
+  // map to "pending", and a later webhook must still be able to
+  // resolve either one.
   if (
-    payment.status === "paid" ||
+    payment.status === "success" ||
     payment.status === "failed" ||
-    payment.status === "flagged"
+    payment.status === "cancelled" ||
+    payment.status === "refunded" ||
+    payment.status === "partially_refunded"
   ) {
     return ok();
   }
 
-  if (mappedStatus === "paid") {
+  if (mappedStatus === "success") {
     const storedAmount =
       Number(payment.amount);
 
@@ -332,7 +343,7 @@ export async function POST(
 
         failure_reason:
           mappedStatus === "failed" ||
-          mappedStatus === "flagged"
+          mappedStatus === "cancelled"
             ? typeof paymentMessage ===
               "string"
               ? paymentMessage
@@ -340,9 +351,9 @@ export async function POST(
             : null,
 
         completed_at:
-          mappedStatus === "paid" ||
+          mappedStatus === "success" ||
           mappedStatus === "failed" ||
-          mappedStatus === "flagged"
+          mappedStatus === "cancelled"
             ? new Date().toISOString()
             : null,
       }
@@ -356,7 +367,7 @@ export async function POST(
     return serverError();
   }
 
-  if (mappedStatus === "paid") {
+  if (mappedStatus === "success") {
     let booking;
 
     try {
