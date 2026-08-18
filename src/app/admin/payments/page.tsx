@@ -4,11 +4,12 @@ import type { PaymentRecord, PaymentStatus } from '@/lib/repositories/payment.re
 
 const STATUS_FILTERS: Array<PaymentStatus | 'all'> = [
   'all',
-  'initiated',
-  'processing',
-  'paid',
+  'pending',
+  'success',
   'failed',
-  'flagged',
+  'cancelled',
+  'refunded',
+  'partially_refunded',
 ];
 
 function formatDateTime(value: string | null): string {
@@ -21,10 +22,10 @@ function formatDateTime(value: string | null): string {
 
 function statusBadgeClass(status: string): string {
   switch (status) {
-    case 'paid':
+    case 'success':
       return 'bg-mist text-deep';
     case 'failed':
-    case 'flagged':
+    case 'cancelled':
       return 'bg-red-50 text-red-600';
     default:
       return 'bg-orange/10 text-orange';
