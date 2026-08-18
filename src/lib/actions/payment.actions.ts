@@ -19,11 +19,12 @@ import {
 } from "@/lib/cashfree/cashfree.client";
 
 const PAYMENT_STATUSES = [
-  "initiated",
-  "processing",
-  "paid",
+  "pending",
+  "success",
   "failed",
-  "flagged",
+  "cancelled",
+  "refunded",
+  "partially_refunded",
 ] as const;
 
 const bookingIdSchema = z.object({
@@ -73,7 +74,7 @@ async function createNewPayment(bookingId: string): Promise<{
   const existingPayments =
     await paymentRepo.getPaymentsByBookingId(validatedBookingId);
 
-  if (existingPayments.some((payment) => payment.status === "paid")) {
+  if (existingPayments.some((payment) => payment.status === "success")) {
     throw new Error("This booking has already been paid.");
   }
 
@@ -149,7 +150,7 @@ async function createNewPayment(bookingId: string): Promise<{
     amount,
     currency_code: currency,
 
-    status: "initiated",
+    status: "pending",
 
     gateway_payment_status: null,
     payment_method: null,
