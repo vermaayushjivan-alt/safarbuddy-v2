@@ -198,7 +198,27 @@ src/app/actions/room-price.actions.ts
 
 src/components/admin/rooms/RoomPriceManager.tsx
 
-Scope: ROOM-03 only. ROOM-04 (room_inventory / availability) backend (RoomInventoryRepository) also already exists but is read-only-wired (a single dashboard summary action) — no create/update/delete actions or admin page exist yet. The /admin/hotels/[id]/rooms/[roomId]/availability route referenced by the pricing/images/edit pages' nav is NOT yet implemented. ROOM-05 booking-room linkage remains untouched.
+Scope: ROOM-03 only. ROOM-04 (room_inventory / availability) completed separately (see v11 below). ROOM-05 booking-room linkage remains untouched.
+
+Final status: Deployment Ready.
+
+ROOM-04 — Room Inventory / Availability. COMPLETE — Frozen (v11).
+
+Created this session:
+
+src/app/admin/hotels/[id]/rooms/[roomId]/availability/page.tsx
+
+src/components/admin/rooms/RoomInventoryManager.tsx
+
+Extended this session (pre-existing file, new exports added — no existing export changed):
+
+src/app/actions/room-inventory.actions.ts — added setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, bulkSetInventoryAction. Pre-existing getRoomInventorySummaryForHotelAdmin left unchanged.
+
+src/lib/repositories/room-inventory.repository.ts — added deleteInventoryForDate (soft-delete, guarded: refuses when booked_rooms > 0 for that date, same "never invalidate an existing booking" principle as the pre-existing setInventoryForDate). No other method changed.
+
+Not created (pre-existing from an earlier undocumented session, unchanged this session): src/lib/repositories/room-inventory.repository.ts's RoomInventoryRow interface, getInventoryForRange, getInventoryForDate, getInventoryForRoomsOnDate, verifyRoomOwnership, setInventoryForDate.
+
+Scope: ROOM-04 only, following the ROOM-03 architectural pattern exactly (Zod-validated Server Actions returning ActionResult<T>, ownership check via requireRole(['admin','hotel_owner']) + repo.verifyRoomOwnership, client-component manager with single-date and bulk-date-range modals). No schema, RLS, or database changes — confirmed live room_inventory columns from the prior session's audit were used as-is. ROOM-05 booking-room linkage remains untouched.
 
 Final status: Deployment Ready.
 
@@ -209,8 +229,6 @@ Booking — deferred scope
 Room/departure inventory, availability calendars, coupons, commissions, invoices, vouchers, notifications, guest checkout, and vendor-facing booking access.
 
 Room Management — future milestones
-
-ROOM-04 — Room Inventory / Availability. Backend groundwork (RoomInventoryRepository, confirmed live room_inventory columns) already exists from a prior undocumented session, but only a single read-only dashboard-summary action is wired up — create/update/delete actions and the /admin/hotels/[id]/rooms/[roomId]/availability admin page do not exist yet.
 
 ROOM-05 — Booking-Room Linkage
 
@@ -266,9 +284,7 @@ Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
 Next Development Phase
 
-ROOM-04 — Room Inventory / Availability
-
-Before coding, perform the required RULE 15 readiness audit. RoomInventoryRepository already exists with confirmed live room_inventory columns (id, room_id, inventory_date, total_rooms, available_rooms, blocked_rooms, booked_rooms, created_at, updated_at, created_by, updated_by, deleted_at) — verify that documentation against the live schema again before extending it, add the missing create/update/delete Server Actions, and build the /admin/hotels/[id]/rooms/[roomId]/availability page already referenced by existing nav links. Do not invent additional schema.
+ROOM-05 — Booking-Room Linkage. Before coding, perform the required RULE 15 readiness audit against the live schema. Do not invent additional schema.
 
 Dedicated Architecture Cleanup
 
@@ -299,3 +315,5 @@ v8 (2026-08-12) — ADMIN-10 / ROOM-01 completed/frozen. Room type list/edit flo
 v9 (2026-08-12) — Pre-ROOM-03 hardening pass. Missing rooms/new route created (reuses RoomTypeForm). ROOM-02 image ownership vulnerability fixed (reorder/set-primary/delete now scoped to room_type_id). Upload/delete Storage↔DB failure handling hardened. ROOM-02 marked COMPLETE — Frozen. .gitignore restored from misnamed `gitignore` file (repo secrets were previously untracked-by-name only, not actually git-ignored); .env.example added. Two confirmed-unused stray files removed (stray-extension repository file, duplicate next.config). 005_room01_schema.sql confirmed genuinely absent — flagged LIVE VERIFICATION REQUIRED rather than reconstructed. src/lib/repository/, user.repository.ts, and src/lib/db/index.ts confirmed fully unused (documented for future cleanup, not deleted). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning). Production build: blocked by sandbox network restriction on Google Fonts fetch (environment-only, not a code defect — see PAY-03 note above for precedent).
 
 v10 (2026-08-16) — ROOM-03 documentation backfill and admin page wiring. Audit found RoomPriceRepository, room-price.actions.ts, and the RoomPriceManager component already implemented and live-schema-verified from an undocumented prior session, but never wired to a route (RoomPriceManager was dead/unreferenced code) and never recorded in PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF. Added the missing /admin/hotels/[id]/rooms/[roomId]/pricing page (existing nav links in the rooms list, edit, and images pages already pointed at this exact route). No repository, action, schema, or RLS changes — only the route was added. ROOM-03 marked COMPLETE — Frozen. Also discovered, but explicitly left out of scope: RoomInventoryRepository (ROOM-04 backend) exists with confirmed live room_inventory columns, but only a read-only summary action and no admin CRUD/page exist yet — documented under Next Development Phase rather than implemented, per RULE 11 (one milestone at a time). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element). Production build: blocked only by the same sandbox Google Fonts network restriction as v9 (403 fetching Inter from fonts.googleapis.com); no code-level build errors.
+
+v11 (2026-08-18) — ROOM-04 completed. Added the missing create/update/delete Server Actions (setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, bulkSetInventoryAction) to the pre-existing room-inventory.actions.ts, one new repository method (deleteInventoryForDate, guarded against clearing a date with existing bookings), the RoomInventoryManager admin component, and the /admin/hotels/[id]/rooms/[roomId]/availability page already referenced by existing nav links. Followed the ROOM-03 architectural pattern exactly (Zod validation, ActionResult<T>, requireRole + verifyRoomOwnership, single-date and bulk-date-range UI). No schema, RLS, or database changes. ROOM-04 marked COMPLETE — Frozen. TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element). Production build: not run this session (same sandbox Google Fonts network restriction noted in v9/v10 applies; no code-level build errors — tsc/eslint both clean).
