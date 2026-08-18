@@ -6,11 +6,12 @@ import {
 } from "./types";
 
 export type PaymentStatus =
-  | "initiated"
-  | "processing"
-  | "paid"
+  | "pending"
+  | "success"
   | "failed"
-  | "flagged";
+  | "cancelled"
+  | "refunded"
+  | "partially_refunded";
 
 export interface PaymentRecord extends DatabaseRecord {
   id: string;
