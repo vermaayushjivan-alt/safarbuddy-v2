@@ -1,4 +1,4 @@
-// src/lib/actions/payment.actions.ts
+// PATH: src/lib/actions/payment.actions.ts
 // PAY-02 — Cashfree payment initiation using the approved PAY-01 payments schema.
 
 "use server";
@@ -61,7 +61,18 @@ async function createNewPayment(bookingId: string): Promise<{
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
-  const booking = await bookingRepo.getBookingById(validatedBookingId);
+  // These three reads are independent of one another (none needs another's
+  // result — each only needs validatedBookingId or authUser.id, which are
+  // already known), so they run in parallel instead of one-after-another
+  // to cut round-trip latency on this hot path. All three results are
+  // still fully validated below, in the same order/behavior as before.
+  const [booking, existingPayments, profileResult] = await Promise.all([
+    bookingRepo.getBookingById(validatedBookingId),
+    paymentRepo.getPaymentsByBookingId(validatedBookingId),
+    supabase.from("users").select("phone").eq("id", authUser.id).single(),
+  ]);
+
+  const { data: userProfile, error: profileError } = profileResult;
 
   if (!booking || booking.user_id !== authUser.id) {
     throw new Error("Booking not found");
@@ -71,18 +82,9 @@ async function createNewPayment(bookingId: string): Promise<{
     throw new Error("Only pending bookings can be paid");
   }
 
-  const existingPayments =
-    await paymentRepo.getPaymentsByBookingId(validatedBookingId);
-
   if (existingPayments.some((payment) => payment.status === "success")) {
     throw new Error("This booking has already been paid.");
   }
-
-  const { data: userProfile, error: profileError } = await supabase
-    .from("users")
-    .select("phone")
-    .eq("id", authUser.id)
-    .single();
 
   if (
     profileError ||
@@ -175,8 +177,8 @@ async function createNewPayment(bookingId: string): Promise<{
 
 export async function initiatePayment(
   bookingId: string
-): Promise<
-  ActionResult<
+): Promise
+  ActionResult
     Awaited<ReturnType<typeof createNewPayment>>
   >
 > {
@@ -187,8 +189,8 @@ export async function initiatePayment(
 
 export async function retryPayment(
   bookingId: string
-): Promise<
-  ActionResult<
+): Promise
+  ActionResult
     Awaited<ReturnType<typeof createNewPayment>>
   >
 > {
