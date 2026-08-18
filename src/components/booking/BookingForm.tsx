@@ -1,3 +1,4 @@
+// PATH: src/components/booking/BookingForm.tsx
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -106,10 +107,14 @@ export default function BookingForm({
       try {
         const booking = await createBooking(input);
 
+        // router.refresh() removed: it was invalidating and re-fetching
+        // the *current* (booking form) route's data immediately before
+        // navigating away from it via router.push(), which is a wasted
+        // round trip — the destination page (/dashboard/bookings) already
+        // fetches its own fresh data on navigation as a Server Component.
         router.push(
           `/dashboard/bookings?created=${booking.id}`
         );
-        router.refresh();
       } catch (err) {
         setError(
           err instanceof Error
