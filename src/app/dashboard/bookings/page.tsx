@@ -1,3 +1,4 @@
+// PATH: src/app/dashboard/bookings/page.tsx
 import Link from 'next/link';
 import { getMyBookings } from '@/app/actions/booking.actions';
 import CancelBookingButton from '@/components/booking/CancelBookingButton';
@@ -57,7 +58,29 @@ export default async function MyBookingsPage({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-deep/15 bg-white">
+      {/*
+        MOBILE-PAYMENT-BUG-01 hotfix (see SESSION_HANDOFF.md): the 6-column
+        table below is wider than a phone viewport. It previously sat
+        inside a plain `overflow-hidden` wrapper (no horizontal scroll),
+        so on mobile the rightmost "Actions" column — the only place the
+        "Pay Now" button lives — was clipped completely outside the
+        visible area rather than scrollable into view. Root cause was
+        rendered-but-outside-viewport / clipped-by-overflow-hidden, not a
+        disabled state or conditional-rendering bug.
+
+        Fix, keeping the existing visual language (same table, same card
+        border/radius, same button styles) rather than introducing a new
+        payment UI:
+        - Desktop/tablet (md and up): unchanged table, now with
+          overflow-x-auto instead of overflow-hidden as a safety net if a
+          future column is added.
+        - Mobile (below md): the table is hidden and each booking renders
+          as a stacked card instead, using the exact same status/price
+          formatting and Pay Now / Paid / Cancel actions — so every
+          action button is always fully visible without needing to
+          scroll a table sideways.
+      */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-deep/15 bg-white md:block">
         <table className="w-full text-left text-[13px]">
           <thead className="border-b border-deep/10 bg-mist text-[11px] uppercase tracking-wide text-ink/50">
             <tr>
@@ -141,6 +164,74 @@ export default async function MyBookingsPage({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile card list — md:hidden mirrors the table above 1:1 */}
+      <div className="space-y-3 md:hidden">
+        {bookings.length === 0 ? (
+          <div className="rounded-2xl border border-deep/15 bg-white px-4 py-10 text-center text-[13px] text-ink/50">
+            No bookings yet.
+          </div>
+        ) : (
+          bookings.map((booking) => (
+            <div
+              key={booking.id}
+              className="rounded-2xl border border-deep/15 bg-white p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium capitalize text-deep">
+                    {booking.booking_type}
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-ink/60">
+                    {bookingDates(booking)}
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${statusBadgeClass(
+                    booking.status
+                  )}`}
+                >
+                  {booking.status}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-[13px] text-ink/70">
+                <span>{booking.num_guests} guest{booking.num_guests === 1 ? '' : 's'}</span>
+                <span className="font-semibold text-deep">
+                  {booking.currency}{' '}
+                  {Number(booking.price_snapshot).toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              <div className="mt-4 flex items-center justify-end gap-2 border-t border-deep/10 pt-3">
+                {/* PAY NOW — pending bookings only. This is the button
+                    that was unreachable on mobile before this hotfix. */}
+                {booking.status === 'pending' && (
+                  <Link
+                    href={`/dashboard/bookings/${booking.id}/pay`}
+                    className="focus-ring w-full rounded-lg bg-orange px-3 py-2 text-center text-[13px] font-semibold text-white transition hover:bg-orange/90"
+                  >
+                    Pay Now
+                  </Link>
+                )}
+
+                {/* PAID indicator — confirmed bookings */}
+                {booking.status === 'confirmed' && (
+                  <span className="w-full rounded-lg bg-green-50 px-3 py-2 text-center text-[13px] font-semibold text-green-700">
+                    Paid ✓
+                  </span>
+                )}
+
+                {/* CANCEL — pending or confirmed only */}
+                {(booking.status === 'pending' ||
+                  booking.status === 'confirmed') && (
+                  <CancelBookingButton bookingId={booking.id} />
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {totalPages > 1 && (
