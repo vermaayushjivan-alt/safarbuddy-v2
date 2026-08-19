@@ -1,4 +1,3 @@
-// PATH: src/app/actions/booking.actions.ts
 "use server";
 
 import { z } from "zod";
@@ -227,7 +226,7 @@ const cancelBookingSchema =
  * public.users.id           -> bookings.customer_id
  */
 async function getPublicUserId(
-  supabase: Awaited
+  supabase: Awaited<
     ReturnType<typeof createClient>
   >,
   authUserId: string
@@ -277,7 +276,7 @@ async function getPublicUserId(
  * for soft deletion and does not contain is_active.
  */
 async function getInrCurrencyId(
-  supabase: Awaited
+  supabase: Awaited<
     ReturnType<typeof createClient>
   >
 ): Promise<string> {
@@ -576,7 +575,7 @@ export async function getMyBookings(
 
 export async function getMyBookingById(
   id: string
-): Promise
+): Promise<
   BookingRecord | null
 > {
   const authUser =
@@ -723,7 +722,7 @@ export async function getAllBookingsAdmin(
 
 export async function getBookingByIdAdmin(
   id: string
-): Promise
+): Promise<
   BookingRecord | null
 > {
   await requireRole([
