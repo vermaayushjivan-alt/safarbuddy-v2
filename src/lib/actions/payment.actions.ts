@@ -1,4 +1,4 @@
-// PATH: src/lib/actions/payment.actions.ts
+// src/lib/actions/payment.actions.ts
 // PAY-02 — Cashfree payment initiation using the approved PAY-01 payments schema.
 
 "use server";
@@ -41,12 +41,24 @@ const paginationSchema = z.object({
   status: z.enum(PAYMENT_STATUSES).optional(),
 });
 
-async function createNewPayment(bookingId: string): Promise<{
+// Explicit, named, portable return type for createNewPayment. Exported
+// Server Actions (initiatePayment / retryPayment below) must expose a
+// type that TypeScript can name/reference directly across the Server
+// Action boundary — using `Awaited<ReturnType<typeof createNewPayment>>`
+// on an exported function whose signature wraps a *non-exported* helper
+// is not portable and fails the Next.js build (TS2742-class error).
+// This interface is the single source of truth for that shape; update
+// it (not the inline object below) if the return shape ever changes.
+export interface InitiatePaymentResult {
   paymentSessionId: string;
   gatewayOrderId: string;
   amount: number;
   currency: string;
-}> {
+}
+
+async function createNewPayment(
+  bookingId: string
+): Promise<InitiatePaymentResult> {
   const authUser = await getAuthUser();
 
   if (!authUser) {
@@ -177,11 +189,7 @@ async function createNewPayment(bookingId: string): Promise<{
 
 export async function initiatePayment(
   bookingId: string
-): Promise
-  ActionResult
-    Awaited<ReturnType<typeof createNewPayment>>
-  >
-> {
+): Promise<ActionResult<InitiatePaymentResult>> {
   return runAction(() =>
     createNewPayment(bookingId)
   );
@@ -189,11 +197,7 @@ export async function initiatePayment(
 
 export async function retryPayment(
   bookingId: string
-): Promise
-  ActionResult
-    Awaited<ReturnType<typeof createNewPayment>>
-  >
-> {
+): Promise<ActionResult<InitiatePaymentResult>> {
   return runAction(() =>
     createNewPayment(bookingId)
   );
