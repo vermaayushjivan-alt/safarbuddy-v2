@@ -1,13 +1,17 @@
 // PATH: src/components/booking/BookingForm.tsx
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { addDays, format, parseISO } from 'date-fns';
 import {
   createBooking,
   type CreateBookingInput,
 } from '@/app/actions/booking.actions';
+import {
+  getBookableRoomsForHotel,
+  type BookableRoom,
+} from '@/app/actions/room-availability.actions';
 
 interface BookingFormProps {
   mode: 'hotel' | 'package';
@@ -47,8 +51,76 @@ export default function BookingForm({
   const [travelDate, setTravelDate] = useState('');
   const [numGuests, setNumGuests] = useState(1);
 
+  // ROOM-05 Phase J: room selection state (hotel bookings only).
+  const [rooms, setRooms] = useState<BookableRoom[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [roomsError, setRoomsError] = useState<string | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+
   const today = getTodayDateString();
   const minimumCheckOutDate = getNextDateString(checkInDate);
+
+  // Fetch bookable rooms whenever a complete, valid date range is
+  // selected. This is a preview only — createBooking() re-validates
+  // availability/price server-side at submit time regardless of what
+  // this fetch returns, so a stale list here can't let a bad booking
+  // through.
+  useEffect(() => {
+    if (mode !== 'hotel') {
+      return;
+    }
+
+    const hasValidRange =
+      Boolean(checkInDate) &&
+      Boolean(checkOutDate) &&
+      checkOutDate > checkInDate;
+
+    let cancelled = false;
+
+    async function loadRooms() {
+      if (!hasValidRange) {
+        setRooms([]);
+        setSelectedRoomId(null);
+        setRoomsError(null);
+        return;
+      }
+
+      setRoomsLoading(true);
+      setRoomsError(null);
+      setSelectedRoomId(null);
+
+      try {
+        const result = await getBookableRoomsForHotel(
+          targetId,
+          checkInDate,
+          checkOutDate
+        );
+
+        if (!cancelled) {
+          setRooms(result);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setRooms([]);
+          setRoomsError(
+            err instanceof Error
+              ? err.message
+              : 'Could not load rooms for these dates.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setRoomsLoading(false);
+        }
+      }
+    }
+
+    loadRooms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, targetId, checkInDate, checkOutDate]);
 
   function handleCheckInChange(value: string) {
     setCheckInDate(value);
@@ -81,6 +153,11 @@ export default function BookingForm({
         );
         return;
       }
+
+      if (!selectedRoomId) {
+        setError('Please select a room.');
+        return;
+      }
     }
 
     if (mode === 'package' && !travelDate) {
@@ -96,6 +173,7 @@ export default function BookingForm({
     const input: CreateBookingInput = {
       booking_type: mode,
       hotel_id: mode === 'hotel' ? targetId : null,
+      room_id: mode === 'hotel' ? selectedRoomId : null,
       package_id: mode === 'package' ? targetId : null,
       check_in_date: mode === 'hotel' ? checkInDate : null,
       check_out_date: mode === 'hotel' ? checkOutDate : null,
@@ -125,6 +203,9 @@ export default function BookingForm({
     });
   }
 
+  const selectedRoom =
+    rooms.find((room) => room.room_id === selectedRoomId) ?? null;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -138,7 +219,7 @@ export default function BookingForm({
 
       <div>
         <p className="text-[11px] text-ink/45">
-          {mode === 'hotel' ? 'Per night' : 'Starting price'}
+          {mode === 'hotel' ? 'Starting from, per night' : 'Starting price'}
         </p>
 
         <p className="mt-1 font-display text-2xl text-orange">
@@ -204,6 +285,95 @@ export default function BookingForm({
         </Field>
       )}
 
+      {mode === 'hotel' && checkInDate && checkOutDate && checkOutDate > checkInDate && (
+        <Field label="Select a room" required>
+          {roomsLoading && (
+            <p className="text-[13px] text-ink/60">
+              Checking room availability…
+            </p>
+          )}
+
+          {!roomsLoading && roomsError && (
+            <p className="text-[13px] text-red-700">
+              {roomsError}
+            </p>
+          )}
+
+          {!roomsLoading && !roomsError && rooms.length === 0 && (
+            <p className="text-[13px] text-ink/60">
+              No rooms are configured for this hotel yet.
+            </p>
+          )}
+
+          {!roomsLoading && !roomsError && rooms.length > 0 && (
+            <div className="space-y-2.5">
+              {rooms.map((room) => {
+                const isSelected = selectedRoomId === room.room_id;
+
+                return (
+                  <label
+                    key={room.room_id}
+                    className={`flex cursor-pointer items-start justify-between gap-3 rounded-xl border px-3.5 py-3 transition ${
+                      !room.available
+                        ? 'cursor-not-allowed border-deep/10 opacity-50'
+                        : isSelected
+                          ? 'border-orange bg-orange/5'
+                          : 'border-deep/15 hover:border-deep/30'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="room_id"
+                        className="mt-1"
+                        disabled={!room.available}
+                        checked={isSelected}
+                        onChange={() =>
+                          setSelectedRoomId(room.room_id)
+                        }
+                      />
+
+                      <div>
+                        <p className="font-heading text-[13px] font-semibold text-deep">
+                          {room.room_name}
+                        </p>
+
+                        <p className="mt-0.5 text-[12px] capitalize text-ink/60">
+                          {room.room_type}
+                          {room.bed_type ? ` · ${room.bed_type}` : ''} · up to{' '}
+                          {room.max_occupancy} guests
+                        </p>
+
+                        {!room.available && room.unavailable_reason && (
+                          <p className="mt-0.5 text-[11px] text-red-600">
+                            {room.unavailable_reason}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="whitespace-nowrap font-display text-[14px] text-deep">
+                      {room.total_price != null
+                        ? `₹${formatPrice(room.total_price)}`
+                        : '—'}
+                    </p>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </Field>
+      )}
+
+      {mode === 'hotel' && selectedRoom && selectedRoom.total_price != null && (
+        <div className="rounded-xl bg-deep/5 px-3.5 py-3">
+          <p className="text-[11px] text-ink/45">Total for your stay</p>
+          <p className="mt-0.5 font-display text-xl text-deep">
+            ₹{formatPrice(selectedRoom.total_price)}
+          </p>
+        </div>
+      )}
+
       <Field label="Number of guests" required>
         <input
           type="number"
@@ -220,7 +390,7 @@ export default function BookingForm({
       <div className="pt-2">
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || (mode === 'hotel' && !selectedRoomId)}
           className="focus-ring w-full rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 disabled:opacity-50"
         >
           {isPending ? 'Booking...' : 'Confirm Booking'}
