@@ -1,204 +1,158 @@
-// src/app/actions/_debug-room-availability.actions.ts
+// src/app/debug/room-availability/RoomAvailabilityDebugClient.tsx
 //
-// TEMPORARY DIAGNOSTIC — ROOM-05. Delete this file (and the matching
-// debug page) once the empty-room-picker issue is root-caused and
-// fixed. Purely read-only: does not write to any table, does not
-// change any schema, does not touch hotel_rooms / room_inventory /
-// room_prices in any way other than SELECT. Uses the exact same
-// repositories and column names as getBookableRoomsForHotel() in
-// room-availability.actions.ts — this file only exists to expose every
-// intermediate value that function collapses into a single
-// available/unavailable boolean.
+// TEMPORARY DIAGNOSTIC PAGE — ROOM-05. Delete this file (and page.tsx
+// in this folder, and src/app/actions/_debug-room-availability.actions.ts)
+// once the empty-room-picker issue is root-caused and fixed. No auth
+// guard intentionally kept minimal since this is temporary and
+// read-only, but delete promptly once you're done — don't leave a
+// debug route live in production longer than needed.
+//
+// Split into a client component (this file) + a server page.tsx
+// wrapper so page.tsx can export `dynamic = "force-dynamic"` — that
+// export is not allowed in a "use client" file, and without it Vercel's
+// edge cache was serving a stale cached 404 for this path from before
+// the page existed.
 
-"use server";
+'use client';
 
-import { createClient } from "@/lib/supabase/server";
-import { RoomTypeRepository } from "@/lib/repositories/room-type.repository";
-import { RoomInventoryRepository } from "@/lib/repositories/room-inventory.repository";
-import { RoomPriceRepository } from "@/lib/repositories/room-price.repository";
+import { useState } from 'react';
+import {
+  diagnoseRoomAvailability,
+  type RoomAvailabilityDiagnosticReport,
+} from '@/app/actions/_debug-room-availability.actions';
 
-export interface RoomDiagnostic {
-  room_id: string;
-  room_name: string;
-  status: string;
-  hotel_id: string;
+export default function RoomAvailabilityDebugClient() {
+  const [hotelId, setHotelId] = useState('');
+  const [checkIn, setCheckIn] = useState('');
+  const [checkOut, setCheckOut] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [report, setReport] =
+    useState<RoomAvailabilityDiagnosticReport | null>(null);
 
-  inventory_rows_found: number;
-  inventory_by_date: Record<
-    string,
-    { available_rooms: number } | "MISSING"
-  >;
+  async function run() {
+    setLoading(true);
+    setReport(null);
 
-  price_rows_found: number;
-  price_by_date: Record<
-    string,
-    { final_price: number } | "MISSING"
-  >;
-
-  unavailable_reason: string | null;
-  would_be_available: boolean;
-}
-
-export interface RoomAvailabilityDiagnosticReport {
-  hotel_id: string;
-  check_in_date: string;
-  check_out_date: string;
-  nights: string[];
-
-  // Raw count from getRoomTypesByHotel(), before any status filter —
-  // if this is 0, the hotel has no hotel_rooms rows at all, or
-  // hotel_id doesn't match what's actually stored on those rows.
-  total_rooms_for_hotel: number;
-
-  // Count after status === 'active' filter — same filter
-  // getBookableRoomsForHotel() applies.
-  active_rooms_count: number;
-
-  rooms: RoomDiagnostic[];
-
-  error: string | null;
-}
-
-function getStayNights(
-  checkInDate: string,
-  checkOutDate: string
-): string[] {
-  const nights: string[] = [];
-
-  let cursor = new Date(`${checkInDate}T00:00:00Z`);
-  const end = new Date(`${checkOutDate}T00:00:00Z`);
-
-  while (cursor < end) {
-    nights.push(cursor.toISOString().slice(0, 10));
-    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
-  }
-
-  return nights;
-}
-
-export async function diagnoseRoomAvailability(
-  hotelId: string,
-  checkInDate: string,
-  checkOutDate: string
-): Promise<RoomAvailabilityDiagnosticReport> {
-  const nights = getStayNights(checkInDate, checkOutDate);
-
-  const report: RoomAvailabilityDiagnosticReport = {
-    hotel_id: hotelId,
-    check_in_date: checkInDate,
-    check_out_date: checkOutDate,
-    nights,
-    total_rooms_for_hotel: 0,
-    active_rooms_count: 0,
-    rooms: [],
-    error: null,
-  };
-
-  if (nights.length === 0) {
-    report.error =
-      "Invalid date range — check_out_date must be after check_in_date.";
-    return report;
-  }
-
-  try {
-    const supabase = await createClient();
-
-    const roomTypeRepo = new RoomTypeRepository(supabase);
-    const inventoryRepo = new RoomInventoryRepository(supabase);
-    const priceRepo = new RoomPriceRepository(supabase);
-
-    const allRooms = await roomTypeRepo.getRoomTypesByHotel(hotelId);
-
-    report.total_rooms_for_hotel = allRooms.length;
-    report.active_rooms_count = allRooms.filter(
-      (room) => room.status === "active"
-    ).length;
-
-    for (const room of allRooms) {
-      if (room.status !== "active") {
-        report.rooms.push({
-          room_id: room.id,
-          room_name: room.room_name,
-          status: room.status,
-          hotel_id: room.hotel_id,
-          inventory_rows_found: 0,
-          inventory_by_date: {},
-          price_rows_found: 0,
-          price_by_date: {},
-          unavailable_reason: `status is "${room.status}", not "active" — excluded before inventory/price were even checked.`,
-          would_be_available: false,
-        });
-
-        continue;
-      }
-
-      const [inventoryRows, priceRows] = await Promise.all([
-        inventoryRepo.getInventoryForRange(
-          room.id,
-          nights[0],
-          nights[nights.length - 1]
-        ),
-        priceRepo.getPricesForDateRange(
-          room.id,
-          nights[0],
-          nights[nights.length - 1]
-        ),
-      ]);
-
-      const inventoryByDate = new Map(
-        inventoryRows.map((row) => [row.inventory_date, row])
+    try {
+      const result = await diagnoseRoomAvailability(
+        hotelId.trim(),
+        checkIn,
+        checkOut
       );
 
-      const priceByDate = new Map(
-        priceRows.map((row) => [row.price_date, row])
-      );
-
-      const inventoryByDateReport: RoomDiagnostic["inventory_by_date"] = {};
-      const priceByDateReport: RoomDiagnostic["price_by_date"] = {};
-
-      let unavailableReason: string | null = null;
-
-      for (const night of nights) {
-        const inv = inventoryByDate.get(night);
-
-        inventoryByDateReport[night] = inv
-          ? { available_rooms: inv.available_rooms }
-          : "MISSING";
-
-        if (!unavailableReason && (!inv || inv.available_rooms < 1)) {
-          unavailableReason = !inv
-            ? `no room_inventory row for ${night}`
-            : `available_rooms is ${inv.available_rooms} on ${night}`;
-        }
-
-        const rate = priceByDate.get(night);
-
-        priceByDateReport[night] = rate
-          ? { final_price: rate.final_price }
-          : "MISSING";
-
-        if (!unavailableReason && !rate) {
-          unavailableReason = `no room_prices row for ${night}`;
-        }
-      }
-
-      report.rooms.push({
-        room_id: room.id,
-        room_name: room.room_name,
-        status: room.status,
-        hotel_id: room.hotel_id,
-        inventory_rows_found: inventoryRows.length,
-        inventory_by_date: inventoryByDateReport,
-        price_rows_found: priceRows.length,
-        price_by_date: priceByDateReport,
-        unavailable_reason: unavailableReason,
-        would_be_available: unavailableReason === null,
-      });
+      setReport(result);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    report.error =
-      err instanceof Error ? err.message : String(err);
   }
 
-  return report;
+  return (
+    <div
+      style={{
+        padding: 16,
+        fontFamily: 'monospace',
+        fontSize: 12,
+        maxWidth: 700,
+        margin: '0 auto',
+      }}
+    >
+      <h1 style={{ fontSize: 16, fontWeight: 700 }}>
+        ROOM-05 diagnostic (temporary — delete after use)
+      </h1>
+
+      <div style={{ marginTop: 12 }}>
+        <label style={{ display: 'block', marginBottom: 4 }}>
+          hotel_id
+        </label>
+        <input
+          value={hotelId}
+          onChange={(e) => setHotelId(e.target.value)}
+          placeholder="hotel uuid"
+          style={{
+            display: 'block',
+            width: '100%',
+            padding: 8,
+            marginBottom: 8,
+            boxSizing: 'border-box',
+          }}
+        />
+
+        <label style={{ display: 'block', marginBottom: 4 }}>
+          check_in_date
+        </label>
+        <input
+          type="date"
+          value={checkIn}
+          onChange={(e) => setCheckIn(e.target.value)}
+          style={{
+            display: 'block',
+            width: '100%',
+            padding: 8,
+            marginBottom: 8,
+            boxSizing: 'border-box',
+          }}
+        />
+
+        <label style={{ display: 'block', marginBottom: 4 }}>
+          check_out_date
+        </label>
+        <input
+          type="date"
+          value={checkOut}
+          onChange={(e) => setCheckOut(e.target.value)}
+          style={{
+            display: 'block',
+            width: '100%',
+            padding: 8,
+            marginBottom: 8,
+            boxSizing: 'border-box',
+          }}
+        />
+
+        <button
+          onClick={run}
+          disabled={loading || !hotelId || !checkIn || !checkOut}
+          style={{
+            padding: '8px 16px',
+            background: '#111',
+            color: '#fff',
+            borderRadius: 8,
+            border: 'none',
+          }}
+        >
+          {loading ? 'Running…' : 'Run diagnostic'}
+        </button>
+      </div>
+
+      {report && (
+        <div style={{ marginTop: 16 }}>
+          <p>
+            <b>total_rooms_for_hotel:</b> {report.total_rooms_for_hotel}
+          </p>
+          <p>
+            <b>active_rooms_count:</b> {report.active_rooms_count}
+          </p>
+
+          {report.error && (
+            <p style={{ color: 'crimson' }}>
+              <b>error:</b> {report.error}
+            </p>
+          )}
+
+          <pre
+            style={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              background: '#f4f4f4',
+              padding: 12,
+              borderRadius: 8,
+              marginTop: 8,
+            }}
+          >
+            {JSON.stringify(report, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
 }
