@@ -969,4 +969,83 @@ export async function cancelBookingAdmin(
       input
     );
 
-  const su
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      parsed.id
+    );
+
+  if (!existing) {
+    throw new Error(
+      "Booking not found"
+    );
+  }
+
+  if (
+    existing.status !==
+      "pending" &&
+    existing.status !==
+      "confirmed"
+  ) {
+    throw new Error(
+      "Only pending or confirmed bookings can be cancelled"
+    );
+  }
+
+  return repo.cancelBooking(
+    parsed.id,
+    parsed.reason
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN - COMPLETE
+// -----------------------------------------------------------------------------
+
+export async function completeBookingAdmin(
+  id: string
+): Promise<BookingRecord> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      id
+    );
+
+  if (!existing) {
+    throw new Error(
+      "Booking not found"
+    );
+  }
+
+  if (
+    existing.status !==
+    "confirmed"
+  ) {
+    throw new Error(
+      "Only confirmed bookings can be marked completed"
+    );
+  }
+
+  return repo.completeBooking(
+    id
+  );
+}
