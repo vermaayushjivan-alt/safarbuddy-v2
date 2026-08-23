@@ -79,6 +79,15 @@ export default async function HotelDetailPage({
   const hasImage = Boolean(hotel.thumbnail && hotel.thumbnail.trim().length > 0);
   const rooms = await getRoomsForHotelPublic(hotel.id);
 
+  // TEMP DEBUG — remove once the empty-rooms-section issue is confirmed fixed.
+  console.log(
+    "[ROOMS-DEBUG] hotel.id:",
+    hotel.id,
+    "rooms found:",
+    rooms.length,
+    JSON.stringify(rooms)
+  );
+
   return (
     <main className="bg-cream">
       <Navbar />
@@ -155,6 +164,11 @@ export default async function HotelDetailPage({
             </Link>
           </aside>
         </div>
+
+        {/* TEMP DEBUG — remove once the empty-rooms-section issue is confirmed fixed. */}
+        <p className="mt-6 rounded-lg border border-dashed border-red-300 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+          DEBUG — hotel.id: {hotel.id} | rooms found: {rooms.length}
+        </p>
 
         {rooms.length > 0 && (
           <div className="mt-10">
