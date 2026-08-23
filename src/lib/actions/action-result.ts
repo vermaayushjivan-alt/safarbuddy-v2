@@ -158,6 +158,39 @@ export function toSafeErrorMessage(error: unknown): string {
 
   console.error("[ACTION ERROR - NON ERROR]", error);
 
+  // Supabase's PostgrestError (and similar Supabase Storage/Auth errors)
+  // are plain objects — not `instanceof Error` — so they always fell
+  // through to the generic message below, hiding the actual DB reason
+  // (RLS violation, FK violation, check constraint, etc.) that would
+  // otherwise have been visible via the DatabaseError/Error branches
+  // above. Duck-type them here so their real message surfaces instead.
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string" &&
+    (error as { message: string }).message.trim()
+  ) {
+    const maybeCode =
+      "code" in error &&
+      typeof (error as { code: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : null;
+
+    console.error("[ACTION ERROR - DUCK-TYPED SUPABASE ERROR]", {
+      message: (error as { message: string }).message,
+      code: maybeCode,
+      details:
+        "details" in error
+          ? (error as { details: unknown }).details
+          : undefined,
+      hint:
+        "hint" in error ? (error as { hint: unknown }).hint : undefined,
+    });
+
+    return (error as { message: string }).message;
+  }
+
   return "Something went wrong. Please try again.";
 }
 
