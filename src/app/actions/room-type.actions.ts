@@ -10,6 +10,7 @@ import {
   ROOM_TYPE_STATUS_VALUES,
   ROOM_TYPE_VALUES,
 } from '@/lib/repositories/room-type.repository';
+import { RoomPriceRepository } from '@/lib/repositories/room-price.repository';
 import {
   runAction,
   emptyToNull,
@@ -84,6 +85,101 @@ export async function getRoomTypesByHotelAdmin(
   const repo = new RoomTypeRepository(supabase);
 
   return repo.getRoomTypesByHotel(hotelId);
+}
+
+// --- ROOM-05 (public read path) ---
+//
+// Root cause this fixes: the public hotel detail/booking pages had no
+// way to read hotel_rooms / room_prices at all — every existing action
+// for these tables (above, and all of room-price.actions.ts) is gated
+// behind requireRole(['admin','super_admin','hotel_owner']), so an
+// anonymous visitor or logged-in customer could never see rooms or
+// their rates. This is a new, intentionally unauthenticated read-only
+// action (no requireRole — matches getHotelBySlug's public pattern in
+// hotel.actions.ts). It does not add, rename, or touch any admin
+// action, and it does not modify RoomTypeRepository / RoomPriceRepository.
+//
+// Price resolution per room, for a given date (defaults to today):
+//   1. A room_prices row for that exact room_id + date, if one exists
+//      (the same rate an admin sets via RoomPriceManager) — this is
+//      what was previously invisible to the public site.
+//   2. Otherwise hotel_rooms.base_price, the room's own fallback rate,
+//      so a room still shows/bookable even before an admin has set any
+//      per-date pricing.
+// Both are real, already-confirmed columns (see room-type.repository.ts
+// / room-price.repository.ts) — nothing invented here.
+export interface BookableRoom {
+  id: string;
+  room_name: string;
+  room_type: RoomTypeRecord['room_type'];
+  capacity_adults: number;
+  capacity_children: number;
+  max_occupancy: number;
+  bed_type: string | null;
+  room_size_sqft: number | null;
+  price: number;
+  price_source: 'room_prices' | 'base_price';
+  currency_id: string | null;
+  // Public gallery for this room — previously unreachable outside admin
+  // (see getRoomImagesAdmin above). Empty array if no images uploaded.
+  images: { id: string; publicUrl: string; is_primary: boolean }[];
+}
+
+export async function getBookableRoomsForHotel(
+  hotelId: string,
+  priceDate?: string
+): Promise<BookableRoom[]> {
+  const supabase = await createClient();
+  const roomRepo = new RoomTypeRepository(supabase);
+  const priceRepo = new RoomPriceRepository(supabase);
+
+  const allRooms = await roomRepo.getRoomTypesByHotel(hotelId);
+  const activeRooms = allRooms.filter((room) => room.status === 'active');
+
+  const resolvedDate =
+    priceDate ?? new Date().toISOString().slice(0, 10);
+
+  const results = await Promise.all(
+    activeRooms.map(async (room) => {
+      const [priceRow, imageRows] = await Promise.all([
+        priceRepo.getPriceForDate(room.id, resolvedDate),
+        roomRepo.listRoomImages(room.id),
+      ]);
+
+      const images = imageRows
+        .slice()
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((img) => {
+          const normalizedPath = normalizeRoomStoragePath(img.storage_path);
+          const { data: publicUrlData } = supabase.storage
+            .from('room-images')
+            .getPublicUrl(normalizedPath);
+
+          return {
+            id: img.id,
+            publicUrl: publicUrlData.publicUrl,
+            is_primary: img.is_primary,
+          };
+        });
+
+      return {
+        id: room.id,
+        room_name: room.room_name,
+        room_type: room.room_type,
+        capacity_adults: room.capacity_adults,
+        capacity_children: room.capacity_children,
+        max_occupancy: room.max_occupancy,
+        bed_type: room.bed_type,
+        room_size_sqft: room.room_size_sqft,
+        price: priceRow ? priceRow.final_price : room.base_price,
+        price_source: priceRow ? ('room_prices' as const) : ('base_price' as const),
+        currency_id: priceRow?.currency_id ?? null,
+        images,
+      };
+    })
+  );
+
+  return results;
 }
 
 export async function getRoomTypeByIdAdmin(
