@@ -300,6 +300,36 @@ export async function getHotelImagesAdmin(
   });
 }
 
+// PUBLIC-02 — public read for the hotel gallery. Root cause this fixes:
+// the public detail page only ever had `hotel.thumbnail` (a single
+// image resolved from whichever row is is_primary), because no public
+// action ever called HotelRepository.listHotelImages — that method was
+// only ever exposed via the admin-gated getHotelImagesAdmin above. This
+// is the same "admin-only read" pattern that also hid rooms/prices from
+// the public site. No auth required, matches getHotelBySlug's public
+// pattern. Does not modify HotelRepository or the admin action.
+export async function getHotelGalleryImages(
+  hotelId: string
+): Promise<HotelImageWithUrl[]> {
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+
+  const rows = await repo.listHotelImages(hotelId);
+
+  return rows.map((row) => {
+    const normalizedPath = normalizeHotelStoragePath(row.storage_path);
+
+    const { data: publicUrlData } = supabase.storage
+      .from('hotel-images')
+      .getPublicUrl(normalizedPath);
+
+    return {
+      ...row,
+      publicUrl: publicUrlData.publicUrl,
+    };
+  });
+}
+
 export async function uploadHotelImageAdmin(
   hotelId: string,
   file: File,
@@ -669,4 +699,5 @@ export async function setPrimaryHotelImageAction(
           : 'Unknown error',
     };
   }
-}
+  }
+  
