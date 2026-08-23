@@ -71,7 +71,7 @@ async function assertOwnership(
   roomId: string,
   hotelId: string
 ) {
-  const user = await requireRole(['admin', 'hotel_owner']);
+  const user = await requireRole(['admin', 'super_admin', 'hotel_owner']);
 
   const isAuthorized = await repo.verifyRoomOwnership(
     priceId,
@@ -229,7 +229,7 @@ export async function bulkSetRoomPriceAction(
 
 export async function getCurrenciesAction(): Promise<ActionResult<Array<{ id: string; code: string; name: string; symbol: string }>>> {
   return runAction(async () => {
-    await requireRole(['admin', 'hotel_owner']);
+    await requireRole(['admin', 'super_admin', 'hotel_owner']);
     const supabase = await createClient();
     const repo = new RoomPriceRepository(supabase);
     return repo.getCurrencies();
