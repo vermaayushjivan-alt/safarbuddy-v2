@@ -17,6 +17,8 @@ import {
 
 import { HotelRepository } from "@/lib/repositories/hotel.repository";
 import { PackageRepository } from "@/lib/repositories/package.repository";
+import { RoomTypeRepository } from "@/lib/repositories/room-type.repository";
+import { RoomPriceRepository } from "@/lib/repositories/room-price.repository";
 
 // -----------------------------------------------------------------------------
 // VALIDATION
@@ -48,6 +50,16 @@ const createBookingBaseSchema =
         .optional(),
 
     package_id:
+      z.string()
+        .uuid()
+        .nullable()
+        .optional(),
+
+    // ROOM-05: the specific hotel_rooms row being booked. Optional —
+    // a hotel booking made before a room is picked (or on a hotel with
+    // no rooms configured yet) still falls back to hotel.starting_price,
+    // same behavior as before this field existed.
+    room_id:
       z.string()
         .uuid()
         .nullable()
@@ -148,6 +160,15 @@ const createBookingSchema =
         val.booking_type ===
         "package"
       ) {
+        if (val.room_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["room_id"],
+            message:
+              "room_id must not be set for package bookings",
+          });
+        }
+
         if (!val.package_id) {
           ctx.addIssue({
             code: "custom",
@@ -416,6 +437,44 @@ export async function createBooking(
     vendorId =
       hotel.vendor_id ??
       null;
+
+    // ROOM-05: when a specific room was selected, use ITS price instead
+    // of the hotel-level starting_price. This is the actual root cause
+    // of "price set in admin panel doesn't reflect anywhere" — before
+    // this, room_prices/hotel_rooms.base_price were never consulted
+    // here no matter what an admin set via RoomPriceManager.
+    if (parsed.room_id) {
+      const roomRepo = new RoomTypeRepository(supabase);
+      const room = await roomRepo.getRoomTypeById(parsed.room_id);
+
+      if (!room || room.hotel_id !== hotel.id) {
+        throw new Error(
+          "Selected room was not found for this hotel."
+        );
+      }
+
+      if (room.status !== "active") {
+        throw new Error(
+          "Selected room is no longer available."
+        );
+      }
+
+      let resolvedPrice = Number(room.base_price ?? 0);
+
+      if (parsed.check_in_date) {
+        const priceRepo = new RoomPriceRepository(supabase);
+        const priceRow = await priceRepo.getPriceForDate(
+          room.id,
+          parsed.check_in_date
+        );
+
+        if (priceRow) {
+          resolvedPrice = Number(priceRow.final_price);
+        }
+      }
+
+      priceSnapshot = resolvedPrice;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -485,6 +544,12 @@ export async function createBooking(
           parsed.booking_type ===
           "package"
             ? parsed.package_id
+            : null,
+
+        room_id:
+          parsed.booking_type ===
+          "hotel"
+            ? parsed.room_id ?? null
             : null,
 
         check_in_date:
@@ -887,4 +952,5 @@ export async function completeBookingAdmin(
   return repo.completeBooking(
     id
   );
-}
+      }
+    
