@@ -73,7 +73,7 @@ async function assertOwnership(
   roomId: string,
   hotelId: string
 ) {
-  const user = await requireRole(['admin', 'hotel_owner']);
+  const user = await requireRole(['admin', 'super_admin', 'hotel_owner']);
 
   const isAuthorized = await repo.verifyRoomOwnership(
     roomId,
