@@ -158,10 +158,16 @@ export default async function HotelDetailPage({
                     room.images[0] ??
                     null;
 
+                  // ROOM-06: teaser card now links into the dedicated
+                  // room detail page instead of surfacing a "Book"
+                  // shortcut directly from the list — the room's own
+                  // page is where booking happens, this is just a
+                  // preview. See src/app/hotels/[slug]/rooms/[roomId].
                   return (
-                    <div
+                    <Link
                       key={room.id}
-                      className="flex items-center justify-between gap-4 rounded-xl border border-deep/15 bg-white p-4"
+                      href={`/hotels/${canonicalSlug}/rooms/${room.id}`}
+                      className="focus-ring flex items-center justify-between gap-4 rounded-xl border border-deep/15 bg-white p-4 transition hover:border-deep/30 hover:shadow-sm"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-mist">
@@ -189,14 +195,11 @@ export default async function HotelDetailPage({
                         <p className="font-display text-lg text-orange">
                           ₹{formatPrice(room.price)}
                         </p>
-                        <Link
-                          href={`/hotels/${canonicalSlug}/book?room=${room.id}`}
-                          className="focus-ring mt-1 inline-block rounded-lg bg-deep px-3 py-1.5 text-[12px] font-semibold text-cream transition hover:bg-deep-2"
-                        >
-                          Book
-                        </Link>
+                        <span className="mt-1 inline-block text-[12px] font-semibold text-deep/60">
+                          View details →
+                        </span>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
