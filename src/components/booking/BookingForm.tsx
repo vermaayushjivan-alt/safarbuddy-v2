@@ -8,12 +8,17 @@ import {
   createBooking,
   type CreateBookingInput,
 } from '@/app/actions/booking.actions';
+import type { BookableRoom } from '@/app/actions/room-type.actions';
 
 interface BookingFormProps {
   mode: 'hotel' | 'package';
   targetId: string;
   targetName: string;
   startingPrice: number | null;
+  // ROOM-05: optional so the existing package booking flow
+  // (src/app/packages/[id]/book/page.tsx) is untouched.
+  rooms?: BookableRoom[];
+  preselectedRoomId?: string | null;
 }
 
 function formatPrice(price: number | null): string {
@@ -37,6 +42,8 @@ export default function BookingForm({
   targetId,
   targetName,
   startingPrice,
+  rooms = [],
+  preselectedRoomId = null,
 }: BookingFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -46,6 +53,14 @@ export default function BookingForm({
   const [checkOutDate, setCheckOutDate] = useState('');
   const [travelDate, setTravelDate] = useState('');
   const [numGuests, setNumGuests] = useState(1);
+  const [roomId, setRoomId] = useState<string>(
+    preselectedRoomId && rooms.some((r) => r.id === preselectedRoomId)
+      ? preselectedRoomId
+      : ''
+  );
+
+  const selectedRoom = rooms.find((r) => r.id === roomId) ?? null;
+  const displayPrice = selectedRoom ? selectedRoom.price : startingPrice;
 
   const today = getTodayDateString();
   const minimumCheckOutDate = getNextDateString(checkInDate);
@@ -68,6 +83,11 @@ export default function BookingForm({
     setError(null);
 
     if (mode === 'hotel') {
+      if (rooms.length > 0 && !roomId) {
+        setError('Please select a room.');
+        return;
+      }
+
       if (!checkInDate || !checkOutDate) {
         setError(
           'Please select both check-in and check-out dates.'
@@ -97,6 +117,10 @@ export default function BookingForm({
       booking_type: mode,
       hotel_id: mode === 'hotel' ? targetId : null,
       package_id: mode === 'package' ? targetId : null,
+      // ROOM-05: only sent for hotel bookings, and only when the visitor
+      // actually picked a room — createBooking falls back to
+      // hotel.starting_price when this is null, same as before.
+      room_id: mode === 'hotel' && roomId ? roomId : null,
       check_in_date: mode === 'hotel' ? checkInDate : null,
       check_out_date: mode === 'hotel' ? checkOutDate : null,
       travel_date: mode === 'package' ? travelDate : null,
@@ -142,13 +166,33 @@ export default function BookingForm({
         </p>
 
         <p className="mt-1 font-display text-2xl text-orange">
-          ₹{formatPrice(startingPrice)}
+          ₹{formatPrice(displayPrice)}
         </p>
 
         <p className="mt-1 text-[13px] text-ink/60">
           {targetName}
         </p>
       </div>
+
+      {mode === 'hotel' && rooms.length > 0 && (
+        <Field label="Room" required>
+          <select
+            required
+            value={roomId}
+            onChange={(e) => setRoomId(e.target.value)}
+            className={inputClass}
+          >
+            <option value="" disabled>
+              Select a room
+            </option>
+            {rooms.map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.room_name} — ₹{formatPrice(room.price)}/night
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
 
       {mode === 'hotel' ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -258,4 +302,5 @@ function Field({
       {children}
     </div>
   );
-}
+    }
+          
