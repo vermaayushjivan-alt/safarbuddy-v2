@@ -17,6 +17,9 @@ import {
 
 import { HotelRepository } from "@/lib/repositories/hotel.repository";
 import { PackageRepository } from "@/lib/repositories/package.repository";
+import { RoomTypeRepository } from "@/lib/repositories/room-type.repository";
+import { RoomInventoryRepository } from "@/lib/repositories/room-inventory.repository";
+import { RoomPriceRepository } from "@/lib/repositories/room-price.repository";
 
 // -----------------------------------------------------------------------------
 // VALIDATION
@@ -42,6 +45,15 @@ const createBookingBaseSchema =
       ]),
 
     hotel_id:
+      z.string()
+        .uuid()
+        .nullable()
+        .optional(),
+
+    // ROOM-05: the specific hotel_rooms row being booked. Required for
+    // hotel bookings so server-side availability/pricing can be checked
+    // against ROOM-04 inventory/rates for that exact room.
+    room_id:
       z.string()
         .uuid()
         .nullable()
@@ -90,6 +102,15 @@ const createBookingSchema =
             path: ["hotel_id"],
             message:
               "hotel_id is required for hotel bookings",
+          });
+        }
+
+        if (!val.room_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["room_id"],
+            message:
+              "room_id is required for hotel bookings",
           });
         }
 
@@ -163,6 +184,15 @@ const createBookingSchema =
             path: ["hotel_id"],
             message:
               "hotel_id must not be set for package bookings",
+          });
+        }
+
+        if (val.room_id) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["room_id"],
+            message:
+              "room_id must not be set for package bookings",
           });
         }
 
@@ -318,6 +348,39 @@ async function getInrCurrencyId(
   return data.id;
 }
 
+/**
+ * ROOM-05: enumerates each night of a stay as a YYYY-MM-DD string,
+ * check-in inclusive, check-out exclusive (a 2-night stay from the 10th
+ * to the 12th books the 10th and 11th, not the 12th — standard hotel
+ * convention, matches how room_inventory/room_prices are keyed per day).
+ */
+function getStayNights(
+  checkInDate: string,
+  checkOutDate: string
+): string[] {
+  const nights: string[] = [];
+
+  let cursor = new Date(
+    `${checkInDate}T00:00:00Z`
+  );
+
+  const end = new Date(
+    `${checkOutDate}T00:00:00Z`
+  );
+
+  while (cursor < end) {
+    nights.push(
+      cursor.toISOString().slice(0, 10)
+    );
+
+    cursor = new Date(
+      cursor.getTime() + 24 * 60 * 60 * 1000
+    );
+  }
+
+  return nights;
+}
+
 // -----------------------------------------------------------------------------
 // CUSTOMER - CREATE BOOKING
 // -----------------------------------------------------------------------------
@@ -397,6 +460,8 @@ export async function createBooking(
   // HOTEL
   // ---------------------------------------------------------------------------
 
+  let roomId: string | null = null;
+
   if (
     parsed.booking_type ===
     "hotel"
@@ -407,15 +472,108 @@ export async function createBooking(
       );
     }
 
-    priceSnapshot =
-      Number(
-        hotel.starting_price ??
-          0
-      );
-
     vendorId =
       hotel.vendor_id ??
       null;
+
+    // ---------------------------------------------------------------------
+    // ROOM-05: resolve + verify the selected room, check ROOM-04
+    // inventory for every night of the stay, and price the booking off
+    // the actual per-night rate for that room — never off
+    // hotel.starting_price, which is a display-only field, not a
+    // server-validated total.
+    // ---------------------------------------------------------------------
+
+    const roomTypeRepo =
+      new RoomTypeRepository(supabase);
+
+    const room =
+      await roomTypeRepo.getRoomTypeById(
+        parsed.room_id as string
+      );
+
+    if (!room || room.hotel_id !== hotel.id) {
+      throw new Error(
+        "Selected room was not found for this hotel."
+      );
+    }
+
+    if (room.status !== "active") {
+      throw new Error(
+        "Selected room is not currently available for booking."
+      );
+    }
+
+    const nights = getStayNights(
+      parsed.check_in_date as string,
+      parsed.check_out_date as string
+    );
+
+    if (nights.length === 0) {
+      throw new Error(
+        "Invalid stay duration."
+      );
+    }
+
+    const inventoryRepo =
+      new RoomInventoryRepository(supabase);
+
+    const priceRepo =
+      new RoomPriceRepository(supabase);
+
+    const inventoryRows =
+      await inventoryRepo.getInventoryForRange(
+        room.id,
+        nights[0],
+        nights[nights.length - 1]
+      );
+
+    const inventoryByDate = new Map(
+      inventoryRows.map((row) => [
+        row.inventory_date,
+        row,
+      ])
+    );
+
+    for (const night of nights) {
+      const inv = inventoryByDate.get(night);
+
+      if (!inv || inv.available_rooms < 1) {
+        throw new Error(
+          `This room is not available on ${night}. Please choose different dates.`
+        );
+      }
+    }
+
+    let stayTotal = 0;
+
+    for (const night of nights) {
+      const rate =
+        await priceRepo.getPriceForDate(
+          room.id,
+          night
+        );
+
+      if (!rate) {
+        throw new Error(
+          `Pricing is not configured for ${night}. Please contact support.`
+        );
+      }
+
+      stayTotal += Number(rate.final_price);
+    }
+
+    if (
+      !Number.isFinite(stayTotal) ||
+      stayTotal <= 0
+    ) {
+      throw new Error(
+        "Invalid booking price."
+      );
+    }
+
+    priceSnapshot = stayTotal;
+    roomId = room.id;
   }
 
   // ---------------------------------------------------------------------------
@@ -480,6 +638,9 @@ export async function createBooking(
           "hotel"
             ? parsed.hotel_id
             : null,
+
+        room_id:
+          roomId,
 
         package_id:
           parsed.booking_type ===

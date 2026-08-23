@@ -394,19 +394,34 @@ export async function POST(
 
     if (booking.status === "pending") {
       try {
-        await bookingRepo.confirmBooking(
+        // ROOM-05: confirms the booking AND consumes ROOM-04 inventory
+        // for every night of the stay, atomically, in a single Postgres
+        // transaction. If the room has since sold out (e.g. a race with
+        // another booking), this throws and the booking is deliberately
+        // left "pending" even though the payment above is already
+        // recorded as "success" — that mismatch needs a human
+        // (refund/manual reassignment) rather than either silently
+        // overbooking the room or silently discarding the payment.
+        await bookingRepo.confirmBookingWithInventory(
           payment.booking_id
         );
       } catch (error) {
         console.error(
-          "[Cashfree Webhook] Booking confirmation failed",
+          `[Cashfree Webhook] Booking confirmation/inventory consumption failed ` +
+            `for booking ${payment.booking_id} — payment ${payment.id} is ` +
+            `recorded as successful but the booking was NOT confirmed. ` +
+            `Needs manual review.`,
           error
         );
 
-        return serverError();
+        // Acknowledge the webhook (200) rather than 500: the payment
+        // itself was processed correctly and this is not a transient
+        // failure Cashfree should retry — it's a room-availability
+        // conflict that needs a human, not a retried webhook delivery.
+        return ok();
       }
     }
   }
 
   return ok();
-}
+        }
