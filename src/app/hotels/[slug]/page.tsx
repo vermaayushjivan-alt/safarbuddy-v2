@@ -5,7 +5,9 @@ import { MapPin, Star } from "lucide-react";
 import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { getHotelBySlug } from "@/app/actions/hotel.actions";
+import { getRoomsForHotelPublic } from "@/app/actions/room-type.actions";
 import { slugify } from "@/lib/utils/format";
+import { footerContact } from "@/data/home";
 
 // HOTEL 404 FIX: this page fetches from Supabase inside a Server
 // Component. Next.js caches such fetches/route output by default
@@ -75,6 +77,16 @@ export default async function HotelDetailPage({
   }
 
   const hasImage = Boolean(hotel.thumbnail && hotel.thumbnail.trim().length > 0);
+  const rooms = await getRoomsForHotelPublic(hotel.id);
+
+  // TEMP DEBUG — remove once the empty-rooms-section issue is confirmed fixed.
+  console.log(
+    "[ROOMS-DEBUG] hotel.id:",
+    hotel.id,
+    "rooms found:",
+    rooms.length,
+    JSON.stringify(rooms)
+  );
 
   return (
     <main className="bg-cream">
@@ -152,6 +164,85 @@ export default async function HotelDetailPage({
             </Link>
           </aside>
         </div>
+
+        {/* TEMP DEBUG — remove once the empty-rooms-section issue is confirmed fixed. */}
+        <p className="mt-6 rounded-lg border border-dashed border-red-300 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+          DEBUG — hotel.id: {hotel.id} | rooms found: {rooms.length}
+        </p>
+
+        {rooms.length > 0 && (
+          <div className="mt-10">
+            <h2 className="font-heading text-[16px] font-semibold text-deep">
+              Rooms
+            </h2>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {rooms.map((room) => (
+                <div
+                  key={room.id}
+                  className="overflow-hidden rounded-2xl border border-deep/15 bg-white"
+                >
+                  <div className="relative h-40 w-full bg-mist">
+                    {room.primary_image_url ? (
+                      <Image
+                        src={room.primary_image_url}
+                        alt={room.room_name}
+                        fill
+                        sizes="(max-width: 640px) 100vw, 480px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-[12px] text-ink/40">
+                        No photo yet
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4">
+                    <h3 className="font-heading text-[14px] font-semibold text-deep">
+                      {room.room_name}
+                    </h3>
+                    <p className="mt-0.5 text-[12px] capitalize text-ink/50">
+                      {room.room_type}
+                      {room.bed_type ? ` · ${room.bed_type}` : ""}
+                    </p>
+
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink/60">
+                      <span>
+                        {room.capacity_adults} Adult
+                        {room.capacity_adults === 1 ? "" : "s"}
+                        {room.capacity_children > 0
+                          ? `, ${room.capacity_children} Child${room.capacity_children === 1 ? "" : "ren"}`
+                          : ""}
+                      </span>
+                      <span>Max {room.max_occupancy} guests</span>
+                      {room.room_size_sqft && (
+                        <span>{room.room_size_sqft} sq ft</span>
+                      )}
+                    </div>
+
+                    <p className="mt-3 font-display text-[15px] text-orange">
+                      ₹{formatPrice(room.base_price)}{" "}
+                      <span className="text-[11px] font-sans font-normal text-ink/45">
+                        / night (base)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-[12px] text-ink/45">
+              Final price and availability are confirmed on the booking page
+              for your selected dates. Have a question before booking?{" "}
+              <a
+                href={`mailto:${footerContact.supportEmail}`}
+                className="focus-ring rounded font-medium text-deep hover:underline"
+              >
+                Contact SafarBuddy Support
+              </a>
+              .
+            </p>
+          </div>
+        )}
       </section>
 
       <Footer />

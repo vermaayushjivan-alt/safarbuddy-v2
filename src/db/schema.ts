@@ -257,6 +257,10 @@ export const bookings = pgTable(
     bookingType: varchar("booking_type", { length: 20 }).notNull(),
     hotelId: uuid("hotel_id"),
     packageId: uuid("package_id"),
+    // ROOM-05: added via src/db/sql/008_room05_booking_room_linkage.sql.
+    // No .references() declared here — hotel_rooms is not in the Drizzle
+    // schema, same convention as hotelId/packageId above.
+    roomId: uuid("room_id"),
     checkInDate: date("check_in_date"),
     checkOutDate: date("check_out_date"),
     travelDate: date("travel_date"),

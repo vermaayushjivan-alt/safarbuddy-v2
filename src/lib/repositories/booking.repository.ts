@@ -35,6 +35,13 @@ export interface BookingRecord extends DatabaseRecord {
   hotel_id: string | null;
   package_id: string | null;
 
+  // ROOM-05: the specific hotel_rooms row linked to this booking.
+  // Real column (public.bookings.room_id), added via
+  // src/db/sql/008_room05_booking_room_linkage.sql — unlike hotel_id/
+  // package_id above, this is read/written directly rather than
+  // through the `notes` metadata blob.
+  room_id: string | null;
+
   check_in_date: string | null;
   check_out_date: string | null;
   travel_date: string | null;
@@ -90,6 +97,9 @@ type DatabaseBookingRow = {
   booking_type: BookingType;
   booking_status: BookingStatus;
   payment_status: string;
+
+  // ROOM-05: real column, see BookingRecord.room_id above.
+  room_id: string | null;
 
   currency_id: string;
 
@@ -152,6 +162,29 @@ function toNumber(
     : 0;
 }
 
+// ROOM-05: same night-enumeration rule used by createBooking() /
+// cancelBookingAdmin() in booking.actions.ts and
+// getBookableRoomsForHotel() in room-availability.actions.ts
+// (check-in inclusive, check-out exclusive) — kept as a local copy
+// rather than a shared import so this repository has no dependency on
+// "use server" action modules.
+function getBookingStayNights(
+  checkInDate: string,
+  checkOutDate: string
+): string[] {
+  const nights: string[] = [];
+
+  let cursor = new Date(`${checkInDate}T00:00:00Z`);
+  const end = new Date(`${checkOutDate}T00:00:00Z`);
+
+  while (cursor < end) {
+    nights.push(cursor.toISOString().slice(0, 10));
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  return nights;
+}
+
 function parseMetadata(
   notes: string | null
 ): BookingMetadata {
@@ -198,6 +231,10 @@ function mapBooking(
 
     package_id:
       metadata.package_id ?? null,
+
+    // ROOM-05: real column, not metadata — see BookingRecord.room_id.
+    room_id:
+      row.room_id ?? null,
 
     check_in_date:
       metadata.check_in_date ??
@@ -331,6 +368,9 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
       hotel_id?: string | null;
       package_id?: string | null;
 
+      // ROOM-05: real column, see BookingRecord.room_id above.
+      room_id?: string | null;
+
       check_in_date?: string | null;
       check_out_date?: string | null;
       travel_date?: string | null;
@@ -398,6 +438,10 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
 
         booking_type:
           data.booking_type,
+
+        // ROOM-05: real column, see BookingRecord.room_id above.
+        room_id:
+          data.room_id ?? null,
 
         booking_status:
           bookingStatus,
@@ -872,66 +916,60 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
   }
 
   // -------------------------------------------------------------------------
-  // COMPLETE
+  // CONFIRM + CONSUME INVENTORY (ROOM-05)
   // -------------------------------------------------------------------------
 
-  async completeBooking(
+  // Called only from the Cashfree webhook once payment is confirmed
+  // successful. Confirms the booking AND consumes ROOM-04 inventory
+  // (room_inventory.booked_rooms / available_rooms) for every night of
+  // the stay.
+  //
+  // NOTE on atomicity: the Supabase JS client used throughout this
+  // repository has no multi-statement transaction primitive available
+  // (no RPC function for this has been added — ROOM-05 explicitly does
+  // not add schema/RPCs). This method reduces, but cannot fully
+  // eliminate, the race window: it (1) reads every night's inventory
+  // row first and refuses to proceed at all if any night is already
+  // sold out, then (2) writes each night's decrement as its own
+  // conditional UPDATE (`.eq('available_rooms', <value read in step 1>)`)
+  // so a concurrent booking that consumed a night in between is
+  // detected — that night's UPDATE affects zero rows — rather than
+  // silently overwritten. If any night fails this way, it throws
+  // without confirming the booking; nights already decremented before
+  // the failure are intentionally left decremented rather than rolled
+  // back (see the webhook route's comment: this case needs a human,
+  // not a silent retry).
+  async confirmBookingWithInventory(
     id: string
   ): Promise<BookingRecord> {
-    const {
-      data,
-      error,
-    } = await this.supabase
-      .from("bookings")
-      .update({
-        booking_status:
-          "completed",
+    const booking = await this.getBookingById(id);
 
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", id)
-      .is("deleted_at", null)
-      .select(`
-        *,
-        currency_record:currencies!bookings_currency_id_fkey(
-          code,
-          symbol,
-          name
-        )
-      `)
-      .single();
-
-    if (error) {
-      console.error(
-        "[bookings] completeBooking failed",
-        error
-      );
-
-      throw error;
+    if (!booking) {
+      throw new Error("Booking not found.");
     }
 
-    return mapBooking(
-      data as unknown as DatabaseBookingRow
-    );
-  }
+    if (booking.status !== "pending") {
+      // Already confirmed (or in some other terminal state) — nothing
+      // to do. Avoids double-consuming inventory if the webhook is
+      // ever delivered more than once for the same payment.
+      return booking;
+    }
 
-  // -------------------------------------------------------------------------
-  // BOOKING NUMBER
-  // -------------------------------------------------------------------------
+    if (
+      booking.booking_type === "hotel" &&
+      booking.room_id &&
+      booking.check_in_date &&
+      booking.check_out_date
+    ) {
+      const nights = getBookingStayNights(
+        booking.check_in_date,
+        booking.check_out_date
+      );
 
-  private generateBookingNumber(): string {
-    const timestamp =
-      Date.now()
-        .toString(36)
-        .toUpperCase();
-
-    const random =
-      Math.random()
-        .toString(36)
-        .substring(2, 7)
-        .toUpperCase();
-
-    return `SB-${timestamp}-${random}`;
-  }
-}
+      if (nights.length > 0) {
+        const { data: inventoryRows, error: inventoryError } =
+          await this.supabase
+            .from("room_inventory")
+            .select("id, inventory_date, available_rooms, booked_rooms")
+            .eq("room_id", booking.room_id)
+            .gte("inventory_date", nights[0])

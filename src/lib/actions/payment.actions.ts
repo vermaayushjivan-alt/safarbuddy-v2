@@ -98,6 +98,29 @@ async function createNewPayment(
     throw new Error("This booking has already been paid.");
   }
 
+  // ROOM-05 Phase I: at most one payment may be "pending" for a booking
+  // at a time. Without this, clicking Pay Now twice (double click, page
+  // refresh, two tabs) creates two separate Cashfree orders — if both
+  // are somehow completed, only one payment gets recorded as canonical
+  // but the customer could be charged twice. Superseding older pending
+  // attempts here means only the most recent Cashfree order for this
+  // booking can ever resolve to "success".
+  const stalePendingPayments = existingPayments.filter(
+    (payment) => payment.status === "pending"
+  );
+
+  if (stalePendingPayments.length > 0) {
+    await Promise.all(
+      stalePendingPayments.map((payment) =>
+        paymentRepo.updatePaymentStatus(payment.id, {
+          status: "failed",
+          failure_reason: "Superseded by a new payment attempt.",
+          completed_at: new Date().toISOString(),
+        })
+      )
+    );
+  }
+
   if (
     profileError ||
     !userProfile ||
@@ -313,4 +336,4 @@ export async function getPaymentByIdAdmin(
   return paymentRepo.getPaymentById(
     validatedId
   );
-}
+    }
