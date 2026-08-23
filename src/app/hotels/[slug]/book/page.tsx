@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Navbar from '@/components/home/Navbar';
 import Footer from '@/components/home/Footer';
 import { getHotelBySlug } from '@/app/actions/hotel.actions';
+import { getBookableRoomsForHotel } from '@/app/actions/room-type.actions';
 import { getAuthUser } from '@/lib/auth/session';
 import BookingForm from '@/components/booking/BookingForm';
 
@@ -12,10 +13,13 @@ import BookingForm from '@/components/booking/BookingForm';
 
 export default async function HotelBookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ room?: string }>;
 }) {
   const { slug } = await params;
+  const { room: preselectedRoomId } = await searchParams;
 
   const authUser = await getAuthUser();
   if (!authUser) {
@@ -26,6 +30,11 @@ export default async function HotelBookingPage({
   if (!hotel) {
     notFound();
   }
+
+  // ROOM-05: rooms + rates for this hotel, so a room can actually be
+  // selected and its price captured on the booking (previously this
+  // page only ever knew about hotel.starting_price).
+  const rooms = await getBookableRoomsForHotel(hotel.id);
 
   return (
     <main className="bg-cream">
@@ -43,6 +52,8 @@ export default async function HotelBookingPage({
             targetId={hotel.id}
             targetName={hotel.hotel_name}
             startingPrice={hotel.starting_price}
+            rooms={rooms}
+            preselectedRoomId={preselectedRoomId ?? null}
           />
         </div>
       </section>
