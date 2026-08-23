@@ -125,6 +125,54 @@ export interface BookableRoom {
   images: { id: string; publicUrl: string; is_primary: boolean }[];
 }
 
+// Shared by getBookableRoomsForHotel and getBookableRoomById so the two
+// public read paths can never resolve price/images differently from
+// each other. Takes the already-fetched RoomTypeRecord plus the same
+// supabase client so it doesn't create a second one.
+async function resolveBookableRoom(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  roomRepo: RoomTypeRepository,
+  priceRepo: RoomPriceRepository,
+  room: RoomTypeRecord,
+  resolvedDate: string
+): Promise<BookableRoom> {
+  const [priceRow, imageRows] = await Promise.all([
+    priceRepo.getPriceForDate(room.id, resolvedDate),
+    roomRepo.listRoomImages(room.id),
+  ]);
+
+  const images = imageRows
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((img) => {
+      const normalizedPath = normalizeRoomStoragePath(img.storage_path);
+      const { data: publicUrlData } = supabase.storage
+        .from('room-images')
+        .getPublicUrl(normalizedPath);
+
+      return {
+        id: img.id,
+        publicUrl: publicUrlData.publicUrl,
+        is_primary: img.is_primary,
+      };
+    });
+
+  return {
+    id: room.id,
+    room_name: room.room_name,
+    room_type: room.room_type,
+    capacity_adults: room.capacity_adults,
+    capacity_children: room.capacity_children,
+    max_occupancy: room.max_occupancy,
+    bed_type: room.bed_type,
+    room_size_sqft: room.room_size_sqft,
+    price: priceRow ? priceRow.final_price : room.base_price,
+    price_source: priceRow ? ('room_prices' as const) : ('base_price' as const),
+    currency_id: priceRow?.currency_id ?? null,
+    images,
+  };
+}
+
 export async function getBookableRoomsForHotel(
   hotelId: string,
   priceDate?: string
@@ -139,47 +187,36 @@ export async function getBookableRoomsForHotel(
   const resolvedDate =
     priceDate ?? new Date().toISOString().slice(0, 10);
 
-  const results = await Promise.all(
-    activeRooms.map(async (room) => {
-      const [priceRow, imageRows] = await Promise.all([
-        priceRepo.getPriceForDate(room.id, resolvedDate),
-        roomRepo.listRoomImages(room.id),
-      ]);
-
-      const images = imageRows
-        .slice()
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map((img) => {
-          const normalizedPath = normalizeRoomStoragePath(img.storage_path);
-          const { data: publicUrlData } = supabase.storage
-            .from('room-images')
-            .getPublicUrl(normalizedPath);
-
-          return {
-            id: img.id,
-            publicUrl: publicUrlData.publicUrl,
-            is_primary: img.is_primary,
-          };
-        });
-
-      return {
-        id: room.id,
-        room_name: room.room_name,
-        room_type: room.room_type,
-        capacity_adults: room.capacity_adults,
-        capacity_children: room.capacity_children,
-        max_occupancy: room.max_occupancy,
-        bed_type: room.bed_type,
-        room_size_sqft: room.room_size_sqft,
-        price: priceRow ? priceRow.final_price : room.base_price,
-        price_source: priceRow ? ('room_prices' as const) : ('base_price' as const),
-        currency_id: priceRow?.currency_id ?? null,
-        images,
-      };
-    })
+  return Promise.all(
+    activeRooms.map((room) =>
+      resolveBookableRoom(supabase, roomRepo, priceRepo, room, resolvedDate)
+    )
   );
+}
 
-  return results;
+// ROOM-05 (public read path, single room): backs the room detail page.
+// Public/no-auth like getBookableRoomsForHotel above — same reasoning.
+// Returns null (not an error) for: room not found, room belongs to a
+// different hotel than hotelId, or room.status !== 'active' — all three
+// should render the page's not-found state rather than leak an
+// inactive/foreign room's details.
+export async function getBookableRoomById(
+  hotelId: string,
+  roomId: string,
+  priceDate?: string
+): Promise<BookableRoom | null> {
+  const supabase = await createClient();
+  const roomRepo = new RoomTypeRepository(supabase);
+  const priceRepo = new RoomPriceRepository(supabase);
+
+  const room = await roomRepo.getRoomTypeById(roomId);
+  if (!room || room.hotel_id !== hotelId || room.status !== 'active') {
+    return null;
+  }
+
+  const resolvedDate = priceDate ?? new Date().toISOString().slice(0, 10);
+
+  return resolveBookableRoom(supabase, roomRepo, priceRepo, room, resolvedDate);
 }
 
 export async function getRoomTypeByIdAdmin(
