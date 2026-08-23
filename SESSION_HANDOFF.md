@@ -4,28 +4,28 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
-ROOM-04 — Room Inventory / Availability — COMPLETE — Frozen (this session).
+ROOM-05 — Booking-Room Linkage — public read path + booking price capture wired this session. Requires the 008_room05_booking_room_linkage.sql migration to be run in Supabase before hotel bookings will work at all (see below) — not yet confirmed run.
 
-Deployment-ready. Do not reopen unless a regression/bug is found.
+Completed this session (2026-08-23 — ROOM-05)
 
-Completed this session (2026-08-18 — ROOM-04)
+Audited against the live schema per RULE 13/15 (user ran information_schema.columns against public.bookings directly). Found two separate, previously undocumented issues:
 
-Audited the repository per DEVELOPMENT_BIBLE RULE 13/15 before coding, following the same process as the ROOM-03 pass. Found RoomInventoryRepository already existed with getInventoryForRange, getInventoryForDate, getInventoryForRoomsOnDate, verifyRoomOwnership, and setInventoryForDate fully implemented and schema-verified from a prior undocumented session — only the read-only getRoomInventorySummaryForHotelAdmin dashboard action was wired up.
+1. Public read gap: every existing room-related Server Action (room-type.actions.ts, room-price.actions.ts) is requireRole-gated (admin/super_admin/hotel_owner). The public hotel detail page and booking page had no legal way to read hotel_rooms or room_prices, so rooms never rendered and booking always fell back to hotel.starting_price regardless of admin-set room rates.
 
-Added the missing pieces, following the ROOM-03 pattern exactly:
+2. Confirmed production bug: booking.repository.ts's createBooking() has been unconditionally inserting a `room_id` column into public.bookings since an earlier undocumented session, but the live table does not have that column (migration file 008 was referenced in comments but never actually existed in this repo, and was never run). This means every hotel booking attempt — not just room-specific pricing — has been failing with a Postgres "column does not exist" error.
 
-- One new repository method: deleteInventoryForDate (soft-delete, refuses if booked_rooms > 0 for that date — same guard principle as the pre-existing setInventoryForDate).
-- Four new Server Actions in room-inventory.actions.ts: setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, bulkSetInventoryAction — Zod-validated, ActionResult<T>, ownership-checked via requireRole + repo.verifyRoomOwnership.
-- New component: src/components/admin/rooms/RoomInventoryManager.tsx.
-- New route: src/app/admin/hotels/[id]/rooms/[roomId]/availability/page.tsx — the exact route the rooms list, room edit, room images, and room pricing pages already linked to.
+Fixed:
+- New public (no-auth) action getBookableRoomsForHotel() in room-type.actions.ts.
+- src/app/hotels/[slug]/page.tsx now renders rooms + resolved per-night price.
+- src/app/hotels/[slug]/book/page.tsx + BookingForm.tsx: room selection UI, room_id passed through, price computed from the selected room's room_prices/base_price instead of always using hotel.starting_price.
+- booking.actions.ts: room_id added to createBookingSchema (optional, hotel-only), price_snapshot now resolved per-room when one is selected.
+- src/db/sql/008_room05_booking_room_linkage.sql created for real this time (adds bookings.room_id + index) — MUST be run manually in Supabase SQL editor. Until it is, hotel bookings will continue to fail on insert.
 
-No schema, RLS, or database changes. No pre-existing method/export was changed, only added to.
+No ROOM-01–04 admin code touched. No repository method signatures changed except the new getBookableRoomsForHotel addition.
 
-Verified TypeScript and ESLint (see Verification below). Production build not run this session — same sandbox Google Fonts network restriction as every prior session.
+Verified: TypeScript (tsc --noEmit) clean, ESLint clean on all changed files. Production build not run to completion — same sandbox Google Fonts network restriction as every prior session (unrelated to this change).
 
-Updated PROJECT_STATUS.md and CHANGELOG.md with the ROOM-04 record.
-
-ROOM-05 (booking-room linkage) is the next milestone — not started, needs a fresh RULE 15 audit before coding.
+Not verified: whether 008_room05_booking_room_linkage.sql has actually been run against production yet. Confirm with the query in that file before testing bookings end-to-end.
 
 Hotfix previous session (2026-08-16 — PACKAGE-IMG-01)
 
