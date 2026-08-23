@@ -139,6 +139,78 @@ export async function deleteRoomTypeAdmin(
   });
 }
 
+// --- PUBLIC-02: Public room browsing (hotel detail page) ---
+//
+// Read-only, no auth required — mirrors the existing public pattern
+// used by getHotelBySlug() / getBookableRoomsForHotel(). Only returns
+// active rooms, and only the primary image (falls back to the first
+// image if none is flagged primary) so the hotel detail page can show
+// a lightweight room gallery without waiting on date selection.
+export interface PublicRoomSummary {
+  id: string;
+  room_name: string;
+  room_type: string;
+  bed_type: string | null;
+  room_size_sqft: number | null;
+  capacity_adults: number;
+  capacity_children: number;
+  max_occupancy: number;
+  base_price: number;
+  primary_image_url: string | null;
+}
+
+export async function getRoomsForHotelPublic(
+  hotelId: string
+): Promise<PublicRoomSummary[]> {
+  if (!hotelId) return [];
+
+  const supabase = await createClient();
+  const repo = new RoomTypeRepository(supabase);
+
+  const rooms = (await repo.getRoomTypesByHotel(hotelId)).filter(
+    (room) => room.status === 'active'
+  );
+
+  const results: PublicRoomSummary[] = [];
+
+  for (const room of rooms) {
+    let primaryImageUrl: string | null = null;
+
+    try {
+      const images = await repo.listRoomImages(room.id);
+      const chosen =
+        images.find((img) => img.is_primary) ?? images[0] ?? null;
+
+      if (chosen) {
+        const normalizedPath = normalizeRoomStoragePath(chosen.storage_path);
+        const { data } = supabase.storage
+          .from('room-images')
+          .getPublicUrl(normalizedPath);
+        primaryImageUrl = data.publicUrl;
+      }
+    } catch {
+      // Image lookup failure shouldn't hide the room itself — it just
+      // renders without a photo.
+      primaryImageUrl = null;
+    }
+
+    results.push({
+      id: room.id,
+      room_name: room.room_name,
+      room_type: room.room_type,
+      bed_type: room.bed_type,
+      room_size_sqft: room.room_size_sqft,
+      capacity_adults: room.capacity_adults,
+      capacity_children: room.capacity_children,
+      max_occupancy: room.max_occupancy,
+      base_price: room.base_price,
+      primary_image_url: primaryImageUrl,
+    });
+  }
+
+  return results;
+}
+
 // --- ROOM-02: Room Image Upload / Management ---
 
 const ROOM_ALLOWED_IMAGE_TYPES = [
