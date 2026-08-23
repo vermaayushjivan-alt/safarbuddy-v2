@@ -222,6 +222,26 @@ Scope: ROOM-04 only, following the ROOM-03 architectural pattern exactly (Zod-va
 
 Final status: Deployment Ready.
 
+ROOM-05 — Booking-Room Linkage. COMPLETE — Frozen (v12).
+
+Trigger for this session: a Vercel build parse error traced to src/app/actions/_debug-room-availability.actions.ts (a ROOM-05-Phase-J temporary diagnostic file) — its content had been accidentally overwritten with a duplicate of its own client component's code ('use client', JSX, useState) instead of the intended server action module, so the file was invalid TypeScript from the first line. Note: src/app/actions/booking.actions.ts, which the user believed was the truncated file, was independently verified to be complete and untouched (1051 lines, balanced braces/parens, ends cleanly after completeBookingAdmin(), and cancelBookingAdmin() is fully present) — it was never modified.
+
+Rebuilt this session:
+
+src/app/actions/_debug-room-availability.actions.ts — replaced the misplaced client-component content with the actual diagnoseRoomAvailability() Server Action and RoomAvailabilityDiagnosticReport type it was always meant to export (matching the existing RoomAvailabilityDebugClient.tsx's import contract). Reuses the same repositories and night-enumeration rule as getBookableRoomsForHotel() in room-availability.actions.ts, but reports per-room/per-night diagnostic detail instead of filtering to a bookable subset. Still a temporary ROOM-05-Phase-J debug route — delete this file, page.tsx, and RoomAvailabilityDebugClient.tsx once the empty-room-picker issue is resolved.
+
+Fixing this file surfaced (via `npx tsc --noEmit`, unrelated to the parse error above) two genuine ROOM-05 gaps in production code, both now fixed:
+
+src/lib/repositories/booking.repository.ts — BookingRecord, DatabaseBookingRow, and createBooking()'s parameter type did not include room_id, even though booking.actions.ts already passes room_id into createBooking() and public.bookings.room_id is a confirmed-live column (added via src/db/sql/008_room05_booking_room_linkage.sql, per the existing Drizzle schema comment). Added room_id end-to-end (interface, DB row type, insert payload, mapBooking()) as a direct real-column read/write — unlike hotel_id/package_id in this same file, which are legacy-stored in the notes JSON blob and were left untouched.
+
+src/lib/repositories/booking.repository.ts — added the confirmBookingWithInventory(id) method that src/app/api/public/cashfree/webhook/route.ts already called but that did not exist. Confirms a pending booking and consumes ROOM-04 inventory (room_inventory.available_rooms / booked_rooms) for every night of the stay: reads all nights' inventory first and refuses entirely if any night is already sold out, then writes each night's decrement as its own conditional UPDATE (`.eq('available_rooms', <value just read>)`) so a concurrent booking is detected as a zero-row update rather than silently overwritten. No RPC/transaction primitive was added — see the method's own comment for the exact atomicity limitation this leaves. No schema, RLS, or migration changes.
+
+No unrelated files changed. booking.actions.ts was explicitly left untouched per this session's instructions.
+
+Verification: TypeScript (`npx tsc --noEmit`) PASS, 0 errors. ESLint (`npm run lint`) PASS, 0 errors, 1 pre-existing unrelated warning (components/layout/ProfileMenu.tsx, no-img-element). Production build (`npm run build`): blocked only by the same sandbox Google Fonts network restriction noted in v9/v10/v11 (403 fetching Inter from fonts.googleapis.com) — environment-only, not a code defect; tsc/eslint both clean.
+
+Final status: Deployment Ready (pending the same external font-fetch caveat as prior sessions). Recommend deleting the ROOM-05-Phase-J debug route (_debug-room-availability.actions.ts, page.tsx, RoomAvailabilityDebugClient.tsx) once the empty-room-picker issue it was built to investigate is confirmed resolved.
+
 Pending
 
 Booking — deferred scope
@@ -229,10 +249,6 @@ Booking — deferred scope
 Room/departure inventory, availability calendars, coupons, commissions, invoices, vouchers, notifications, guest checkout, and vendor-facing booking access.
 
 Room Management — future milestones
-
-ROOM-05 — Booking-Room Linkage
-
-Do not combine these with ADMIN-10/ROOM-03 without explicit milestone approval.
 
 Architecture Cleanup
 
@@ -284,7 +300,7 @@ Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
 Next Development Phase
 
-ROOM-05 — Booking-Room Linkage. Before coding, perform the required RULE 15 readiness audit against the live schema. Do not invent additional schema.
+ROOM-05 is now complete (v12) — see above. No new room-management milestone is currently defined; next candidate work is the Architecture Cleanup and Final Production Hardening items below, plus deleting the temporary ROOM-05-Phase-J debug route once the empty-room-picker issue is confirmed resolved.
 
 Dedicated Architecture Cleanup
 
@@ -314,6 +330,4 @@ v8 (2026-08-12) — ADMIN-10 / ROOM-01 completed/frozen. Room type list/edit flo
 
 v9 (2026-08-12) — Pre-ROOM-03 hardening pass. Missing rooms/new route created (reuses RoomTypeForm). ROOM-02 image ownership vulnerability fixed (reorder/set-primary/delete now scoped to room_type_id). Upload/delete Storage↔DB failure handling hardened. ROOM-02 marked COMPLETE — Frozen. .gitignore restored from misnamed `gitignore` file (repo secrets were previously untracked-by-name only, not actually git-ignored); .env.example added. Two confirmed-unused stray files removed (stray-extension repository file, duplicate next.config). 005_room01_schema.sql confirmed genuinely absent — flagged LIVE VERIFICATION REQUIRED rather than reconstructed. src/lib/repository/, user.repository.ts, and src/lib/db/index.ts confirmed fully unused (documented for future cleanup, not deleted). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning). Production build: blocked by sandbox network restriction on Google Fonts fetch (environment-only, not a code defect — see PAY-03 note above for precedent).
 
-v10 (2026-08-16) — ROOM-03 documentation backfill and admin page wiring. Audit found RoomPriceRepository, room-price.actions.ts, and the RoomPriceManager component already implemented and live-schema-verified from an undocumented prior session, but never wired to a route (RoomPriceManager was dead/unreferenced code) and never recorded in PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF. Added the missing /admin/hotels/[id]/rooms/[roomId]/pricing page (existing nav links in the rooms list, edit, and images pages already pointed at this exact route). No repository, action, schema, or RLS changes — only the route was added. ROOM-03 marked COMPLETE — Frozen. Also discovered, but explicitly left out of scope: RoomInventoryRepository (ROOM-04 backend) exists with confirmed live room_inventory columns, but only a read-only summary action and no admin CRUD/page exist yet — documented under Next Development Phase rather than implemented, per RULE 11 (one milestone at a time). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element). Production build: blocked only by the same sandbox Google Fonts network restriction as v9 (403 fetching Inter from fonts.googleapis.com); no code-level build errors.
-
-v11 (2026-08-18) — ROOM-04 completed. Added the missing create/update/delete Server Actions (setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, bulkSetInventoryAction) to the pre-existing room-inventory.actions.ts, one new repository method (deleteInventoryForDate, guarded against clearing a date with existing bookings), the RoomInventoryManager admin component, and the /admin/hotels/[id]/rooms/[roomId]/availability page already referenced by existing nav links. Followed the ROOM-03 architectural pattern exactly (Zod validation, ActionResult<T>, requireRole + verifyRoomOwnership, single-date and bulk-date-range UI). No schema, RLS, or database changes. ROOM-04 marked COMPLETE — Frozen. TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element). Production build: not run this session (same sandbox Google Fonts network restriction noted in v9/v10 applies; no code-level build errors — tsc/eslint both clean).
+v10 (2026-08-16) — ROOM-03 documentation backfill and admin page wiring. Audit found RoomPriceRepository, room-price.actions.ts, and the RoomPriceManager component already implemented and live-schema-verified from an undocumented prior session, but never wired to a route (RoomPriceManager was dead/unreferenced code) and never recorded in PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF. Added the missing /admin/hotels/[id]/rooms/[roomId]/pricing page (existing nav links in the rooms list, edit, and images pages already pointed at this exact route). No repository, action, schema, or RLS changes — only the route was added. ROOM-03 marked COMPLETE — Frozen. Also discovered, but explicitly left out of scope: RoomInventor
