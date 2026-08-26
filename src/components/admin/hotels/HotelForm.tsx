@@ -68,6 +68,14 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
 
     // vendor_id is nullable in the database.
     vendor_id: hotel?.vendor_id ?? "",
+
+    // CONTACT-01: booking-notification contact details. If the hotel is
+    // vendor-linked, the vendor's business_email/business_phone can
+    // still be used as a fallback — this is the hotel's own contact,
+    // for standalone hotels or to override the vendor's.
+    phone: hotel?.phone ?? "",
+    email: hotel?.email ?? "",
+    website: hotel?.website ?? "",
   });
 
   // Load vendor list on mount.
@@ -386,6 +394,63 @@ export function HotelForm({ mode, hotel }: HotelFormProps) {
           Select the vendor that owns or manages this hotel.
         </p>
       </Field>
+
+      {/* CONTACT-01: booking-notification contact details. Kept
+          separate from the Vendor field above — a vendor's own
+          business_email/business_phone (VENDOR-01) still applies as a
+          fallback when this hotel has no vendor, but any hotel can
+          also set its own contact directly here. */}
+      <div className="rounded-xl border border-deep/10 bg-mist/30 p-4">
+        <p className="mb-3 text-[13px] font-medium text-deep">
+          Contact Details
+        </p>
+        <p className="mb-4 text-[12px] text-ink/45">
+          Used to notify this property about new bookings (email,
+          dashboard, and WhatsApp). If left blank and this hotel is
+          linked to a vendor, the vendor&apos;s contact details are
+          used instead.
+        </p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Phone">
+            <input
+              type="tel"
+              value={form.phone ?? ""}
+              onChange={(e) =>
+                handleChange("phone", e.target.value)
+              }
+              placeholder="+91 98765 43210"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Email">
+            <input
+              type="email"
+              value={form.email ?? ""}
+              onChange={(e) =>
+                handleChange("email", e.target.value)
+              }
+              placeholder="bookings@example.com"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+
+        <div className="mt-4">
+          <Field label="Website">
+            <input
+              type="url"
+              value={form.website ?? ""}
+              onChange={(e) =>
+                handleChange("website", e.target.value)
+              }
+              placeholder="https://example.com"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+      </div>
 
       <label className="flex items-center gap-2 text-[13px] text-deep">
         <input
