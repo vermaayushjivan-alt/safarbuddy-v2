@@ -156,6 +156,43 @@ const hotelInputSchema = z.object({
       .nullable()
       .optional()
   ),
+
+  // CONTACT-01: hotels.phone/email/website already existed as live DB
+  // columns (verified against information_schema, SESSION 03 — see
+  // HotelRecord comment) but were never exposed on this form, so a
+  // standalone hotel (no vendor_id) had no way to record how it should
+  // be contacted for booking notifications. All three are optional,
+  // matching the DB's nullable columns.
+  phone: z.preprocess(
+    emptyToNull,
+    z
+      .string()
+      .trim()
+      .min(7, 'Enter a valid phone number')
+      .max(20, 'Phone number is too long')
+      .nullable()
+      .optional()
+  ),
+
+  email: z.preprocess(
+    emptyToNull,
+    z
+      .string()
+      .trim()
+      .email('Enter a valid email address')
+      .nullable()
+      .optional()
+  ),
+
+  website: z.preprocess(
+    emptyToNull,
+    z
+      .string()
+      .trim()
+      .url('Enter a valid URL, e.g. https://example.com')
+      .nullable()
+      .optional()
+  ),
 });
 
 export type HotelInput = z.infer<typeof hotelInputSchema>;
