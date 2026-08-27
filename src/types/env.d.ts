@@ -39,6 +39,9 @@ declare namespace NodeJS {
     // Email
     RESEND_API_KEY?: string;
     EMAIL_FROM?: string;
+    GMAIL_USER?: string;
+    GMAIL_APP_PASSWORD?: string;
+    ADMIN_NOTIFICATION_EMAIL?: string;
 
     // Google OAuth
     GOOGLE_CLIENT_ID?: string;
