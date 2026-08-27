@@ -316,7 +316,47 @@ VENDOR-03 — Self-Service "List Your Property" (4-milestone plan, requested by 
 
 - M1 — Schema Foundation. CODE COMPLETE 2026-08-28, migration not yet run in production. RULE 15 audit recorded in chat session (not duplicated here in full — summary: hotels had no facilities column; no safe user_roles-write path existed). Delivered: src/db/sql/011_vendor03_hotel_facilities.sql (hotel_facilities catalog + hotel_facility_links junction, RLS enabled with public-read policies), src/lib/repositories/hotel-facility.repository.ts, src/lib/auth/roles.ts (grantSelfServiceRole/hasSelfServiceRole, hardcoded to hotel_owner/vendor only — see file for why this is safe without its own requireRole() call). tsc --noEmit and eslint both clean on new files. NOT YET RUN against production — run manually in Supabase SQL editor, then confirm via information_schema.columns per RULE 13 before starting M2.
 - M2 — Public "List Your Property" flow. NOT STARTED. Planned: homepage CTA button, single consolidated public form (owner/account info + property details + facilities checklist from M1's catalog + payout/bank details + contact) submitting once to a new Server Action that creates the user (if new)/vendor/hotel(status=pending)/payout row/facility links together, and calls grantSelfServiceRole(userId, 'hotel_owner'). Needs its own RULE 15 audit before coding (in particular: how "user already logged in vs new visitor" is handled, and Supabase Storage path for property photo/ID-proof upload — not yet designed).
-- M3 — Notifications. NOT STARTED. Depends on M2. Existing public.notifications table (CONTACT-01) requires a non-null booking_id — cannot be reused as-is for "new listing submitted" alerts; needs either a nullable booking_id migration or a separate alert path. Needs its own RULE 15 audit.
+- M2 — Public "List Your Property" flow. CODE COMPLETE 2026-08-28,
+  migration (011, from M1) still not run in production — M2 depends on
+  it. RULE 15 decision: submitPropertyListing() is NOT requireRole()
+  gated (a brand-new visitor has no role yet); safety instead comes
+  from using createServiceRoleClient() for all writes (trusted-server
+  pattern already established for the Cashfree webhook), only ever
+  acting on the user id returned by this action's own signUp() call
+  (never a client-supplied id), and grantSelfServiceRole()'s hardcoded
+  hotel_owner/vendor allowlist. New hotel+vendor rows always start
+  status='pending' — never auto-published. Delivered: one consolidated
+  Zod schema/form covering owner account + property details +
+  facilities checklist (from M1's catalog) + payout/contact, submitted
+  in a single POST — no multi-step wizard, per explicit request.
+  Files: src/app/actions/property-listing.actions.ts,
+  src/components/public/PropertyListingForm.tsx,
+  src/app/list-your-property/page.tsx, "List Your Property" button
+  added to src/components/home/Navbar.tsx. RULE 29 backfill: added
+  GMAIL_USER/GMAIL_APP_PASSWORD (previously read via process.env
+  without being in serverEnvSchema/env.d.ts despite a code comment
+  claiming otherwise — see DOC_DEBT.md item 7) and
+  ADMIN_NOTIFICATION_EMAIL to serverEnvSchema, env.d.ts, .env.example.
+  tsc --noEmit: PASS. eslint (project-wide): PASS, 0 errors (1
+  pre-existing unrelated warning in components/layout/ProfileMenu.tsx,
+  not touched this session). Production build (`next build`): NOT
+  VERIFIED in this sandbox — fails only on fonts.googleapis.com being
+  network-blocked in this container (RULE 23), unrelated to any code
+  changed here; must be confirmed on a real deploy (Vercel) before
+  Frozen.
+  Not started within M2's own scope: property photo/ID-proof upload
+  (no Storage bucket/path designed yet — flagged, not silently
+  assumed). Functional walkthrough (RULE 21/22): NOT performed — no
+  live Supabase project reachable from this sandbox; must be walked
+  through end-to-end (real signup + submission) before Frozen.
+- M3 — Notifications. PARTIALLY COVERED by M2: a best-effort admin
+  alert email is already sent on submission (via existing sendEmail(),
+  gated on ADMIN_NOTIFICATION_EMAIL being set; skipped+logged, not
+  thrown, if unset — RULE 30) without touching the notifications
+  table at all. Remaining scope: owner-facing confirmation
+  email/WhatsApp, and a dashboard-alert equivalent to CONTACT-01's for
+  new listings (still blocked on notifications.booking_id being
+  NOT NULL — needs its own migration or table, not started).
 - M4 — Admin approval UI. NOT STARTED. Depends on M2. Review/approve/reject queue for hotels with status='pending' created via self-service.
 
 VENDOR-02 — Hotel Owner Payout KYC Capture. RULE 15 audit performed and code written 2026-08-28 (see v14 above). NOT YET DEPLOYMENT READY: src/db/sql/010_vendor02_payout_kyc.sql has not been run against production yet — run it manually in the Supabase SQL editor, then confirm public.vendor_payout_details exists via information_schema.columns before relying on the new admin page. Cashfree beneficiary creation is intentionally not implemented (inert stub) pending Payout API credentials.
