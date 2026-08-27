@@ -2,6 +2,77 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-08-28 — VENDOR-02 — Hotel Owner Payout KYC Capture
+
+Status: CODE COMPLETE — migration not yet run in production.
+
+RULE 15 audit (see PROJECT_STATUS.md): existing vendors table (vendor_name, vendor_type, owner_user_id, business_email, business_phone, gstin, pan_number, status) had no bank/UPI/beneficiary fields; no owner-facing page exists under src/app/vendor/ (layout-only role guard); Cashfree integration only covered Payment Gateway (PAY-01/02), not Payouts.
+
+Decision: new public.vendor_payout_details table, separate from vendors (keeps sensitive bank/UPI data off the table read by the ordinary hotel-form vendor dropdown; PAN stays on vendors, not duplicated). Admin-managed (not owner self-service) since no owner-facing page exists yet — building one was out of scope for this milestone. Cashfree beneficiary creation left as an inert stub pending separate Payout API credentials.
+
+Created:
+- src/db/sql/010_vendor02_payout_kyc.sql — new table, unique index on vendor_id, RLS enabled with no public/authenticated policy (admin-only via service role, matching existing content-table pattern).
+- src/lib/repositories/vendor-payout.repository.ts — VendorPayoutRepository (getByVendorId, upsertForVendor).
+- src/app/actions/vendor-payout.actions.ts — getVendorPayoutDetailsAdmin, upsertVendorPayoutDetailsAdmin (admin/super_admin only, Zod-validated inline per vendor.actions.ts's actual convention).
+- src/components/admin/vendors/VendorPayoutForm.tsx — admin form (bank account + IFSC, or UPI).
+- src/app/admin/vendors/[id]/payout/page.tsx.
+- src/lib/cashfree/cashfree-payouts.client.ts — inert stub, mirrors whatsapp.client.ts precedent; no invented API contract.
+
+Modified:
+- src/app/admin/vendors/[id]/edit/page.tsx — added "Manage Payout Details" link next to "Manage Branches".
+
+Not done (explicitly out of scope this milestone): running the migration in production; wiring the real Cashfree Payouts beneficiary-creation call; PAY-04 split-settlement logic; owner self-service UI.
+
+Verification: TypeScript (npx tsc --noEmit) PASS, 0 errors. ESLint PASS, 0 errors on all new/changed files.
+
+2026-08-28 — BOOKING-02 — Migration gap resolved (documentation fix, no application code change)
+
+Status: CLOSED.
+
+User ran information_schema.columns and pg_attribute/pg_attrdef/pg_constraint directly against public.bookings. Confirmed room_id exists in production: uuid, nullable, no default, FK → hotel_rooms(id). This resolves the contradiction between DATABASE_BIBLE.md (said room_id was live-confirmed) and the 2026-08-23 SESSION_HANDOFF.md entry (said it was absent) — in DATABASE_BIBLE.md's favor. Which source was actually right at the time, or whether the column was added later by an undocumented change, is unknown and was not guessed at.
+
+Created: src/db/sql/008_room05_booking_room_linkage.sql — idempotent (add column if not exists), documents the already-live state rather than attempting to re-apply a change already in production. Written only after the live column/nullability/FK were directly confirmed, per RULE 13.
+
+No application code changed. booking.repository.ts already correctly typed room_id as `string | null` and treated it as optional — the code was never the problem; only the on-disk migration history was missing.
+
+Also updated: DATABASE_BIBLE.md's Known Tables entry and Migration Registry row for 008, to match confirmed reality instead of the prior "added for ROOM-05, migration must exist" placeholder note.
+
+2026-08-27 — Build-stability audit + launch-readiness planning (backfilled)
+
+Status: Documentation backfill only — this entry was missing from CHANGELOG.md until now. Source: SESSION_HANDOFF.md and DOC_DEBT.md, cross-checked against this repo's actual contents.
+
+Fixed (build-blocking, neither previously logged anywhere):
+
+- src/lib/notifications/whatsapp.client.ts did not exist on disk though dispatch.ts imports sendWhatsApp from it, breaking tsc/Vercel builds with "Cannot find module './whatsapp.client'". Recreated as an inert stub (returns success:false, "provider not configured yet"), matching the CONTACT-01 no-WhatsApp-provider-yet state. Confirmed via tsc --noEmit and a clean Vercel production build.
+- package.json was missing nodemailer and @types/nodemailer even though email.client.ts imports nodemailer, breaking Vercel builds with "Cannot find module 'nodemailer'". Added both. Confirmed via a clean Vercel production build.
+
+Diagnosed (not a code bug): live-mode Cashfree order creation returned HTTP 401 (confirmed via Vercel function logs). cashfree.client.ts itself was already correct. Root cause was stale/mismatched production API keys in Vercel and/or a missing redeploy. Resolved by the user re-entering matched live keys and redeploying; confirmed working with a real live payment.
+
+Found — NOT fixed (logged as BOOKING-02, top priority): src/db/sql/008_room05_booking_room_linkage.sql is referenced elsewhere as created, but does not exist anywhere in the delivered repo. booking.repository.ts's createBooking() unconditionally inserts a room_id column. Whether the live public.bookings table actually has this column is UNRESOLVED — see the Known Issues / Doc Contradiction note below.
+
+Documentation debt logged: DOC_DEBT.md created this session, recording this item plus the CONTACT-01 backfill and the whatsapp.client.ts/package.json "claimed but absent" pattern.
+
+Four milestones planned (not started, no code written): BOOKING-02, VENDOR-02, PAY-04, CONTACT-02. SESSION_HANDOFF.md states each has "a full RULE 15 pre-coding audit recorded in PROJECT_STATUS.md" — direct inspection of PROJECT_STATUS.md found no such audits present. See DOC_DEBT.md item 5.
+
+Verification: tsc --noEmit clean. Two separate clean Vercel production builds. Cashfree live payment confirmed working end-to-end.
+
+2026-08-23 — ROOM-05 — Booking-Room Linkage (backfilled)
+
+Status: COMPLETE — Frozen (per SESSION_HANDOFF.md/PROJECT_STATUS.md). Documentation backfill only — this entry was missing from CHANGELOG.md until now.
+
+Audited against the live schema per RULE 13/15 (user ran information_schema.columns against public.bookings directly). Two previously undocumented issues found:
+
+1. Public read gap: room-type.actions.ts and room-price.actions.ts are requireRole-gated; the public hotel detail/booking pages had no legal way to read hotel_rooms/room_prices, so rooms never rendered and booking always fell back to hotel.starting_price.
+2. booking.repository.ts's createBooking() has been unconditionally inserting a room_id column into public.bookings since an earlier undocumented session. SESSION_HANDOFF.md's own text for this date states the live table did NOT have that column at the time of this audit — see Known Issues / Doc Contradiction note below, this conflicts with DATABASE_BIBLE.md's Known Tables entry for bookings.
+
+Fixed: new public getBookableRoomsForHotel() action; hotels/[slug]/page.tsx renders rooms + resolved per-night price; book/page.tsx + BookingForm.tsx add room selection with room_id passed through and per-room pricing; booking.actions.ts adds optional room_id to createBookingSchema with per-room price_snapshot resolution.
+
+Claimed but not delivered this session (only discovered 2026-08-27): src/db/sql/008_room05_booking_room_linkage.sql, reported as "created for real this time," does not actually exist in the repo.
+
+Verification: tsc --noEmit clean, ESLint clean on changed files. Production build not run to completion (sandbox Google Fonts restriction, unrelated to this change).
+
+Known Issues / Doc Contradiction (added 2026-08-28, not a code change): DATABASE_BIBLE.md's Known Tables section states bookings' "live, confirmed columns include room_id," while this same 2026-08-23 entry above states the live table did NOT have room_id at time of audit. These two statements conflict and have not been reconciled. Live schema must be re-verified via information_schema.columns before BOOKING-02 is coded — do not proceed on either claim as-is.
+
 2026-08-18 — ROOM-04 — Room Inventory / Availability
 
 Status: COMPLETE — Frozen — Deployment Ready
