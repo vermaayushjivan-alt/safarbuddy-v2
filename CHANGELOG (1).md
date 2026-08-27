@@ -2,6 +2,34 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-08-28 — VENDOR-03 (M2) — Public "List Your Property" Self-Service Flow
+
+Status: CODE COMPLETE — depends on M1's migration 011 being run first (still not run in production).
+
+RULE 15 decision: submitPropertyListing() is deliberately not requireRole()-gated — a brand-new visitor has no role yet. Safety comes from createServiceRoleClient() for every write (same trusted-server pattern already used for the Cashfree webhook), only ever acting on the user id returned by this action's own supabase.auth.signUp() call (never a client-supplied id), and grantSelfServiceRole()'s hardcoded hotel_owner/vendor allowlist (src/lib/auth/roles.ts, M1). New hotel + vendor rows always start status='pending' — never auto-published; M4 (not started) will add the admin approval queue.
+
+One consolidated form, one submit — owner account (name/email/phone/password), property details, a facilities checklist sourced from M1's hotel_facilities catalog, and payout (bank/UPI) + booking-contact details, per explicit project-owner requirement that a small hotel owner shouldn't have to navigate multiple sections.
+
+Created:
+- src/app/actions/property-listing.actions.ts — getFacilityCatalog() (public read) and submitPropertyListing() (the full pipeline: signUp → vendor → hotel → facility links → payout upsert → role grant → best-effort admin alert email).
+- src/components/public/PropertyListingForm.tsx — the single-page form, reusing existing TextField/PasswordField/Alert components (RULE 9).
+- src/app/list-your-property/page.tsx — public route.
+
+Modified:
+- src/components/home/Navbar.tsx — added "List Your Property" button.
+- src/lib/config/env.ts, src/types/env.d.ts, .env.example — added GMAIL_USER, GMAIL_APP_PASSWORD (RULE 29 backfill — see DOC_DEBT.md item 7), and ADMIN_NOTIFICATION_EMAIL.
+
+Verified this session:
+- TypeScript (`tsc --noEmit`): PASS.
+- ESLint, whole project: PASS, 0 errors (one pre-existing unrelated warning in components/layout/ProfileMenu.tsx, not touched this session). One real lint error found and fixed during this session — setState called synchronously inside a useEffect in the form's owner/contact-mirroring logic — refactored to update state directly in the change handler instead.
+
+Not verified (RULE 23):
+- `next build`: fails in this sandbox only on fonts.googleapis.com being network-blocked — unrelated to any code written here; needs confirming on a real deploy.
+- No functional walkthrough — no live Supabase project reachable from this sandbox. Must be walked through end-to-end (real signup, email confirmation, login, pending-listing visibility) before this milestone is marked Frozen.
+- Migration 011 (M1) not run against production yet — M2 cannot be functionally tested until it is.
+
+Out of scope for M2 (explicitly, not silently dropped): property photo/ID-proof upload — no Storage bucket/path designed yet.
+
 2026-08-28 — VENDOR-03 (M1) — Hotel Facilities Schema Foundation
 
 Status: CODE COMPLETE — migration not yet run in production.
