@@ -4,9 +4,19 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
-BOOKING-02 — Booking Migration Repair. NOT STARTED. This is the top priority before any new feature work. See PROJECT_STATUS.md "Next Development Phase" for the full RULE 15 pre-coding audit (Existing Architecture / Root Cause / Files / Why / Minimal Plan).
+PAY-04 — Automated Split Settlement via Cashfree Easy Split. NOT STARTED. Depends on VENDOR-02 (code complete, see below) and on Cashfree Payout API credentials, which have not been provided yet. No RULE 15 pre-coding audit exists yet — perform one before writing any code.
 
-Completed this session (2026-08-27 — build-stability audit + launch-readiness planning)
+VENDOR-02 — Hotel Owner Payout KYC Capture. CODE COMPLETE 2026-08-28, migration NOT YET RUN in production. RULE 15 audit performed (see PROJECT_STATUS.md v14): new public.vendor_payout_details table (src/db/sql/010_vendor02_payout_kyc.sql — run this manually in Supabase, then confirm via information_schema.columns before relying on it), admin-only capture form at /admin/vendors/[id]/payout, Cashfree beneficiary creation left as an inert stub pending separate Payout credentials. Admin-managed rather than owner self-service, since src/app/vendor/ has no actual page yet (layout-only role guard) — building owner-facing UI/auth was out of scope for this milestone.
+
+BOOKING-02 — CLOSED 2026-08-28. Live schema confirmed via information_schema.columns and pg_attribute/pg_attrdef/pg_constraint: public.bookings.room_id exists (uuid, nullable, no default, FK → hotel_rooms(id)). This resolved the DATABASE_BIBLE.md-vs-audit contradiction in DATABASE_BIBLE.md's favor. Migration src/db/sql/008_room05_booking_room_linkage.sql created (idempotent) to close the RULE 32 disk-gap. No application code changed — booking.repository.ts already handled room_id correctly. Bookings were never actually broken by this in production. See PROJECT_STATUS.md v13 and CHANGELOG.md 2026-08-28.
+
+Completed this session (2026-08-28 — documentation backfill + BOOKING-02 resolution + VENDOR-02 implementation)
+
+User confirmed PROJECT_STATUS.md/CHANGELOG.md had not been updated for the 2026-08-23 (ROOM-05) and 2026-08-27 (build-stability/planning) sessions. Both files backfilled from this file's own record of those sessions, cross-checked against the actual repo contents. Also found and logged (DOC_DEBT.md item 5): this file's own claim that BOOKING-02/VENDOR-02/PAY-04/CONTACT-02 each had "a full RULE 15 pre-coding audit recorded in PROJECT_STATUS.md" was false — none of the four audits actually exist there. They were not fabricated to close the gap; VENDOR-02/PAY-04/CONTACT-02 still need real audits before coding.
+
+Then resolved BOOKING-02 itself: ran the live-schema queries (information_schema.columns, then pg_attribute/pg_attrdef/pg_constraint) against public.bookings, confirmed room_id's actual state, and wrote the missing migration file as a documentation record (not a live change — the column was already there).
+
+Completed previous session (2026-08-27 — build-stability audit + launch-readiness planning)
 
 Found and fixed two build-blocking bugs, neither previously logged anywhere:
 
@@ -78,9 +88,7 @@ No ROOM-06 in scope.
 
 Next action
 
-BOOKING-02 — Booking Migration Repair. See PROJECT_STATUS.md for the full RULE 15 pre-coding audit. First step: verify the live public.bookings schema directly (does it have room_id or not) before writing the migration — per RULE 13, do not proceed on a guess.
-
-After BOOKING-02: VENDOR-02, then PAY-04, then CONTACT-02, in that dependency order (see PROJECT_STATUS.md).
+Run src/db/sql/010_vendor02_payout_kyc.sql manually in the Supabase SQL editor, then confirm public.vendor_payout_details exists via information_schema.columns before relying on the new /admin/vendors/[id]/payout page in production. After that: PAY-04 — needs its own RULE 15 audit, and needs Cashfree Payout API credentials (separate from the Payment Gateway credentials) before any real beneficiary-creation code can be written. Then CONTACT-02 (also needs its own audit).
 
 Other pending work
 
@@ -106,4 +114,4 @@ Two separate Vercel production builds: PASS, after each of the two build fixes.
 
 Cashfree live payment: confirmed working end-to-end by the user (real live-mode transaction succeeded).
 
-Deployment: READY, but hotel bookings should be assumed broken until BOOKING-02 is confirmed fixed against the live schema.
+Deployment: READY. BOOKING-02 resolved 2026-08-28 — room_id confirmed live on public.bookings, hotel bookings were never actually broken by it.
