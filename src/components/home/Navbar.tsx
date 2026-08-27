@@ -39,6 +39,12 @@ export default function Navbar() {
           ))}
         </nav>
         <div className="flex items-center gap-3">
+          <Link
+            href="/list-your-property"
+            className="focus-ring hidden rounded-full border border-deep/15 px-4 py-2 font-heading text-[13px] font-semibold text-deep transition hover:bg-deep/5 sm:block"
+          >
+            List Your Property
+          </Link>
           {user ? (
             <ProfileMenu />
           ) : (
