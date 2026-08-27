@@ -41,6 +41,22 @@ const serverEnvSchema = z.object({
   // Email
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().optional().default('noreply@safarbuddy.com'),
+
+  // Gmail SMTP (CONTACT-01 interim provider — see email.client.ts).
+  // RULE 29 backfill (VENDOR-03/M2, 2026-08-28): these two vars were
+  // read directly via process.env in email.client.ts, whose own
+  // comment incorrectly claimed they were "already declared" here.
+  // They were not — logged in DOC_DEBT.md, fixed here.
+  GMAIL_USER: z.string().optional(),
+  GMAIL_APP_PASSWORD: z.string().optional(),
+
+  // VENDOR-03/M2 — where "new property listing submitted" alert
+  // emails are sent. Optional: if unset, the email step is skipped
+  // (logged, not thrown — see property-listing.actions.ts) rather
+  // than failing the whole submission over a missing notification
+  // address (RULE 30 — feature is gated off when credentials/config
+  // are missing, not a hard failure).
+  ADMIN_NOTIFICATION_EMAIL: z.string().email().optional(),
   
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().optional(),
