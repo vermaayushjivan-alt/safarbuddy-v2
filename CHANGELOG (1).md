@@ -2,6 +2,73 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-08-28 — VENDOR-03 (M1) — Hotel Facilities Schema Foundation
+
+Status: CODE COMPLETE — migration not yet run in production.
+
+Context: first step of a 4-milestone plan (M1–M4) toward a self-service
+"List Your Property" flow requested by the project owner for
+international launch — a hotel owner should be able to submit their
+property (details, facilities, payout, contact) in one form from the
+homepage, without an admin manually creating records for them. Per
+RULE 11, scope is split across milestones; this entry covers M1
+(schema foundation) only. No public-facing UI was added in this
+session — see PROJECT_STATUS.md for M2–M4.
+
+RULE 15 audit: `hotels` table has no facilities/amenities column
+(confirmed absent from HotelRecord and DATABASE_BIBLE.md). No safe
+mechanism existed to grant `hotel_owner`/`vendor` role to a
+self-registering user — `user_roles` is a Drizzle table with no
+Server Action ever writing to it.
+
+Decision: facilities modeled as a master catalog + junction table
+(not a hardcoded enum/array column) so the list can grow without a
+migration — required for an international launch where the amenity
+list will differ by market (RULE 8 — never invent enums). Role
+grant restricted to a hardcoded allowlist (`hotel_owner`, `vendor`
+only) in a non-public helper module, never exposed as a callable
+action accepting an arbitrary role string.
+
+Created:
+- src/db/sql/011_vendor03_hotel_facilities.sql — hotel_facilities
+  (master catalog, seeded with 15 starter amenities) and
+  hotel_facility_links (per-hotel junction). RLS enabled in the same
+  migration: public SELECT on active facilities / all links, no
+  public write policy (writes go through the service-role repository
+  only).
+- src/lib/repositories/hotel-facility.repository.ts —
+  HotelFacilityRepository (getActiveFacilities) and
+  HotelFacilityLinkRepository (getFacilityIdsForHotel,
+  setFacilitiesForHotel — full-replace semantics).
+- src/lib/auth/roles.ts — grantSelfServiceRole() / hasSelfServiceRole(),
+  restricted via a literal-typed allowlist
+  (SELF_SERVICE_GRANTABLE_ROLES = ['hotel_owner', 'vendor']). Not a
+  Server Action itself — internal infra only, to be called from M2's
+  onboarding action, which is responsible for establishing the
+  authenticated user id before calling it.
+
+Verified this session:
+- TypeScript (`tsc --noEmit`): PASS.
+- ESLint on new files: PASS.
+- Migration file: exists on disk (RULE 32), idempotent
+  (`if not exists` / `on conflict do nothing` throughout, RULE 33).
+
+Not verified (RULE 23):
+- Migration not run against any live Supabase instance in this
+  sandbox (no DB credentials available here) — status is "not yet
+  run," not implied to be applied.
+- No functional walkthrough yet — there is no UI in M1 to walk
+  through; RULE 21/22 apply starting M2, where a real form submits
+  through this schema end-to-end.
+
+Also this session (documentation, RULE 40): "CHANGELOG.md" and
+"PROJECT_STATUS.md" existed on disk under mangled filenames
+("CHANGELOG (1).md", "PROJECT_STATUS (1) (1).md") — renamed to
+canonical names, no content altered by the rename. See DOC_DEBT.md
+item 6. (Also found and logged, item 5: PROJECT_STATUS.md's "Next
+Development Phase" section cites a "DOC_DEBT.md item 5" that never
+existed — left open, out of scope for this milestone.)
+
 2026-08-28 — VENDOR-02 — Hotel Owner Payout KYC Capture
 
 Status: CODE COMPLETE — migration not yet run in production.
