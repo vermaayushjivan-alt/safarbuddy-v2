@@ -19,12 +19,20 @@ export default async function EditVendorPage({
     <div className="mx-auto max-w-6xl px-6 py-12">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="font-display text-3xl text-deep">Edit Vendor</h1>
-        <Link
-          href={`/admin/vendors/${vendor.id}/branches`}
-          className="focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
-        >
-          Manage Branches
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/admin/vendors/${vendor.id}/branches`}
+            className="focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
+          >
+            Manage Branches
+          </Link>
+          <Link
+            href={`/admin/vendors/${vendor.id}/payout`}
+            className="focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
+          >
+            Manage Payout Details
+          </Link>
+        </div>
       </div>
       <VendorForm mode="edit" vendor={vendor} />
     </div>
