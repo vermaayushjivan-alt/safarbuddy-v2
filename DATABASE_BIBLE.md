@@ -30,6 +30,17 @@ Storage: Supabase Storage
 - notifications — added for CONTACT-01
   (`009_contact01_notifications.sql`); RLS status: **UNVERIFIED — flag
   per RULE 24, confirm before relying on it in production.**
+- vendor_payout_details — added for VENDOR-02
+  (`010_vendor02_payout_kyc.sql`); one row per vendor, separate from
+  `vendors` by design (see migration header). RLS: **enabled, no
+  anon/authenticated policy** — service-role only, admin Server
+  Actions gate access via `requireRole()`. Verified by re-reading the
+  migration file directly (RULE 24).
+- hotel_facilities, hotel_facility_links — added for VENDOR-03 (M1)
+  (`011_vendor03_hotel_facilities.sql`). Public catalog + per-hotel
+  many-to-many selection, built for the upcoming self-service "List
+  Your Property" flow (M2). RLS: **enabled in the migration itself**
+  (not deferred) — see Row Level Security section below.
 
 ## Rules (v1, unchanged)
 - Never invent columns.
@@ -50,6 +61,22 @@ Storage: Supabase Storage
   service-role key bypass RLS by design — this is fine, but must be
   noted here per table so it's not mistaken for "protected by RLS."
 
+### hotel_facilities / hotel_facility_links (VENDOR-03, M1)
+- `hotel_facilities` (master catalog): RLS enabled. Policy
+  `hotel_facilities_public_read` — `SELECT` for `anon, authenticated`
+  where `is_active = true`. No public write policy; admin-only writes
+  go through `BaseRepository` with the service-role key.
+- `hotel_facility_links` (per-hotel junction): RLS enabled. Policy
+  `hotel_facility_links_public_read` — `SELECT` for `anon,
+  authenticated`, unrestricted (`using (true)`) since link rows carry
+  no sensitive data; a link to a still-`pending` hotel is not
+  considered sensitive on its own. No public write policy — writes
+  go through `HotelFacilityLinkRepository` (service role), called
+  only from Server Actions.
+- Both defined directly in `011_vendor03_hotel_facilities.sql` — RLS
+  was enabled in the same migration/session that created the tables
+  (RULE 24), not deferred.
+
 ## Migration Registry (new, v2)
 Every migration file that has ever been referenced as "created" in
 CHANGELOG/SESSION_HANDOFF is tracked here with its actual on-disk and
@@ -65,6 +92,8 @@ production-run status, so the two can never silently drift again:
 | 007_currencies_read_policy.sql | yes | assumed yes (ROOM-03 frozen) |
 | 008_room05_booking_room_linkage.sql | **NO — missing from repo** | **NOT CONFIRMED** |
 | 009_contact01_notifications.sql | yes | **NOT CONFIRMED** |
+| 010_vendor02_payout_kyc.sql | yes | **NOT CONFIRMED — header says "not yet run in production"** |
+| 011_vendor03_hotel_facilities.sql | yes | **NOT CONFIRMED — new, written this session (VENDOR-03 M1)** |
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
 
 Any "assumed yes" above should be spot-checked against
