@@ -71,12 +71,29 @@ clean Vercel build. Logged in CHANGELOG.md's 2026-08-27 entry.
 
 ---
 
-General note: three of these four items (2, 3, 4) are the same underlying
-failure pattern — a session's SESSION_HANDOFF/CHANGELOG claimed something
-was "done" that was not actually present/complete in the delivered repo.
-RULE 21–23 (real functional walkthroughs, not just a green typecheck) and
-RULE 32 (migrations must actually exist on disk) exist specifically to
-catch this class of issue going forward.
+7. src/lib/config/env.ts / src/types/env.d.ts — GMAIL_USER and
+   GMAIL_APP_PASSWORD missing despite a code comment claiming otherwise
+
+What: src/lib/notifications/email.client.ts's header comment states
+"Both vars are already declared in the validated serverEnvSchema and
+in src/types/env.d.ts." They were not — neither file listed them,
+only RESEND_API_KEY/EMAIL_FROM existed under the Email section. Same
+"claimed but not actually present" pattern as items 2–4 above.
+
+Status: CLOSED (2026-08-28, VENDOR-03/M2 session) — added
+GMAIL_USER, GMAIL_APP_PASSWORD, and (new, for M2's admin alert email)
+ADMIN_NOTIFICATION_EMAIL to serverEnvSchema, env.d.ts, and
+.env.example together, per RULE 29.
+
+---
+
+General note: several of the items above (2, 3, 4, 7) are the same
+underlying failure pattern — a session's SESSION_HANDOFF/CHANGELOG/code
+comment claimed something was "done"/"already declared" that was not
+actually present/complete in the delivered repo. RULE 21–23 (real
+functional walkthroughs, not just a green typecheck) and RULE 32
+(migrations must actually exist on disk) exist specifically to catch
+this class of issue going forward.
 
 ---
 
