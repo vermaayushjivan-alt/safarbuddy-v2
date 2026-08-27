@@ -77,3 +77,39 @@ was "done" that was not actually present/complete in the delivered repo.
 RULE 21–23 (real functional walkthroughs, not just a green typecheck) and
 RULE 32 (migrations must actually exist on disk) exist specifically to
 catch this class of issue going forward.
+
+---
+
+5. Dangling "DOC_DEBT.md item 5" citation in PROJECT_STATUS.md
+
+What: PROJECT_STATUS.md's "Next Development Phase" section cites
+"SESSION_HANDOFF.md's original claim that one [a RULE 15 audit] exists
+for each was false (DOC_DEBT.md item 5)" — but at the time this was
+written, DOC_DEBT.md only had items 1–4; no item 5 existed. This is the
+exact "claimed but not actually present" failure pattern this file
+exists to catch, applied to this file's own citations.
+
+Status: OPEN. Not fixed in this session (VENDOR-03/M1) — out of scope
+(unrelated milestone), logged here per RULE 40 rather than silently
+left. Whoever next touches PAY-04/CONTACT-02's audit status should
+either find/restore the real originally-intended item 5, or correct
+the citation in PROJECT_STATUS.md to point at wherever that claim is
+actually substantiated (if anywhere).
+
+6. CHANGELOG.md / PROJECT_STATUS.md — present under mangled filenames
+
+What: at the root of the delivered ZIP, the files existed as
+"CHANGELOG (1).md" and "PROJECT_STATUS (1) (1).md" — browser
+duplicate-download suffixes — not as "CHANGELOG.md" / "PROJECT_STATUS.md".
+Every rule in DEVELOPMENT_BIBLE.md (RULE 17, 18, F2 item 9) and every
+prior CHANGELOG/SESSION_HANDOFF entry assumes these canonical filenames.
+Any tooling, script, or person searching for "CHANGELOG.md" literally
+would have found nothing and could easily have concluded — wrongly —
+that the project had no changelog at all, or worse, created a second,
+diverging CHANGELOG.md alongside the real one.
+
+Status: CLOSED (2026-08-28, VENDOR-03/M1 session) — renamed to the
+canonical filenames. Contents were not altered by the rename, only
+appended to (see this session's CHANGELOG.md entry). No duplicate
+"CHANGELOG.md" existed at the time of rename, so no content was lost
+or overwritten.
