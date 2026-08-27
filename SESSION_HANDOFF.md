@@ -4,9 +4,40 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
-ROOM-05 — Booking-Room Linkage — public read path + booking price capture wired this session. Requires the 008_room05_booking_room_linkage.sql migration to be run in Supabase before hotel bookings will work at all (see below) — not yet confirmed run.
+BOOKING-02 — Booking Migration Repair. NOT STARTED. This is the top priority before any new feature work. See PROJECT_STATUS.md "Next Development Phase" for the full RULE 15 pre-coding audit (Existing Architecture / Root Cause / Files / Why / Minimal Plan).
 
-Completed this session (2026-08-23 — ROOM-05)
+Completed this session (2026-08-27 — build-stability audit + launch-readiness planning)
+
+Found and fixed two build-blocking bugs, neither previously logged anywhere:
+
+1. src/lib/notifications/whatsapp.client.ts did not exist on disk, but src/lib/notifications/dispatch.ts imports sendWhatsApp from it — this broke `tsc`/Vercel production builds with "Cannot find module './whatsapp.client'". Fixed: recreated as an inert stub (returns success:false, "provider not configured yet") matching the already-decided no-WhatsApp-provider-yet state from CONTACT-01. Confirmed fixed via tsc --noEmit and a clean Vercel production build.
+
+2. package.json was missing the nodemailer and @types/nodemailer dependencies even though src/lib/notifications/email.client.ts imports nodemailer — this broke Vercel production builds with "Cannot find module 'nodemailer'". Fixed: added both to package.json (nodemailer ^9.0.6, @types/nodemailer ^8.0.1 in devDependencies). Confirmed fixed via a clean Vercel production build.
+
+Separately diagnosed (Cashfree-side, not a code bug): live-mode Cashfree order creation was returning HTTP 401 (confirmed via Vercel function logs: "[Cashfree] Order creation failed: HTTP 401"). Root cause was stale/mismatched production API keys in Vercel and/or a missing redeploy after an env-var change — cashfree.client.ts itself was already correct (reads NEXT_PUBLIC_CASHFREE_ENV / CASHFREE_APP_ID / CASHFREE_SECRET_KEY correctly, correct base URLs, current API version 2023-08-01). Resolved by the user re-entering matched live keys in Vercel and redeploying. Confirmed working with a real live payment.
+
+Found — NOT yet fixed (this is now BOOKING-02, top priority):
+
+Migration 008_room05_booking_room_linkage.sql is referenced as "created for real this time" and required in this file's own prior version, but does not exist anywhere in the delivered repo (only 001, 002, 003, 004, 006, 007, 009 are present in src/db/sql/). booking.repository.ts's createBooking() unconditionally inserts a room_id column. If the live public.bookings table does not have this column, every hotel booking insert fails with a Postgres "column does not exist" error — this would mean bookings have likely been failing in production despite ROOM-05 being marked Frozen. This is a RULE 32 violation (a migration claimed as created must actually exist on disk). Not yet confirmed against the live schema this session — see BOOKING-02 in PROJECT_STATUS.md for the full audit and minimal plan.
+
+Documentation backfill (RULE 40):
+
+CONTACT-01 (hotel contact capture + booking notifications — HotelForm/schema/actions capturing phone/email/website, notifications table, contact-resolution with hotel-then-vendor fallback, admin dashboard alert page, Gmail SMTP email sending) was implemented and functionally verified in an earlier undocumented session, but was never recorded in PROJECT_STATUS.md or CHANGELOG.md until this session. Backfilled into PROJECT_STATUS.md's "Next Development Phase" section.
+
+DOC_DEBT.md created (new file) to formally log all of the above per RULE 40 — see that file for full detail on each item, including two more of the same "claimed but not actually present" pattern (whatsapp.client.ts, package.json).
+
+Four new milestones planned this session, at the user's explicit request, to cover the full hotel-listing-to-automated-payout launch flow. Each has a full RULE 15 pre-coding audit recorded in PROJECT_STATUS.md. None have been started — this is planning/documentation only, no code was written for any of them:
+
+- BOOKING-02 — Booking Migration Repair (fix the migration 008 gap above). No dependencies. Top priority.
+- VENDOR-02 — Hotel Owner Payout KYC Capture (bank/UPI + PAN details, Cashfree vendor onboarding). No dependencies.
+- PAY-04 — Automated Split Settlement via Cashfree Easy Split (0.1% per split, no monthly/setup fee — confirmed via Cashfree's public pricing). Depends on VENDOR-02.
+- CONTACT-02 — Payment-Triggered Notifications (move the CONTACT-01 notification trigger from booking-creation to payment-success). Depends on PAY-04.
+
+Verified this session: TypeScript (tsc --noEmit) clean after all fixes. Two separate clean Vercel production builds (one after each of the two build fixes above). Cashfree live payment confirmed working end-to-end by the user.
+
+Not verified: BOOKING-02's actual live-schema state (whether public.bookings really lacks room_id) — this is the first step of BOOKING-02's minimal plan, not yet performed.
+
+Completed previous session (2026-08-23 — ROOM-05)
 
 Audited against the live schema per RULE 13/15 (user ran information_schema.columns against public.bookings directly). Found two separate, previously undocumented issues:
 
@@ -19,13 +50,12 @@ Fixed:
 - src/app/hotels/[slug]/page.tsx now renders rooms + resolved per-night price.
 - src/app/hotels/[slug]/book/page.tsx + BookingForm.tsx: room selection UI, room_id passed through, price computed from the selected room's room_prices/base_price instead of always using hotel.starting_price.
 - booking.actions.ts: room_id added to createBookingSchema (optional, hotel-only), price_snapshot now resolved per-room when one is selected.
-- src/db/sql/008_room05_booking_room_linkage.sql created for real this time (adds bookings.room_id + index) — MUST be run manually in Supabase SQL editor. Until it is, hotel bookings will continue to fail on insert.
+
+Claimed but not delivered this session (see DOC_DEBT.md item 2 and BOOKING-02): src/db/sql/008_room05_booking_room_linkage.sql was reported as "created for real this time" but does not actually exist in the repo. This was only discovered in the 2026-08-27 session above.
 
 No ROOM-01–04 admin code touched. No repository method signatures changed except the new getBookableRoomsForHotel addition.
 
 Verified: TypeScript (tsc --noEmit) clean, ESLint clean on all changed files. Production build not run to completion — same sandbox Google Fonts network restriction as every prior session (unrelated to this change).
-
-Not verified: whether 008_room05_booking_room_linkage.sql has actually been run against production yet. Confirm with the query in that file before testing bookings end-to-end.
 
 Hotfix previous session (2026-08-16 — PACKAGE-IMG-01)
 
@@ -35,153 +65,45 @@ Root cause found by comparing ADMIN-05 (package images) against the working ADMI
 
 Fix: wrapped all five functions (getPackageImagesAdmin, uploadPackageImageAdmin, setPrimaryPackageImageAdmin, reorderPackageImageAdmin, deletePackageImageAdmin) in runAction(), and updated PackageImageManager.tsx to unwrap ActionResult, matching HotelImageManager.tsx exactly. Files changed: src/app/actions/package.actions.ts, src/components/admin/packages/PackageImageManager.tsx. No repository/schema/RLS/Storage config changes.
 
-Not verified: the specific underlying trigger of the original 500 (e.g. package_images table/RLS state in production) — no migration file for package_images exists in this repo to check against, and I have no production DB or Vercel log access. The fix removes the crash-on-any-failure behavior regardless of the underlying cause, but if the underlying condition (e.g. a missing RLS policy) is still present, the UI will now show a graceful inline error message instead of a 500 — that message should be captured and checked next if the page still doesn't work end-to-end.
+Not verified: the specific underlying trigger of the original 500 (e.g. package_images table/RLS state in production) — no migration file for package_images exists in this repo to check against, and I have no production DB or Vercel log access.
 
-Completed previous session (2026-08-16, ROOM-03)
-
-Audited the repository per DEVELOPMENT_BIBLE RULE 13/15 before coding, and found that RoomPriceRepository, room-price.actions.ts, and RoomPriceManager.tsx already existed, fully implemented and schema-verified against the live public.room_prices table — from a prior session that never documented the work and never wired RoomPriceManager to a route. It was dead code.
-
-Added the single missing piece: src/app/admin/hotels/[id]/rooms/[roomId]/pricing/page.tsx. This is the exact route the rooms list, room edit, and room images pages already linked to.
-
-No repository, Server Action, Zod schema, or RLS changes were made — the backend was already correct and untouched.
-
-Verified TypeScript, ESLint, and production build (see Verification below).
-
-Updated PROJECT_STATUS.md and CHANGELOG.md with the backfilled ROOM-03 record.
-
-Also audited ROOM-04 (room_inventory) during this pass: RoomInventoryRepository already exists with confirmed live columns, but only one read-only summary action and no CRUD actions/admin page exist. Left untouched and documented as the next milestone — do not build this without a fresh RULE 15 audit first.
-
-Previous session — completed hotel-nested room type management (ROOM-01).
-
-Added room type list and edit routes.
-
-Added RoomTypeForm.
-
-Added room-type.actions.ts.
-
-Added RoomTypeRepository.
-
-Added room-type.schema.ts.
-
-Preserved existing repository/action/form architecture.
-
-Resolved missing RoomTypeForm export.
-
-Resolved RoomTypeFormProps mode mismatch.
-
-Resolved room-list return-shape TypeScript mismatch.
-
-Final state: deployment ready.
-
-Exact files created — this session (ROOM-03 wiring)
-
-src/app/admin/hotels/[id]/rooms/[roomId]/pricing/page.tsx
-
-Exact files created — ROOM-01 (previous session)
-
-src/app/admin/hotels/[id]/rooms/page.tsx
-src/app/admin/hotels/[id]/rooms/[roomId]/edit/page.tsx
-src/components/admin/rooms/RoomTypeForm.tsx
-src/lib/actions/room-type.actions.ts
-src/lib/repositories/room-type.repository.ts
-src/lib/validations/room-type.schema.ts
-
-Files modified
-
-src/app/admin/hotels/[id]/page.tsx
-src/components/admin/hotels/HotelTable.tsx
-src/lib/validations/index.ts
-src/components/admin/layout/AdminSidebar.tsx
-
-Room milestone status (as of this session)
+Room milestone status (as of this session, 2026-08-27)
 
 ROOM-01 room type CRUD — COMPLETE — Frozen.
-
 ROOM-02 room images — COMPLETE — Frozen.
-
-ROOM-03 room rates/pricing — COMPLETE — Frozen (this session).
-
-ROOM-04 room inventory/availability — COMPLETE — Frozen (this session).
-
-ROOM-05 booking-room linkage — NOT implemented.
-
-Previous errors — resolved
-
-RoomTypeForm export
-
-Previous error:
-
-The export RoomTypeForm was not found in module
-src/components/admin/rooms/RoomTypeForm.tsx
-
-Resolved.
-
-mode prop mismatch
-
-Previous error:
-
-Property 'mode' does not exist on type 'RoomTypeFormProps'
-
-Resolved.
-
-Room list return-shape mismatch
-
-Previous error:
-
-Property 'data' does not exist on type 'RoomTypeRecord[]'
-
-Resolved.
+ROOM-03 room rates/pricing — COMPLETE — Frozen.
+ROOM-04 room inventory/availability — COMPLETE — Frozen.
+ROOM-05 booking-room linkage — COMPLETE — Frozen. Migration gap tracked separately as BOOKING-02 (this does not reopen ROOM-05 itself — the room-linkage code is correct; only the standalone migration file is missing).
+No ROOM-06 in scope.
 
 Next action
 
-ROOM-05 — Booking-Room Linkage
+BOOKING-02 — Booking Migration Repair. See PROJECT_STATUS.md for the full RULE 15 pre-coding audit. First step: verify the live public.bookings schema directly (does it have room_id or not) before writing the migration — per RULE 13, do not proceed on a guess.
 
-Not started. Requires a fresh DEVELOPMENT_BIBLE RULE 15 readiness audit before coding — confirm the actual live schema and any existing repository/action groundwork before writing anything, same process used for ROOM-03 and ROOM-04.
-
-Before coding:
-
-Existing Architecture
-
-Root Cause/current gap
-
-Exact files
-
-Why
-
-Minimal plan
-
-Confirm schema before coding
-
-Follow DEVELOPMENT_BIBLE.md RULE 15 and RULE 13.
+After BOOKING-02: VENDOR-02, then PAY-04, then CONTACT-02, in that dependency order (see PROJECT_STATUS.md).
 
 Other pending work
 
 Deferred booking scope.
-
 Architecture cleanup.
-
 Role-based dashboard pages.
-
 Remaining public routes.
-
 Supabase Storage/RLS live verification.
-
 Hotel vendor_id creation gap.
-
 findWithPagination empty-message issue.
-
 Google OAuth unexpected_failure.
+tsconfig.json `baseUrl` deprecated (TS5101) — noticed during this session's typecheck, not yet fixed, low priority.
 
 Frozen milestones
 
-HOME-01, HOME-02, HOME-03, ADMIN-01 through ADMIN-10, AUTH-05, AUTH-06, BOOKING-01, PAY-01, PAY-02, PAY-03, ROOM-01, ROOM-02, ROOM-03, and ROOM-04 are frozen unless a real bug/regression requires reopening.
+HOME-01, HOME-02, HOME-03, ADMIN-01 through ADMIN-10, AUTH-05, AUTH-06, BOOKING-01, PAY-01, PAY-02, PAY-03, ROOM-01, ROOM-02, ROOM-03, ROOM-04, and ROOM-05 are frozen unless a real bug/regression requires reopening. CONTACT-01 is functionally complete (documentation backfilled this session) and treated as frozen in the same sense.
 
-Verification (this session, 2026-08-18)
+Verification (this session, 2026-08-27)
 
-TypeScript (`npx tsc --noEmit`): PASS, 0 errors.
+TypeScript (`npx tsc --noEmit`): PASS, 0 errors (only the pre-existing, unrelated tsconfig.json baseUrl deprecation warning).
 
-ESLint (`npm run lint`): PASS, 0 errors, 1 pre-existing unrelated warning (components/layout/ProfileMenu.tsx, no-img-element).
+Two separate Vercel production builds: PASS, after each of the two build fixes.
 
-Production build (`npm run build`): not run this session — prior sessions' build attempts were blocked only by the sandbox's Google Fonts network restriction (403 fetching Inter from fonts.googleapis.com), which is environment-only and not a code defect; tsc/eslint both clean.
+Cashfree live payment: confirmed working end-to-end by the user (real live-mode transaction succeeded).
 
-Deployment: READY (pending the same external font-fetch caveat as prior sessions).
+Deployment: READY, but hotel bookings should be assumed broken until BOOKING-02 is confirmed fixed against the live schema.
