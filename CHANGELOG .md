@@ -2,6 +2,22 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-08-28 — P0.3 audit continuation — owner_id bug fix + owner-room-image actions
+
+Status: PARTIAL — Step 1 of the P0.3 onboarding plan re-verified as already complete (contrary to SESSION_HANDOFF_2026-08-28_P0_FIXES.md's "not yet started" claim — see DOC_DEBT.md item 8). Steps 2-5 (onboarding wizard, redirects) confirmed genuinely not started.
+
+P0-adjacent bug found and fixed (DOC_DEBT.md item 9): room-price.repository.ts and room-inventory.repository.ts's verifyRoomOwnership() queried a nonexistent vendors.owner_id column (live column is owner_user_id) with the resulting error silently swallowed — hotel_owner accounts could never actually price or manage inventory for their own rooms. Both fixed to use owner_user_id.
+
+Created: src/app/actions/owner-room-image.actions.ts — owner-scoped counterpart to room-type.actions.ts's *Admin image actions (upload/list/set-primary/reorder/delete), gated via requireOwnerVendor()/assertHotelOwnedByVendor() + a room-belongs-to-hotel check, mirroring owner-room-type.actions.ts's pattern. Closes the "future owner-image actions" gap noted in owner-context.ts's header comment.
+
+Not created: owner-room-price/owner-room-inventory action wrappers — turned out unnecessary, since room-price.actions.ts and room-inventory.actions.ts already accept the hotel_owner role directly and delegate to verifyRoomOwnership() for scoping (once the owner_id bug above is fixed, these already work for owners as-is).
+
+Not started: onboarding wizard page, post-submit session-based redirect, first-login smart redirect, submitted-for-review screen (P0.3 steps 2-5).
+
+Verified this session: tsc --noEmit clean (whole project). eslint clean on all changed/created files.
+
+Not verified: no live Supabase reachable from this sandbox — the owner_id fix and the new owner-room-image actions need a real hotel_owner account walkthrough (set a rate, set inventory, upload a room photo) before being trusted in production.
+
 2026-08-28 — VENDOR-03 (M2) — Public "List Your Property" Self-Service Flow
 
 Status: CODE COMPLETE — depends on M1's migration 011 being run first (still not run in production).
