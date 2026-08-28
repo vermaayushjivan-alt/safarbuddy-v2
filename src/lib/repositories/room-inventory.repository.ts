@@ -140,14 +140,20 @@ export class RoomInventoryRepository extends BaseRepository<RoomInventoryRow> {
     if (hotel.created_by === userId) return true;
 
     if (hotel.vendor_id) {
+      // BUG FIX (see DOC_DEBT.md item 9): same broken-column bug as
+      // room-price.repository.ts's identical check — `owner_id` does
+      // not exist on the live `vendors` table (live column is
+      // `owner_user_id`). The Supabase error was silently swallowed
+      // (destructured but never checked), so this always fell through
+      // to `return false` for hotel_owner callers.
       const { data: vendor } = await this.supabase
         .from('vendors')
-        .select('id, owner_id')
+        .select('id, owner_user_id')
         .eq('id', hotel.vendor_id)
         .is('deleted_at', null)
         .maybeSingle();
 
-      if (vendor && vendor.owner_id === userId) return true;
+      if (vendor && vendor.owner_user_id === userId) return true;
     }
 
     return false;
