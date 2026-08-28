@@ -165,9 +165,30 @@ export async function getUserRoles(userId: string): Promise<AppRole[]> {
  * The Supabase Auth user is the identity source.
  * The role tables are the authorization source.
  *
- * We intentionally do NOT query public.users here because
- * the live public.users schema does not contain the profile
- * columns used by the stale implementation.
+ * P0.3 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 9):
+ * this used to call getUserRoles(authUser.id) directly — passing the
+ * raw Supabase Auth uid straight into a lookup against
+ * user_roles.user_id, which references public.users.id. Confirmed via
+ * a live `information_schema.columns` check this session:
+ * public.users has a real, separate `auth_user_id` column, and
+ * `id` is its own independently generated UUID — the same "two
+ * different ids" issue already fixed this session in
+ * profile.actions.ts / payment.actions.ts / booking.actions.ts (see
+ * resolvePublicUserId() above). This was very likely the reason
+ * role-gated areas of the app (hotel-owner, vendor, and — this
+ * session's earlier /dashboard requireRole() attempt — could return
+ * "Unauthorized"/FORBIDDEN for real, non-seed-script accounts even
+ * when they do hold the correct role in the database.
+ *
+ * The 001_auth_sync_trigger.sql file on disk claims
+ * "public.users.id === auth.users.id" and that it "always sets it to
+ * NEW.id" — that claim is now confirmed STALE against the live
+ * database (same class of migration-file-vs-live-reality gap already
+ * documented elsewhere in this project, e.g. DATABASE_BIBLE.md's
+ * bookings.room_id case). That file should be corrected/replaced to
+ * match live reality in a follow-up session — not done here, since
+ * this fix only needed to change how the id is *resolved*, not the
+ * trigger itself.
  */
 export async function getCurrentUser() {
   const authUser = await getAuthUser();
@@ -176,7 +197,22 @@ export async function getCurrentUser() {
     return null;
   }
 
-  const userRoleNames = await getUserRoles(authUser.id);
+  const supabase = await createClient();
+
+  let userRowId: string;
+  try {
+    userRowId = await resolvePublicUserId(supabase, authUser.id);
+  } catch (error) {
+    // A brand-new signup whose public.users row hasn't landed yet (or
+    // any other resolution failure) must not be silently treated as
+    // "no roles" — same reasoning as the DatabaseConfigError handling
+    // in getUserRoles() below. Surface it distinctly so requireRole()
+    // can report a real failure instead of a false FORBIDDEN.
+    console.error("[getCurrentUser] failed to resolve public user id:", error);
+    throw new Error("SERVICE_UNAVAILABLE");
+  }
+
+  const userRoleNames = await getUserRoles(userRowId);
 
   return {
     id: authUser.id,
