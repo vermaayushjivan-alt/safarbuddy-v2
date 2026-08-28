@@ -24,6 +24,12 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   FORBIDDEN: "You do not have permission to perform this action.",
   SERVICE_UNAVAILABLE:
     "The service is temporarily unavailable. Please try again shortly.",
+  // P0.3 (2026-08-28 session, see owner-context.ts) — thrown by
+  // requireOwnerVendor() when a hotel_owner account has no vendor row
+  // yet (should not happen in normal use, but must never leak the raw
+  // error code to the browser).
+  NO_VENDOR_FOR_OWNER:
+    "We couldn't find a property linked to your account. Please contact support.",
 };
 
 // -----------------------------------------------------------------------
