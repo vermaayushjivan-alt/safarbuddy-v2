@@ -14,6 +14,14 @@ const PUBLIC_ROUTES = [
   "/packages",
   "/about",
   "/contact",
+
+  // P0.2 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 2a):
+  // This page contains PropertyListingForm, which creates a brand-new
+  // account for people who don't have one yet (a "become a host"
+  // signup flow). It was missing from PUBLIC_ROUTES, so unauthenticated
+  // visitors were bounced to /login before they could even see the
+  // form -- breaking the host-signup funnel entirely.
+  "/list-your-property",
 ];
 
 function isPublicRoute(pathname: string) {
