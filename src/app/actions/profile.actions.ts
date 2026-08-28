@@ -14,7 +14,7 @@
 
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { getAuthUser } from '@/lib/auth/session';
+import { getAuthUser, resolvePublicUserId } from '@/lib/auth/session';
 import { runAction, type ActionResult } from '@/lib/actions/action-result';
 
 export interface MyProfile {
@@ -29,10 +29,25 @@ export async function getMyProfile(): Promise<MyProfile | null> {
 
   const supabase = await createClient();
 
+  // P0.2 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 9):
+  // this used to query `.eq('id', authUser.id)` directly, assuming
+  // public.users.id === the Supabase Auth uid. That assumption is
+  // confirmed false for real accounts — the actual public.users.id is
+  // a separate value, resolved via the `auth_user_id` column (see
+  // resolvePublicUserId() for the full evidence trail). This was the
+  // confirmed root cause of "/profile works for the seeded admin
+  // account but not for a normal signed-up account."
+  let userRowId: string;
+  try {
+    userRowId = await resolvePublicUserId(supabase, authUser.id);
+  } catch {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from('users')
     .select('email, phone, full_name')
-    .eq('id', authUser.id)
+    .eq('id', userRowId)
     .single();
 
   if (error || !data) return null;
@@ -65,10 +80,14 @@ export async function updateMyPhoneAction(
 
     const supabase = await createClient();
 
+    // Same fix as getMyProfile() above — resolve the real
+    // public.users.id via auth_user_id before updating.
+    const userRowId = await resolvePublicUserId(supabase, authUser.id);
+
     const { error } = await supabase
       .from('users')
       .update({ phone: parsed.phone })
-      .eq('id', authUser.id);
+      .eq('id', userRowId);
 
     if (error) {
       throw new Error(`Failed to update phone number: ${error.message}`);
