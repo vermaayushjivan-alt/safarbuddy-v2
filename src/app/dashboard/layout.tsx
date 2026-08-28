@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireRole } from '@/lib/auth/session';
+import { getAuthUser } from '@/lib/auth/session';
 
 // P0.1 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 1):
 // This layout previously used the client-side <ProtectedRoute> +
@@ -7,51 +7,37 @@ import { requireRole } from '@/lib/auth/session';
 // session in the browser AFTER middleware.ts has already checked it
 // server-side. That double, unsynced auth check is what caused the
 // reported "dashboard glitches / flashes repeatedly" bug: AuthContext's
-// onAuthStateChange handler calls router.refresh() on SIGNED_IN /
+// onAuthStateChange handler used to call router.refresh() on SIGNED_IN /
 // USER_UPDATED, which re-renders the route and can re-trigger the
 // client auth listener, flipping ProtectedRoute's `loading` state
 // (and therefore its spinner-vs-content render) more than once right
 // after login/navigation.
 //
-// Every other protected area in the app (admin, hotel-owner, vendor,
-// travel-agent, super-admin — see src/app/admin/layout.tsx) already
-// uses this same server-side requireRole() pattern with no such issue.
-// This brings /dashboard in line with that established, working
-// convention instead of being the one area using a different one.
-//
-// Also fixes a real (if currently latent) bug: the old ProtectedRoute
-// checked `user.user_metadata?.role`, a field the app's real
-// authorization model (roles / user_roles tables, see
-// DATABASE_BIBLE.md) never actually populates — so any role check
-// passed through that component could never truthfully pass. This
-// layout doesn't currently need a role filter beyond "any
-// authenticated user," so requireRole() is called with every AppRole
-// that should be able to see "My Bookings."
+// This moves the check server-side, matching the pattern used by
+// admin/hotel-owner/vendor/travel-agent/super-admin layouts — but,
+// unlike those, /dashboard is intentionally gated on AUTHENTICATION
+// ONLY (getAuthUser()), not requireRole(). "My Bookings" must be
+// reachable by literally any signed-in account regardless of which
+// application role(s) it has — that was the old ProtectedRoute's real
+// behavior too (it only checked `!user`, no allowedRoles were ever
+// passed to it here). An earlier version of this fix used
+// requireRole([...]) instead, but that regressed real accounts that
+// have no row in public.user_roles yet (the on_auth_user_created
+// trigger — src/db/sql/001_auth_sync_trigger.sql — is supposed to
+// assign the default "user" role on every signup, but this is a known
+// unreliable path, e.g. the still-open "Google OAuth
+// unexpected_failure" item in SESSION_HANDOFF.md's "Other pending
+// work"). Do not reintroduce a requireRole() call here without first
+// confirming role-assignment is 100% reliable for every signup path.
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  try {
-    await requireRole([
-      'user',
-      'hotel_owner',
-      'vendor',
-      'travel_agent',
-      'admin',
-      'super_admin',
-    ]);
-  } catch (err) {
-    // Same error-handling shape as admin/layout.tsx — see that file's
-    // comment for why every error must be handled distinctly instead
-    // of collapsing everything into redirect('/').
-    if (err instanceof Error && err.message === 'UNAUTHENTICATED') {
-      redirect('/login?redirectTo=/dashboard');
-    }
-    if (err instanceof Error && err.message === 'FORBIDDEN') {
-      redirect('/unauthorized');
-    }
-    throw err;
+  const user = await getAuthUser();
+
+  if (!user) {
+    redirect('/login?redirectTo=/dashboard');
   }
 
   return <>{children}</>;
