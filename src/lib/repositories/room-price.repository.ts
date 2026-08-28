@@ -198,14 +198,24 @@ export class RoomPriceRepository extends BaseRepository<RoomPrice> {
     if (hotel.created_by === userId) return true;
 
     if (hotel.vendor_id) {
+      // BUG FIX (see DOC_DEBT.md item 9): this previously selected
+      // `owner_id`, a column that does not exist on the live `vendors`
+      // table (confirmed live column is `owner_user_id` — see
+      // vendor.repository.ts's VENDOR-01 audit comment). The Supabase
+      // error from selecting a nonexistent column was silently
+      // swallowed here (error was destructured but never checked), so
+      // `vendor` came back null/undefined and this check always fell
+      // through to `return false` — meaning a hotel_owner could never
+      // actually price their own rooms, despite the code appearing to
+      // support it end-to-end.
       const { data: vendor } = await this.supabase
         .from('vendors')
-        .select('id, owner_id')
+        .select('id, owner_user_id')
         .eq('id', hotel.vendor_id)
         .is('deleted_at', null)
         .maybeSingle();
 
-      if (vendor && vendor.owner_id === userId) return true;
+      if (vendor && vendor.owner_user_id === userId) return true;
     }
 
     return false;
