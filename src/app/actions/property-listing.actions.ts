@@ -27,6 +27,7 @@
 import { z } from 'zod';
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { grantSelfServiceRole } from '@/lib/auth/roles';
+import { resolvePublicUserId } from '@/lib/auth/session';
 import { HotelRepository } from '@/lib/repositories/hotel.repository';
 import { VendorRepository } from '@/lib/repositories/vendor.repository';
 import { VendorPayoutRepository } from '@/lib/repositories/vendor-payout.repository';
@@ -176,6 +177,23 @@ export async function submitPropertyListing(
     // user id from `input`; only ever the id just returned above.
     const admin = createServiceRoleClient();
 
+    // P0.3 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 9):
+    // `newUserId` above is the raw Supabase Auth id (auth.users.id).
+    // grantSelfServiceRole() writes to user_roles.user_id, which
+    // references public.users.id — a DIFFERENT, independently
+    // generated id (public.users has its own `id` plus a separate
+    // `auth_user_id` column, confirmed live this session). Granting
+    // the role against the raw auth id instead of the real
+    // public.users.id would silently create a role row that never
+    // matches when the new owner actually logs in and requireRole()
+    // checks their roles — they'd hit "Unauthorized" on
+    // /hotel-owner immediately after a "successful" signup. The
+    // on_auth_user_created trigger (001_auth_sync_trigger.sql) runs
+    // synchronously as part of auth.signUp() above, so the matching
+    // public.users row (with auth_user_id = newUserId) is guaranteed
+    // to already exist by this point.
+    const ownerUserId = await resolvePublicUserId(admin, newUserId);
+
     const vendorRepo = new VendorRepository(admin);
     const hotelRepo = new HotelRepository(admin);
     const payoutRepo = new VendorPayoutRepository(admin);
@@ -184,7 +202,7 @@ export async function submitPropertyListing(
     const vendor = await vendorRepo.createVendor({
       vendor_name: parsed.hotelName,
       vendor_type: 'hotel_owner_self_service',
-      owner_user_id: newUserId,
+      owner_user_id: ownerUserId,
       business_email: parsed.contactEmail,
       business_phone: parsed.contactPhone,
       gstin: null,
@@ -225,7 +243,10 @@ export async function submitPropertyListing(
     // Grant hotel_owner so the new user can reach /hotel-owner once
     // they confirm their email and log in. Allowlist-restricted — see
     // src/lib/auth/roles.ts header for why this call is safe here.
-    await grantSelfServiceRole(newUserId, 'hotel_owner');
+    // Uses the resolved public.users.id (ownerUserId), not the raw
+    // auth id — see the P0.3 fix comment above `admin =
+    // createServiceRoleClient()`.
+    await grantSelfServiceRole(ownerUserId, 'hotel_owner');
 
     // Admin alert — best-effort only. A failure here must never fail
     // the listing submission itself (same "never invalidate the
