@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   requireRole,
   getAuthUser,
+  resolvePublicUserId,
 } from "@/lib/auth/session";
 
 import {
@@ -246,46 +247,21 @@ const cancelBookingSchema =
  * public.users.auth_user_id -> auth.users.id
  * public.users.id           -> bookings.customer_id
  */
+// P0.2 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 9): this
+// used to be a private, unexported copy of this exact lookup, living
+// only in this file. It's now the shared, canonical
+// resolvePublicUserId() in src/lib/auth/session.ts — used consistently
+// by profile.actions.ts and payment.actions.ts too, so this one real
+// pattern doesn't drift into N slightly-different copies again. This
+// thin wrapper is kept only so every call site below doesn't need to
+// change its arguments.
 async function getPublicUserId(
   supabase: Awaited<
     ReturnType<typeof createClient>
   >,
   authUserId: string
 ): Promise<string> {
-  const {
-    data,
-    error,
-  } = await supabase
-    .from("users")
-    .select("id")
-    .eq(
-      "auth_user_id",
-      authUserId
-    )
-    .is(
-      "deleted_at",
-      null
-    )
-    .maybeSingle();
-
-  if (error) {
-    console.error(
-      "[booking] getPublicUserId failed",
-      error
-    );
-
-    throw new Error(
-      "Unable to load your user profile."
-    );
-  }
-
-  if (!data?.id) {
-    throw new Error(
-      "USER_PROFILE_NOT_FOUND"
-    );
-  }
-
-  return data.id;
+  return resolvePublicUserId(supabase, authUserId);
 }
 
 /**
