@@ -78,31 +78,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializeAuth();
 
     // Listen for auth changes
+    // P0.1 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 1):
+    // router.refresh() here used to fire on SIGNED_IN and USER_UPDATED
+    // in addition to SIGNED_OUT. Combined with server-side middleware
+    // already re-validating the session on every request, this created
+    // an unsynced double-auth-check loop that was the root cause of the
+    // reported "dashboard glitches repeatedly" bug (see
+    // src/app/dashboard/layout.tsx for the other half of this fix).
+    // A stray console.log left in production code is also removed.
+    //
+    // This context still exists and is still used (Navbar, ProfileMenu
+    // need client-side user state to show login/logout UI) — only the
+    // redundant forced re-renders are removed. Server Components/
+    // Server Actions never depended on this context for authorization;
+    // requireRole() (src/lib/auth/session.ts) is the real source of
+    // truth for that everywhere in the app.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event);
-      
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-
-      if (event === 'SIGNED_IN') {
-        router.refresh();
-      }
 
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setSession(null);
         router.push('/login');
-        router.refresh();
-      }
-
-      if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed successfully');
-      }
-
-      if (event === 'USER_UPDATED') {
         router.refresh();
       }
     });
