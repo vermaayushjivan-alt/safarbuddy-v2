@@ -60,6 +60,31 @@ export class VendorRepository extends BaseRepository<VendorRecord> {
     return this.findById(id);
   }
 
+  // P0.3 (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 3 /
+  // SESSION_HANDOFF_2026-08-28_P0_FIXES.md): needed by the new
+  // owner-scoped self-service layer so a logged-in hotel_owner/vendor
+  // can be resolved back to their own vendor row. `owner_user_id` here
+  // must be the resolved public.users.id (from resolvePublicUserId()),
+  // never the raw Supabase Auth id — see session.ts's resolvePublicUserId
+  // header comment for why those two ids are different live columns.
+  // Returns null (not an error) when the signed-in user has no vendor
+  // row yet — callers decide how to handle that (e.g. treat as
+  // "not onboarded").
+  async getVendorByOwnerUserId(ownerUserId: string): Promise<VendorRecord | null> {
+    const { data, error } = await this.supabase
+      .from('vendors')
+      .select('*')
+      .eq('owner_user_id', ownerUserId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to look up vendor for owner: ${error.message}`);
+    }
+
+    return (data as VendorRecord) ?? null;
+  }
+
   async createVendor(
     data: Parameters<BaseRepository<VendorRecord>['create']>[0]
   ) {
