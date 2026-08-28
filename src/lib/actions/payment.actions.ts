@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { runAction, type ActionResult } from "@/lib/actions/action-result";
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser, requireRole } from "@/lib/auth/session";
+import { getAuthUser, requireRole, resolvePublicUserId } from "@/lib/auth/session";
 import { BookingRepository } from "@/lib/repositories/booking.repository";
 import {
   PaymentRepository,
@@ -73,20 +73,30 @@ async function createNewPayment(
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
+  // P0.2 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 9):
+  // resolve the real public.users.id first — every ownership check and
+  // every id written to the payments row below must use THIS value,
+  // not the raw Supabase Auth uid (authUser.id). Using authUser.id
+  // directly here was the confirmed root cause of "Booking not found"
+  // appearing on the payment page even for a booking that legitimately
+  // belongs to the signed-in account, plus a payments.user_id data-
+  // integrity bug (wrong id being written on every successful payment).
+  const userRowId = await resolvePublicUserId(supabase, authUser.id);
+
   // These three reads are independent of one another (none needs another's
-  // result — each only needs validatedBookingId or authUser.id, which are
+  // result — each only needs validatedBookingId or userRowId, which are
   // already known), so they run in parallel instead of one-after-another
   // to cut round-trip latency on this hot path. All three results are
   // still fully validated below, in the same order/behavior as before.
   const [booking, existingPayments, profileResult] = await Promise.all([
     bookingRepo.getBookingById(validatedBookingId),
     paymentRepo.getPaymentsByBookingId(validatedBookingId),
-    supabase.from("users").select("phone").eq("id", authUser.id).single(),
+    supabase.from("users").select("phone").eq("id", userRowId).single(),
   ]);
 
   const { data: userProfile, error: profileError } = profileResult;
 
-  if (!booking || booking.user_id !== authUser.id) {
+  if (!booking || booking.user_id !== userRowId) {
     throw new Error("Booking not found");
   }
 
@@ -155,7 +165,7 @@ async function createNewPayment(
 
   await paymentRepo.createPayment({
     booking_id: booking.id,
-    user_id: authUser.id,
+    user_id: userRowId,
 
     gateway_order_id: gatewayOrderId,
     gateway_payment_id: null,
@@ -173,8 +183,8 @@ async function createNewPayment(
     initiated_at: new Date().toISOString(),
     completed_at: null,
 
-    created_by: authUser.id,
-    updated_by: authUser.id,
+    created_by: userRowId,
+    updated_by: userRowId,
   } as Parameters<PaymentRepository["createPayment"]>[0]);
 
   return {
@@ -217,6 +227,11 @@ export async function getMyPaymentForBooking(
 
   const supabase = await createClient();
 
+  // P0.2 fix — see resolvePublicUserId() JSDoc / ULTRA_PRO_AUDIT.md
+  // Section 9 for why authUser.id cannot be compared to
+  // booking.user_id directly.
+  const userRowId = await resolvePublicUserId(supabase, authUser.id);
+
   const bookingRepo =
     new BookingRepository(supabase);
 
@@ -228,7 +243,7 @@ export async function getMyPaymentForBooking(
       validatedBookingId
     );
 
-  if (!booking || booking.user_id !== authUser.id) {
+  if (!booking || booking.user_id !== userRowId) {
     throw new Error("Booking not found");
   }
 
@@ -251,6 +266,11 @@ export async function getMyBookingPayments(
 
   const supabase = await createClient();
 
+  // P0.2 fix — see resolvePublicUserId() JSDoc / ULTRA_PRO_AUDIT.md
+  // Section 9 for why authUser.id cannot be compared to
+  // booking.user_id directly.
+  const userRowId = await resolvePublicUserId(supabase, authUser.id);
+
   const bookingRepo =
     new BookingRepository(supabase);
 
@@ -262,7 +282,7 @@ export async function getMyBookingPayments(
       validatedBookingId
     );
 
-  if (!booking || booking.user_id !== authUser.id) {
+  if (!booking || booking.user_id !== userRowId) {
     throw new Error("Booking not found");
   }
 
