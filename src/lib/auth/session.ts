@@ -5,6 +5,7 @@ import { db, DatabaseConfigError } from "@/db";
 import { roles, userRoles } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/db/schema";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Returns the authenticated Supabase user for the current request,
@@ -25,6 +26,55 @@ export async function getAuthUser() {
   }
 
   return user;
+}
+
+/**
+ * P0.2 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 9):
+ * resolves the real public.users.id (Drizzle PK) for a signed-in
+ * Supabase Auth user, via the live `auth_user_id` column.
+ *
+ * IMPORTANT — this directly contradicts the header comment in
+ * src/db/schema.ts ("public.users.id === auth.users.id ... No
+ * auth_user_id column is ever created"). That comment is confirmed
+ * STALE against the live database: this exact lookup pattern
+ * (originally written only in src/app/actions/booking.actions.ts as a
+ * private, unexported getPublicUserId()) is what made booking creation
+ * and "My Bookings" work correctly, while every OTHER piece of code in
+ * the app that instead assumed `users.id === authUser.id` directly
+ * (src/app/actions/profile.actions.ts, src/lib/actions/payment.actions.ts,
+ * and this file's own getUserRoles()/getCurrentUser()) has been
+ * confirmed broken for real (non-seeded) accounts — see
+ * ULTRA_PRO_AUDIT.md Section 9 for the full evidence trail. Update
+ * schema.ts's header comment and the Drizzle `users` table definition
+ * to declare `auth_user_id` once this is verified against the live
+ * schema — do not delete this helper or revert to the old assumption
+ * without that verification.
+ *
+ * This intentionally takes an already-created Supabase client (rather
+ * than creating its own) so callers that already have one (most
+ * Server Actions) don't pay for a second one.
+ */
+export async function resolvePublicUserId(
+  supabase: SupabaseClient,
+  authUserId: string
+): Promise<string> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id")
+    .eq("auth_user_id", authUserId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[resolvePublicUserId] lookup failed", error);
+    throw new Error("Unable to load your user profile.");
+  }
+
+  if (!data?.id) {
+    throw new Error("USER_PROFILE_NOT_FOUND");
+  }
+
+  return data.id as string;
 }
 
 /**
