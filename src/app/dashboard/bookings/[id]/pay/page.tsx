@@ -1,18 +1,33 @@
 // src/app/dashboard/bookings/[id]/pay/page.tsx
 // PAY-01 — Customer payment initiation page.
 //
-// Fetches booking directly via BookingRepository (Server Component).
-// This avoids any import path ambiguity around booking.actions.ts
-// while preserving full ownership verification server-side.
+// P0.2 fix (2026-08-28 session, see MASTER_PLAN.md Phase 0.2): this page
+// used to fetch the booking directly via BookingRepository and compare
+// `booking.user_id !== authUser.id` for ownership. That comparison was
+// always false for a real booking: BookingRecord.user_id is actually
+// mapped from the DB's `customer_id` column (see
+// src/lib/repositories/booking.repository.ts, line ~225:
+// `user_id: row.customer_id`), and `customer_id` is `public.users.id` —
+// a row keyed by `auth_user_id`, NOT the same UUID as
+// `authUser.id` (which is `auth.users.id`, the raw Supabase Auth id).
+// These are two different UUIDs for the same person. So every booking's
+// "Pay Now" click showed "Booking not found," regardless of who made
+// the booking — this was the confirmed root cause of that bug report.
+//
+// getMyBookingById() (src/app/actions/booking.actions.ts) already does
+// this correctly — it resolves the real public.users.id via
+// getPublicUserId() first, then compares booking.customer_id against
+// THAT. This page now reuses that already-correct, already-used-
+// elsewhere (getMyBookings) logic instead of re-deriving its own
+// (broken) version of the same check.
 //
 // Auth: getAuthUser() — redirect to /login if unauthenticated.
-// Ownership: booking.user_id === authUser.id checked server-side.
+// Ownership + ownership-scoped fetch: getMyBookingById() — server-side.
 // Amount/currency: derived from booking record — never from client.
 
 import { redirect } from 'next/navigation';
 import { getAuthUser } from '@/lib/auth/session';
-import { createClient } from '@/lib/supabase/server';
-import { BookingRepository } from '@/lib/repositories/booking.repository';
+import { getMyBookingById } from '@/app/actions/booking.actions';
 import { PayNowButton } from '@/components/payment/PayNowButton';
 
 interface PageProps {
@@ -28,13 +43,11 @@ export default async function BookingPayPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  // 2. Fetch booking via repository — Server Component pattern
-  const supabase = await createClient();
-  const bookingRepo = new BookingRepository(supabase);
-  const booking = await bookingRepo.getBookingById(id);
+  // 2. Fetch booking, ownership-scoped server-side (see comment above)
+  const booking = await getMyBookingById(id);
 
-  // 3. Ownership check — server-side, never trusted from client
-  if (!booking || booking.user_id !== authUser.id) {
+  // 3. Not found / not owned by this account
+  if (!booking) {
     return (
       <main className="mx-auto max-w-lg px-4 py-16 text-center">
         <h1 className="font-heading text-xl font-bold text-deep">
