@@ -289,6 +289,22 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
     return this.getAllHotels(page, limit);
   }
 
+  // VENDOR-03 M4: Admin approval queue for self-service listings
+  // (hotels created via /list-your-property start life with
+  // status='pending' -- see property-listing.actions.ts). Reuses
+  // findWithPagination's existing filter support (RULE 9) instead of a
+  // new query pattern. Added as a new method rather than changing
+  // getAllHotels/getAllHotelsPaginated, which are part of the Frozen
+  // ADMIN-02 milestone (RULE 10).
+  async getHotelsByStatus(status: HotelStatus, page: number = 1, limit: number = 20) {
+    const result = await this.findWithPagination({
+      filters: [{ column: 'status', operator: 'eq', value: status }],
+      sort: { column: 'created_at', ascending: false },
+      pagination: { page, limit },
+    });
+    return { ...result, data: result.data.map(withLegacyDefaults) };
+  }
+
   async getHotelById(id: string): Promise<HotelRecord | null> {
     const hotel = await this.findById(id);
     return hotel ? withLegacyDefaults(hotel) : null;
