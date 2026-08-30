@@ -13,7 +13,7 @@ const sections = [
   {
     href: "/admin/hotels",
     label: "Hotel Management",
-    description: "Create, edit, and manage hotel listings. Images are managed per-hotel from the edit page.",
+    description: "Create, edit, and manage hotel listings, and review pending self-service submissions.",
     icon: Building2,
   },
   {
