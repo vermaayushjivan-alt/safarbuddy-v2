@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, ClipboardList } from "lucide-react";
 import { getAllHotelsAdmin, deleteHotelAdmin } from "@/app/actions/hotel.actions";
 
 export default async function AdminHotelsListPage({
@@ -33,13 +33,22 @@ export default async function AdminHotelsListPage({
             {total} hotel{total === 1 ? "" : "s"} total
           </p>
         </div>
-        <Link
-          href="/admin/hotels/new"
-          className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-deep px-4 py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2"
-        >
-          <Plus size={14} aria-hidden />
-          Add Hotel
-        </Link>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/admin/hotels/pending"
+            className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-deep/15 px-4 py-2.5 font-heading text-[13px] font-semibold text-deep transition hover:bg-mist"
+          >
+            <ClipboardList size={14} aria-hidden />
+            Pending Listings
+          </Link>
+          <Link
+            href="/admin/hotels/new"
+            className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-deep px-4 py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2"
+          >
+            <Plus size={14} aria-hidden />
+            Add Hotel
+          </Link>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-deep/15 bg-white">
