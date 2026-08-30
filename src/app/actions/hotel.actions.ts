@@ -9,6 +9,7 @@ import {
   HotelImageRow,
   HOTEL_STATUS_VALUES,
 } from '@/lib/repositories/hotel.repository';
+import { VendorRepository } from '@/lib/repositories/vendor.repository';
 import {
   runAction,
   emptyToNull,
@@ -261,6 +262,84 @@ export async function deleteHotelAdmin(
     const repo = new HotelRepository(supabase);
 
     return repo.deleteHotel(id);
+  });
+}
+
+// --- VENDOR-03 M4: Admin Approval Queue for Self-Service Listings ---
+//
+// RULE 15 audit: M2 (/list-your-property, property-listing.actions.ts)
+// has been creating hotels+vendors with status='pending' since
+// 2026-08-28, but no admin-facing review/approve/reject flow existed
+// anywhere in the repo (confirmed by grep across src/ for
+// approve|reject|pending before writing this) -- the only way to flip
+// hotel.status was the generic Edit Hotel form, which never touches
+// the linked vendor row, so "approving" a listing that way could leave
+// its vendor stuck on 'pending' indefinitely. This adds the missing
+// queue, per the M4 scope already named in PROJECT_STATUS.md.
+//
+// Reject uses 'suspended' -- HOTEL_STATUS_VALUES (hotels_status_check)
+// has no 'rejected' member, and RULE 8 forbids inventing one.
+
+export async function getPendingHotelsAdmin(page: number = 1, limit: number = 20) {
+  await requireRole(['admin', 'super_admin']);
+
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+
+  return repo.getHotelsByStatus('pending', page, limit);
+}
+
+export async function approveHotelAdmin(
+  id: string
+): Promise<ActionResult<HotelRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+
+    const supabase = await createClient();
+    const hotelRepo = new HotelRepository(supabase);
+
+    const hotel = await hotelRepo.getHotelById(id);
+    if (!hotel) {
+      throw new Error('Hotel not found.');
+    }
+
+    const updated = await hotelRepo.updateHotel(id, { status: 'active' });
+
+    // Also activate the linked vendor -- but only if it's still
+    // 'pending'. Never overwrite a vendor status an admin may have
+    // already changed some other way (e.g. suspended for a different
+    // reason).
+    if (hotel.vendor_id) {
+      const vendorRepo = new VendorRepository(supabase);
+      const vendor = await vendorRepo.getVendorById(hotel.vendor_id);
+      if (vendor && vendor.status === 'pending') {
+        await vendorRepo.updateVendor(hotel.vendor_id, { status: 'active' });
+      }
+    }
+
+    return updated;
+  });
+}
+
+export async function rejectHotelAdmin(
+  id: string
+): Promise<ActionResult<HotelRecord>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+
+    const supabase = await createClient();
+    const hotelRepo = new HotelRepository(supabase);
+
+    const hotel = await hotelRepo.getHotelById(id);
+    if (!hotel) {
+      throw new Error('Hotel not found.');
+    }
+
+    // Vendor status intentionally left untouched on reject -- a
+    // rejected listing does not mean the vendor account itself should
+    // be suspended (they may have, or may later submit, other
+    // properties).
+    return hotelRepo.updateHotel(id, { status: 'suspended' });
   });
 }
 
