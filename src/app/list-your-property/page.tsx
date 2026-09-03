@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PropertyListingForm } from "@/components/public/PropertyListingForm";
+import { getAuthUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "List Your Property — SafarBuddy",
@@ -7,7 +8,21 @@ export const metadata: Metadata = {
     "List your hotel or property on SafarBuddy. Submit your details, facilities, and payout information in one place.",
 };
 
-export default function ListYourPropertyPage() {
+export default async function ListYourPropertyPage() {
+  // ALREADY-AUTH-01: an existing logged-in customer should list a
+  // property on their own account, not go through account creation
+  // again (which fails with "User already registered"). Prefill +
+  // lock the account section instead of hiding this page from them.
+  const authUser = await getAuthUser();
+  const initialAuth = authUser
+    ? {
+        isAuthenticated: true as const,
+        email: authUser.email ?? "",
+        fullName:
+          (authUser.user_metadata?.full_name as string | undefined) ?? "",
+      }
+    : { isAuthenticated: false as const };
+
   return (
     <main className="bg-cream px-6 py-16">
       <div className="mx-auto mb-10 max-w-3xl text-center">
@@ -23,7 +38,7 @@ export default function ListYourPropertyPage() {
           goes live.
         </p>
       </div>
-      <PropertyListingForm />
+      <PropertyListingForm initialAuth={initialAuth} />
     </main>
   );
 }
