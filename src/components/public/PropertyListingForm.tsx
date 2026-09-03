@@ -24,6 +24,14 @@ type FacilityOption = {
   category: string;
 };
 
+// ALREADY-AUTH-01: passed down from the Server Component page so the
+// form knows, on first render, whether the visitor already has a
+// SafarBuddy account — before they type anything. Prevents the
+// "User already registered" dead-end for existing customers.
+type InitialAuth =
+  | { isAuthenticated: true; email: string; fullName: string }
+  | { isAuthenticated: false };
+
 const emptyForm: PropertyListingInput = {
   ownerFullName: "",
   ownerEmail: "",
@@ -47,16 +55,26 @@ const emptyForm: PropertyListingInput = {
   website: "",
 };
 
-export function PropertyListingForm() {
+export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [facilities, setFacilities] = useState<FacilityOption[]>([]);
   const [facilitiesLoading, setFacilitiesLoading] = useState(true);
 
-  const [form, setForm] = useState<PropertyListingInput>(emptyForm);
+  const [form, setForm] = useState<PropertyListingInput>(() =>
+    initialAuth.isAuthenticated
+      ? {
+          ...emptyForm,
+          ownerEmail: initialAuth.email,
+          ownerFullName: initialAuth.fullName,
+          contactEmail: initialAuth.email,
+        }
+      : emptyForm
+  );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [accountWasCreated, setAccountWasCreated] = useState(false);
   const [sameAsOwnerContact, setSameAsOwnerContact] = useState(true);
 
   useEffect(() => {
@@ -139,6 +157,7 @@ export function PropertyListingForm() {
         return;
       }
 
+      setAccountWasCreated(result.data.accountCreated);
       setSuccess(true);
     });
   }
@@ -146,16 +165,25 @@ export function PropertyListingForm() {
   if (success) {
     return (
       <Alert variant="success">
-        Your property has been submitted for review. We&apos;ve sent a
-        confirmation link to your email — verify it, then log in to see
-        your listing status.{" "}
-        <button
-          type="button"
-          onClick={() => router.push("/login")}
-          className="font-medium underline"
-        >
-          Go to login
-        </button>
+        {accountWasCreated ? (
+          <>
+            Your property has been submitted for review. We&apos;ve sent a
+            confirmation link to your email — verify it, then log in to see
+            your listing status.{" "}
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className="font-medium underline"
+            >
+              Go to login
+            </button>
+          </>
+        ) : (
+          <>
+            Your property has been submitted for review. You can track its
+            status from your account once it&apos;s approved.
+          </>
+        )}
       </Alert>
     );
   }
@@ -167,7 +195,19 @@ export function PropertyListingForm() {
       {error && <Alert variant="error">{error}</Alert>}
 
       {/* Section 1: Owner account */}
-      <Section title="Your account" subtitle="This creates your SafarBuddy host login.">
+      <Section
+        title="Your account"
+        subtitle={
+          initialAuth.isAuthenticated
+            ? "You're signed in — this property will be added to your existing account."
+            : "This creates your SafarBuddy host login."
+        }
+      >
+        {initialAuth.isAuthenticated && (
+          <p className="mb-5 rounded-xl bg-[var(--color-mist)]/40 px-3.5 py-2.5 text-[14px] text-[var(--color-ink)]/70">
+            Listing as <span className="font-medium">{initialAuth.email}</span>
+          </p>
+        )}
         <div className="grid gap-5 sm:grid-cols-2">
           <TextField
             id="ownerFullName"
@@ -184,29 +224,35 @@ export function PropertyListingForm() {
             value={form.ownerPhone}
             onChange={(e) => handleChange("ownerPhone", e.target.value)}
           />
-          <TextField
-            id="ownerEmail"
-            label="Email"
-            type="email"
-            required
-            value={form.ownerEmail}
-            onChange={(e) => handleChange("ownerEmail", e.target.value)}
-          />
-          <div />
-          <PasswordField
-            id="password"
-            label="Password"
-            required
-            value={form.password}
-            onChange={(e) => handleChange("password", e.target.value)}
-          />
-          <PasswordField
-            id="confirmPassword"
-            label="Confirm password"
-            required
-            value={form.confirmPassword}
-            onChange={(e) => handleChange("confirmPassword", e.target.value)}
-          />
+          {!initialAuth.isAuthenticated && (
+            <TextField
+              id="ownerEmail"
+              label="Email"
+              type="email"
+              required
+              value={form.ownerEmail}
+              onChange={(e) => handleChange("ownerEmail", e.target.value)}
+            />
+          )}
+          {!initialAuth.isAuthenticated && (
+            <>
+              <div />
+              <PasswordField
+                id="password"
+                label="Password"
+                required
+                value={form.password}
+                onChange={(e) => handleChange("password", e.target.value)}
+              />
+              <PasswordField
+                id="confirmPassword"
+                label="Confirm password"
+                required
+                value={form.confirmPassword}
+                onChange={(e) => handleChange("confirmPassword", e.target.value)}
+              />
+            </>
+          )}
         </div>
       </Section>
 
@@ -444,3 +490,4 @@ function groupByCategory(
   }, {});
 }
 
+        
