@@ -1,3 +1,4 @@
+// ROOT PATH: src/components/public/HotelGrid.tsx
 import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Star, BedDouble } from "lucide-react";
@@ -30,13 +31,23 @@ function formatPrice(price: number | null): string {
 // a stale/legacy cache entry. src/app/admin/hotels/[id]/edit/page.tsx
 // already links with `slugify(hotel.slug)`; this now matches that
 // existing pattern instead of inventing a new one.
-function hotelHref(h: HotelRecord): string {
+function hotelHref(h: HotelRecord, stayQuery: string): string {
   const canonical = h.slug ? slugify(h.slug) : "";
   const slug = canonical.length > 0 ? canonical : String(h.id);
-  return `/hotels/${slug}`;
+  return `/hotels/${slug}${stayQuery}`;
 }
 
-export function HotelGrid({ hotels }: { hotels: HotelRecord[] }) {
+export function HotelGrid({
+  hotels,
+  stayQuery = "",
+}: {
+  hotels: HotelRecord[];
+  // HOME-HOTEL-SEARCH-01: checkin/checkout/guests carried from the
+  // /hotels search into each hotel's detail page, e.g. "?checkin=...
+  // &checkout=...&guests=...", so dates picked at search time survive
+  // into the booking form instead of being silently dropped.
+  stayQuery?: string;
+}) {
   if (hotels.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-deep/15 bg-mist-2 px-6 py-16 text-center">
@@ -107,7 +118,7 @@ export function HotelGrid({ hotels }: { hotels: HotelRecord[] }) {
               </p>
 
               <Link
-                href={hotelHref(h)}
+                href={hotelHref(h, stayQuery)}
                 className="focus-ring mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-deep/15 py-2.5 font-heading text-[13px] font-semibold text-deep transition group-hover:bg-deep group-hover:text-cream active:scale-[0.98]"
               >
                 View Hotel
