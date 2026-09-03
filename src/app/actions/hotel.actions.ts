@@ -1,3 +1,4 @@
+// ROOT PATH: src/app/actions/hotel.actions.ts
 'use server';
 
 import { z } from 'zod';
@@ -43,6 +44,20 @@ export async function getPublishedHotels(
   const repo = new HotelRepository(supabase);
 
   return repo.getPublishedHotels(page, limit);
+}
+
+// HOME-HOTEL-SEARCH-01: public destination search, backing the homepage
+// hero box and the /hotels?city= listing page. No auth required, same
+// as getPublishedHotels() above — mirrors its exact shape.
+export async function searchPublishedHotels(
+  city: string,
+  page: number = 1,
+  limit: number = 20
+) {
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+
+  return repo.searchPublishedHotels(city, page, limit);
 }
 
 export async function getHotelBySlug(
