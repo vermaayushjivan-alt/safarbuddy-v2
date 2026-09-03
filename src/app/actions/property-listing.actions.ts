@@ -57,8 +57,13 @@ const propertyListingSchema = z
       .trim()
       .min(7, 'Enter a valid phone number.')
       .max(20, 'Phone number is too long.'),
-    password: z.string().min(6, 'Password must be at least 6 characters.'),
-    confirmPassword: z.string(),
+    // Optional at the schema level: required only for a brand-new
+    // visitor. An already-logged-in submitter (see ALREADY-AUTH-01
+    // branch in submitPropertyListing below) skips account creation
+    // entirely, so these are validated conditionally in the action,
+    // not here — a shared object-level refine can't see the session.
+    password: z.string().min(6, 'Password must be at least 6 characters.').optional(),
+    confirmPassword: z.string().optional(),
 
     // --- Section 2: property details ---
     hotelName: z.string().min(2, 'Property name is required.'),
@@ -99,10 +104,6 @@ const propertyListingSchema = z
       z.string().trim().url('Enter a valid URL, e.g. https://example.com').nullable().optional()
     ),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match.',
-    path: ['confirmPassword'],
-  })
   .refine((data) => Boolean(data.bankAccountNumber && data.bankIfsc) || Boolean(data.upiId), {
     message: 'Provide either bank account + IFSC, or a UPI ID.',
     path: ['upiId'],
@@ -114,6 +115,11 @@ export type PropertyListingResult = {
   hotelId: string;
   vendorId: string;
   status: 'pending';
+  // ALREADY-AUTH-01: false when this submission reused an existing
+  // logged-in session instead of creating a new auth account — the
+  // form uses this to decide whether to show the "check your email
+  // to confirm" message (only relevant when a new account was made).
+  accountCreated: boolean;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -153,24 +159,58 @@ export async function submitPropertyListing(
     // service-role client below (RULE 15 decision, see file header).
     const sessionClient = await createClient();
 
-    const { data: signUpData, error: signUpError } =
-      await sessionClient.auth.signUp({
-        email: parsed.ownerEmail,
-        password: parsed.password,
-        options: {
-          data: { full_name: parsed.ownerFullName },
-          emailRedirectTo: `${getSiteUrl()}/auth/callback`,
-        },
-      });
+    // ALREADY-AUTH-01 (2026-09-03): an existing SafarBuddy customer
+    // (e.g. someone who already has an account from booking a trip)
+    // could never list a property before this fix — signUp() always
+    // ran unconditionally and Supabase Auth correctly rejects it with
+    // "User already registered" for an email that already has an
+    // account, hard-blocking the whole form. Checked here first so a
+    // logged-in visitor reuses their existing account instead of
+    // attempting a second signup.
+    const {
+      data: { user: existingSessionUser },
+    } = await sessionClient.auth.getUser();
 
-    if (signUpError) {
-      throw new Error(signUpError.message);
-    }
+    let newUserId: string;
+    let accountCreated: boolean;
 
-    const newUserId = signUpData.user?.id;
+    if (existingSessionUser) {
+      newUserId = existingSessionUser.id;
+      accountCreated = false;
+    } else {
+      // Brand-new visitor — password fields are required and must
+      // match. Not enforced in the Zod schema above because the
+      // schema has no visibility into session state (see comment
+      // there).
+      if (!parsed.password || parsed.password.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+      }
+      if (parsed.password !== parsed.confirmPassword) {
+        throw new Error('Passwords do not match.');
+      }
 
-    if (!newUserId) {
-      throw new Error('Account creation did not return a user id.');
+      const { data: signUpData, error: signUpError } =
+        await sessionClient.auth.signUp({
+          email: parsed.ownerEmail,
+          password: parsed.password,
+          options: {
+            data: { full_name: parsed.ownerFullName },
+            emailRedirectTo: `${getSiteUrl()}/auth/callback`,
+          },
+        });
+
+      if (signUpError) {
+        throw new Error(signUpError.message);
+      }
+
+      const signedUpId = signUpData.user?.id;
+
+      if (!signedUpId) {
+        throw new Error('Account creation did not return a user id.');
+      }
+
+      newUserId = signedUpId;
+      accountCreated = true;
     }
 
     // Step 2 onward — trusted, service-role writes. Never trust a
@@ -198,6 +238,17 @@ export async function submitPropertyListing(
     const hotelRepo = new HotelRepository(admin);
     const payoutRepo = new VendorPayoutRepository(admin);
     const facilityLinkRepo = new HotelFacilityLinkRepository(admin);
+
+    // ALREADY-AUTH-01: an existing customer's account can only ever
+    // list one property through this self-service form — a second
+    // property for the same owner needs its own (not-yet-built) M4
+    // admin/dashboard flow, not a second vendor row from this action.
+    const existingVendorForOwner = await vendorRepo.getVendorByOwnerUserId(ownerUserId);
+    if (existingVendorForOwner) {
+      throw new Error(
+        'You already have a property listed with this account. Contact support to add another property.'
+      );
+    }
 
     const vendor = await vendorRepo.createVendor({
       vendor_name: parsed.hotelName,
@@ -286,6 +337,7 @@ export async function submitPropertyListing(
       hotelId: hotel.id,
       vendorId: vendor.id,
       status: 'pending' as const,
+      accountCreated,
     };
   });
 }
@@ -300,4 +352,5 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
   }
+
       
