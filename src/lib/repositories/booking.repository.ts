@@ -1044,5 +1044,92 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
   }
 
   // -------------------------------------------------------------------------
-  // CONFIRM + CONSUME INVENTORY (ROOM-05)
-  // ---
+  // BOOKING NUMBER GENERATION
+  // -------------------------------------------------------------------------
+  //
+  // FILE-REPAIR-01 (2026-09-03): the delivered file cut off mid-comment
+  // right after this point — this method and completeBooking() below
+  // were entirely missing. createBooking() above unconditionally calls
+  // `this.generateBookingNumber()`, so every booking insert would throw
+  // "generateBookingNumber is not a function" against this exact file
+  // as delivered. No booking_number format is documented anywhere else
+  // in the codebase or in DATABASE_BIBLE.md, and nothing else parses or
+  // validates this string — this is a pure application-level choice,
+  // not a guess against a live schema constraint (RULE 13 does not
+  // block this the way it would a schema/column guess). Confirm with
+  // whoever owns this project whether a specific format was originally
+  // intended before treating this as final.
+  private generateBookingNumber(): string {
+    const datePart = new Date()
+      .toISOString()
+      .slice(0, 10)
+      .replace(/-/g, "");
+
+    const randomPart = Math.random()
+      .toString(36)
+      .slice(2, 8)
+      .toUpperCase();
+
+    return `SB-${datePart}-${randomPart}`;
+  }
+
+  // -------------------------------------------------------------------------
+  // COMPLETE
+  // -------------------------------------------------------------------------
+  //
+  // FILE-REPAIR-01: reconstructed to match the exact pattern already
+  // established by confirmBooking()/cancelBooking() immediately above
+  // (simple booking_status update, identical select/error-handling
+  // shape) — no new business logic invented, only the missing status
+  // transition that booking.actions.ts already calls.
+  //
+  // NOTE: the original (lost) section header here read "CONFIRM +
+  // CONSUME INVENTORY (ROOM-05)", suggesting a planned inventory
+  // decrement on confirm/complete that this repair does NOT attempt to
+  // reconstruct — nothing in the codebase calls such a method today,
+  // and inventing ROOM-04 inventory-consumption logic without a real
+  // spec would risk silently double-booking rooms. Flagging as an open
+  // item for its own RULE 15 audit, not guessing at it here.
+
+  async completeBooking(
+    id: string
+  ): Promise<BookingRecord> {
+    const {
+      data,
+      error,
+    } = await this.supabase
+      .from("bookings")
+      .update({
+        booking_status:
+          "completed",
+
+        updated_at:
+          new Date().toISOString(),
+      })
+      .eq("id", id)
+      .is("deleted_at", null)
+      .select(`
+        *,
+        currency_record:currencies!bookings_currency_id_fkey(
+          code,
+          symbol,
+          name
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error(
+        "[bookings] completeBooking failed",
+        error
+      );
+
+      throw error;
+    }
+
+    return mapBooking(
+      data as unknown as DatabaseBookingRow
+    );
+  }
+}
+
