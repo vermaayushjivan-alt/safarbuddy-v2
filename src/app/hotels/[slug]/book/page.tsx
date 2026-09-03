@@ -1,3 +1,4 @@
+// ROOT PATH: src/app/hotels/[slug]/book/page.tsx
 import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import Navbar from '@/components/home/Navbar';
@@ -16,10 +17,20 @@ export default async function HotelBookingPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ room?: string }>;
+  searchParams: Promise<{
+    room?: string;
+    checkin?: string;
+    checkout?: string;
+    guests?: string;
+  }>;
 }) {
   const { slug } = await params;
-  const { room: preselectedRoomId } = await searchParams;
+  const {
+    room: preselectedRoomId,
+    checkin: initialCheckIn,
+    checkout: initialCheckOut,
+    guests: initialGuests,
+  } = await searchParams;
 
   const authUser = await getAuthUser();
   if (!authUser) {
@@ -54,6 +65,11 @@ export default async function HotelBookingPage({
             startingPrice={hotel.starting_price}
             rooms={rooms}
             preselectedRoomId={preselectedRoomId ?? null}
+            initialCheckInDate={initialCheckIn ?? ""}
+            initialCheckOutDate={initialCheckOut ?? ""}
+            initialNumGuests={
+              initialGuests ? Number(initialGuests) || 1 : 1
+            }
           />
         </div>
       </section>
