@@ -1,3 +1,4 @@
+// ROOT PATH: src/components/booking/BookingForm.tsx
 // PATH: src/components/booking/BookingForm.tsx
 'use client';
 
@@ -19,6 +20,12 @@ interface BookingFormProps {
   // (src/app/packages/[id]/book/page.tsx) is untouched.
   rooms?: BookableRoom[];
   preselectedRoomId?: string | null;
+  // HOME-HOTEL-SEARCH-01: prefill from the dates/guests picked at
+  // search time (homepage hero or /hotels search bar), instead of
+  // making the visitor re-enter what they already chose.
+  initialCheckInDate?: string;
+  initialCheckOutDate?: string;
+  initialNumGuests?: number;
 }
 
 function formatPrice(price: number | null): string {
@@ -44,15 +51,18 @@ export default function BookingForm({
   startingPrice,
   rooms = [],
   preselectedRoomId = null,
+  initialCheckInDate = '',
+  initialCheckOutDate = '',
+  initialNumGuests = 1,
 }: BookingFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [checkInDate, setCheckInDate] = useState('');
-  const [checkOutDate, setCheckOutDate] = useState('');
+  const [checkInDate, setCheckInDate] = useState(initialCheckInDate);
+  const [checkOutDate, setCheckOutDate] = useState(initialCheckOutDate);
   const [travelDate, setTravelDate] = useState('');
-  const [numGuests, setNumGuests] = useState(1);
+  const [numGuests, setNumGuests] = useState(initialNumGuests);
   const [roomId, setRoomId] = useState<string>(
     preselectedRoomId && rooms.some((r) => r.id === preselectedRoomId)
       ? preselectedRoomId
@@ -303,4 +313,5 @@ function Field({
     </div>
   );
     }
-          
+
+                
