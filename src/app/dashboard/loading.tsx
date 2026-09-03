@@ -10,11 +10,20 @@
 // automatically replaced once the real page is ready — same visual
 // language as the existing LoadingScreen used elsewhere, kept simple
 // since this is a route-segment loading state, not a full auth gate.
+import Image from "next/image";
+
 export default function DashboardLoading() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="text-center">
-        <div className="inline-block h-10 w-10 animate-spin rounded-full border-b-4 border-deep" />
+        <Image
+          src="/brand/logo-mark.svg"
+          alt="SafarBuddy"
+          width={48}
+          height={48}
+          className="mx-auto h-12 w-12 animate-pulse"
+          priority
+        />
         <p className="mt-4 text-[13px] text-ink/60">Loading…</p>
       </div>
     </div>
