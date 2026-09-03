@@ -1,11 +1,32 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { DestinationGrid } from "@/components/public/DestinationGrid";
 import { getAllPublicDestinations } from "@/app/actions/destination.actions";
+import { SITE_NAME } from "@/lib/seo/site";
 
 // PUBLIC-01 — public listing page for the AUTH-06 `/destinations`
 // allowlist entry. Server component, no auth required.
+
+// SEO_AUDIT.md §3.2 — same generic-metadata gap as /hotels. Only page
+// 1 is indexable; later pages are thin paginated slices (Phase 4/11
+// principle, same reasoning as /hotels/page.tsx).
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const page = Number(params.page ?? "1") || 1;
+
+  return {
+    title: `Destinations | ${SITE_NAME}`,
+    description: `Explore travel destinations across India and find hotels nearby on ${SITE_NAME}.`,
+    alternates: { canonical: "/destinations" },
+    robots: page > 1 ? { index: false, follow: true } : undefined,
+  };
+}
 
 export default async function DestinationsPage({
   searchParams,
