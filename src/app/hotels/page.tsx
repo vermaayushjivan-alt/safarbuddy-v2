@@ -1,5 +1,6 @@
 // ROOT PATH: src/app/hotels/page.tsx
 import Link from "next/link";
+import type { Metadata } from "next";
 import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { HotelGrid } from "@/components/public/HotelGrid";
@@ -8,6 +9,47 @@ import {
   getPublishedHotels,
   searchPublishedHotels,
 } from "@/app/actions/hotel.actions";
+import { SITE_NAME } from "@/lib/seo/site";
+
+// SEO_AUDIT.md §3.2/§4 (Phase 4/11/16 principle) — this page already
+// supports a real ?city= search (HOME-HOTEL-SEARCH-01), which is a
+// genuine search-intent match ("hotels in Ayodhya" etc. from the
+// master prompt's target queries) worth its own title. But every
+// combination of page/checkin/checkout/guests must NOT be indexed —
+// that's exactly the thin/duplicate-URL risk the master prompt's own
+// Phase 4/16 rules warn against, so canonical always points at the
+// clean city URL (or /hotels with no query at all) and only page 1
+// with a city (or no query) is indexable.
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; city?: string }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const page = Number(params.page ?? "1") || 1;
+  const city = params.city?.trim();
+
+  const title = city
+    ? `Hotels in ${city} | ${SITE_NAME}`
+    : `All Hotels | ${SITE_NAME}`;
+  const description = city
+    ? `Browse and book hotels in ${city} on ${SITE_NAME}. Compare rooms, prices, and availability.`
+    : `Browse and book hotels across India on ${SITE_NAME}. Compare rooms, prices, and availability.`;
+
+  const canonicalPath = city
+    ? `/hotels?city=${encodeURIComponent(city)}`
+    : "/hotels";
+
+  return {
+    title,
+    description,
+    alternates: { canonical: canonicalPath },
+    // Page 1 of a city search (or the unfiltered list) is a real,
+    // unique, useful page. Every other page is a paginated slice with
+    // no independent search value — index the canonical URL instead.
+    robots: page > 1 ? { index: false, follow: true } : undefined,
+  };
+}
 
 // PUBLIC-01 — public listing page for the AUTH-06 `/hotels` allowlist
 // entry. Server component, no auth required. Mirrors
