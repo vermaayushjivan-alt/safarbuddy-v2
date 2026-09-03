@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Newsletter from "@/components/home/Newsletter";
 import Navbar from "@/components/home/Navbar";
 import Hero from "@/components/home/Hero";
@@ -9,6 +10,15 @@ import Packages from "@/components/home/Packages";
 import Testimonials from "@/components/home/Testimonials";
 import AppDownload from "@/components/home/AppDownload";
 import Footer from "@/components/home/Footer";
+
+// SEO_AUDIT.md §4.3 — homepage had no dedicated metadata beyond the
+// root layout default. Title/description intentionally match
+// layout.tsx's site-wide copy (this IS the homepage) — the only
+// addition is an explicit canonical, since "/" had none before.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
+
 export default function Home() {
   return (
     <main className="bg-cream">
