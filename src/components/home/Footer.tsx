@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Mail, Phone, MapPin, Clock, ArrowUp } from "lucide-react";
 import {
   footerSocialLinks,
@@ -65,9 +66,13 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           {/* Column 1: brand */}
           <div className="sm:col-span-2 lg:col-span-1">
-            <span className="font-display text-2xl text-cream">
-              SafarBuddy
-            </span>
+            <Image
+              src="/brand/logo-horizontal-white.svg"
+              alt="SafarBuddy"
+              width={200}
+              height={50}
+              className="h-10 w-auto"
+            />
             <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-cream/60">
               {footerContent.description}
             </p>
@@ -200,4 +205,5 @@ export default function Footer() {
       </div>
     </footer>
   );
-}
+                  }
+            
