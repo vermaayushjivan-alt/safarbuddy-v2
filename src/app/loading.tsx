@@ -13,13 +13,22 @@
  * USED BY: Next.js during route transitions
  */
 
+import Image from "next/image";
+
 export default function Loading() {
   return (
     <main className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        {/* Spinner */}
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-[rgb(var(--color-muted))] border-t-[rgb(var(--color-primary))]" />
-        
+        {/* Logo, in place of a generic spinner */}
+        <Image
+          src="/brand/logo-mark.svg"
+          alt="SafarBuddy"
+          width={56}
+          height={56}
+          className="h-14 w-14 animate-pulse"
+          priority
+        />
+
         {/* Text */}
         <p className="text-sm text-[rgb(var(--color-text-muted))]">
           Loading...
