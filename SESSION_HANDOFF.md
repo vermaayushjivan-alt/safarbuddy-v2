@@ -1,8 +1,20 @@
+<!-- ROOT PATH: SESSION_HANDOFF.md -->
+
 SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
 Current milestone
+
+HOME-HOTEL-SEARCH-01 (2026-09-03, this session) — homepage Hero switched to Hotels-primary with a real functional search (new src/components/public/HotelSearchBar.tsx, HotelRepository.searchPublishedHotels(), /hotels now accepts city/checkin/checkout/guests and carries them through room + booking links into BookingForm's initial values). CODE COMPLETE, NOT VERIFIED — this sandbox has no node_modules and no network, so tsc/eslint could not be run at all this session (not even the usual "clean except fonts" build check). Must be typechecked/linted and walked through on a real dev server (search from homepage → results filter by city → book with dates pre-filled) before being trusted. Full detail in CHANGELOG.md's 2026-09-03 HOME-HOTEL-SEARCH-01 entry, including three explicitly-scoped-out gaps: no availability filter on hotel search (dates don't yet narrow which hotels show up), no checked-in/checked-out operational status for bookings, and other verticals (Flights/Bus/etc.) remain "Coming soon" placeholders with no backend.
+
+P0.3 audit continuation (2026-08-28, session after VENDOR-03/M2 below) — this is the actual most recent session; it was recorded in CHANGELOG.md at the time but never backfilled into this file or PROJECT_STATUS.md until now (DOC_DEBT.md item 10). Re-verified SESSION_HANDOFF_2026-08-28_P0_FIXES.md's claim that P0.3 Step 1 (owner-scoped repository/action layer) was "not yet started" — false, Step 1 was already fully present (VendorRepository.getVendorByOwnerUserId(), src/lib/auth/owner-context.ts, owner-hotel.actions.ts, owner-room-type.actions.ts, all confirmed on disk — see DOC_DEBT.md item 8). Steps 2-5 (onboarding wizard page, post-submit redirect, first-login smart redirect, submitted-for-review screen) confirmed genuinely NOT started — src/app/hotel-owner/ contains only layout.tsx.
+
+Also found and fixed (DOC_DEBT.md item 9, P0-adjacent): room-price.repository.ts and room-inventory.repository.ts's verifyRoomOwnership() hotel_owner branch queried a nonexistent vendors.owner_id column (live column is owner_user_id, confirmed elsewhere in the codebase) with the Postgrest error silently swallowed — net effect, a hotel_owner onboarded via VENDOR-03's self-service flow could never successfully price or manage inventory for their own rooms. Both repositories fixed to use owner_user_id.
+
+Created: src/app/actions/owner-room-image.actions.ts — owner-scoped counterpart to the admin room-image actions (upload/list/set-primary/reorder/delete), gated via requireOwnerVendor()/assertHotelOwnedByVendor() + a room-belongs-to-hotel check. Not created: separate owner-room-price/owner-room-inventory action wrappers — unnecessary, since room-price.actions.ts/room-inventory.actions.ts already accept the hotel_owner role directly once the owner_id bug above is fixed.
+
+Verified: tsc --noEmit clean (whole project). eslint clean on all changed/created files. NOT verified: no live Supabase reachable in that sandbox — the owner_id fix and new owner-room-image actions need a real hotel_owner walkthrough (set a rate, set inventory, upload a room photo) before being trusted in production. P0.3 Steps 2-5 remain the actual next coding work on the onboarding flow, once someone picks that back up.
 
 VENDOR-03 (M2) — Public "List Your Property" self-service flow. CODE COMPLETE 2026-08-28. Homepage "List Your Property" button (Navbar) → /list-your-property → single consolidated form (owner account + property + facilities checklist + payout/contact, one submit) → src/app/actions/property-listing.actions.ts creates auth user + vendor(pending) + hotel(pending) + facility links + payout row + hotel_owner role grant + best-effort admin alert email, all via createServiceRoleClient() (trusted-server pattern, not requireRole-gated — see file header for why this is safe). Depends on M1's migration 011 being run first (still not run in production). RULE 29 backfill: GMAIL_USER/GMAIL_APP_PASSWORD/ADMIN_NOTIFICATION_EMAIL added to env schema (were missing despite a false code comment — DOC_DEBT.md item 7). tsc --noEmit: PASS. eslint (whole project): PASS, 0 errors. `next build`: NOT VERIFIED — fails only on Google Fonts being network-blocked in this sandbox, unrelated to code changed here. NOT verified: no functional walkthrough (no live Supabase reachable from this sandbox) — must be walked through for real (signup → check inbox → confirm → login → see pending listing) before this milestone is marked Frozen. Property photo/ID-proof upload intentionally not in scope for M2 — no Storage bucket designed yet.
 
@@ -10,7 +22,7 @@ VENDOR-03 (M1) — Self-Service "List Your Property" schema foundation. CODE COM
 
 PAY-04 — Automated Split Settlement via Cashfree Easy Split. NOT STARTED. Depends on VENDOR-02 (code complete, see below) and on Cashfree Payout API credentials, which have not been provided yet. No RULE 15 pre-coding audit exists yet — perform one before writing any code.
 
-VENDOR-02 — Hotel Owner Payout KYC Capture. CODE COMPLETE 2026-08-28, migration NOT YET RUN in production. RULE 15 audit performed (see PROJECT_STATUS.md v14): new public.vendor_payout_details table (src/db/sql/010_vendor02_payout_kyc.sql — run this manually in Supabase, then confirm via information_schema.columns before relying on it), admin-only capture form at /admin/vendors/[id]/payout, Cashfree beneficiary creation left as an inert stub pending separate Payout credentials. Admin-managed rather than owner self-service, since src/app/vendor/ has no actual page yet (layout-only role guard) — building owner-facing UI/auth was out of scope for this milestone.
+VENDOR-02 — Hotel Owner Payout KYC Capture. CODE COMPLETE 2026-08-28. Migration RUN AND CONFIRMED IN PRODUCTION 2026-09-03: public.vendor_payout_details verified live via information_schema.columns — all 12 expected columns present with correct types (bank_account_number/bank_ifsc/upi_id/cashfree_beneficiary_id text nullable, payout_status text NOT NULL default 'pending', id/vendor_id/created_at/updated_at NOT NULL, created_by/updated_by/deleted_at nullable), per RULE 13/35. RULE 15 audit performed (see PROJECT_STATUS.md v14): admin-only capture form at /admin/vendors/[id]/payout now safe to rely on in production. Cashfree beneficiary creation left as an inert stub pending separate Payout credentials. Admin-managed rather than owner self-service, since src/app/vendor/ has no actual page yet (layout-only role guard) — building owner-facing UI/auth was out of scope for this milestone.
 
 BOOKING-02 — CLOSED 2026-08-28. Live schema confirmed via information_schema.columns and pg_attribute/pg_attrdef/pg_constraint: public.bookings.room_id exists (uuid, nullable, no default, FK → hotel_rooms(id)). This resolved the DATABASE_BIBLE.md-vs-audit contradiction in DATABASE_BIBLE.md's favor. Migration src/db/sql/008_room05_booking_room_linkage.sql created (idempotent) to close the RULE 32 disk-gap. No application code changed — booking.repository.ts already handled room_id correctly. Bookings were never actually broken by this in production. See PROJECT_STATUS.md v13 and CHANGELOG.md 2026-08-28.
 
@@ -92,7 +104,15 @@ No ROOM-06 in scope.
 
 Next action
 
-Run src/db/sql/010_vendor02_payout_kyc.sql manually in the Supabase SQL editor, then confirm public.vendor_payout_details exists via information_schema.columns before relying on the new /admin/vendors/[id]/payout page in production. After that: PAY-04 — needs its own RULE 15 audit, and needs Cashfree Payout API credentials (separate from the Payment Gateway credentials) before any real beneficiary-creation code can be written. Then CONTACT-02 (also needs its own audit).
+src/db/sql/010_vendor02_payout_kyc.sql — RUN 2026-09-03, confirmed live (see VENDOR-02 above). Done.
+
+src/db/sql/011_vendor03_hotel_facilities.sql is still NOT run in production — run it manually in the Supabase SQL editor next, then confirm the hotel_facilities/hotel_facility_links tables exist via information_schema.columns before relying on the live List-Your-Property flow (VENDOR-03 M1/M2 cannot be functionally tested until this is done). This requires live Supabase credentials this sandbox does not have — cannot be performed here (RULE 13: do not proceed on a guess).
+
+Separately, and completable without DB access: P0.3 Steps 2-5 (onboarding wizard page, post-submit session redirect, first-login smart redirect, submitted-for-review screen) are the real next coding work — Step 1's foundation is already in place (see above).
+
+After the migrations are run: PAY-04 — needs its own RULE 15 audit, and needs Cashfree Payout API credentials (separate from the Payment Gateway credentials) before any real beneficiary-creation code can be written. Then CONTACT-02 (also needs its own audit).
+
+2026-08-30 audit session (this session) — no live Supabase/network access in this sandbox, so no migration was run and no new code was written against unverified schema. Work done: (1) cross-checked SESSION_HANDOFF.md/PROJECT_STATUS.md/DOC_DEBT.md's claims against actual on-disk code — DOC_DEBT items 8 and 9's claims both confirmed accurate on inspection; (2) found the CHANGELOG.md-vs-SESSION_HANDOFF.md/PROJECT_STATUS.md gap above and backfilled it (DOC_DEBT.md item 10); (3) DOC_DEBT.md item 6 (mangled "CHANGELOG (1).md"/"PROJECT_STATUS (1) (1).md" filenames) was still reopened in this delivered zip — renamed to canonical CHANGELOG.md/PROJECT_STATUS.md again. tsc/eslint could NOT be run this session (no node_modules, no network to install — sandbox has no npm registry access), so build-health claims from prior sessions are carried forward unverified, not re-confirmed.
 
 Other pending work
 
@@ -116,6 +136,4 @@ TypeScript (`npx tsc --noEmit`): PASS, 0 errors (only the pre-existing, unrelate
 
 Two separate Vercel production builds: PASS, after each of the two build fixes.
 
-Cashfree live payment: confirmed working end-to-end by the user (real live-mode transaction succeeded).
-
-Deployment: READY. BOOKING-02 resolved 2026-08-28 — room_id confirmed live on public.bookings, hotel bookings were never actually broken by it.
+Cashfree live payment: confirmed work
