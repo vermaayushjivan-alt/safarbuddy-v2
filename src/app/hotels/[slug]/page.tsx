@@ -1,3 +1,4 @@
+// ROOT PATH: src/app/hotels/[slug]/page.tsx
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -37,10 +38,25 @@ function formatPrice(price: number | null): string {
 
 export default async function HotelDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{
+    checkin?: string;
+    checkout?: string;
+    guests?: string;
+  }>;
 }) {
   const { slug } = await params;
+  const { checkin, checkout, guests } = await searchParams;
+
+  // HOME-HOTEL-SEARCH-01: carry the dates/guests picked at search time
+  // through room + booking links, instead of dropping them here.
+  const stayParams = new URLSearchParams();
+  if (checkin) stayParams.set("checkin", checkin);
+  if (checkout) stayParams.set("checkout", checkout);
+  if (guests) stayParams.set("guests", guests);
+  const stayQuery = stayParams.toString() ? `?${stayParams.toString()}` : "";
 
   const hotel = await getHotelBySlug(slug);
 
@@ -166,7 +182,7 @@ export default async function HotelDetailPage({
                   return (
                     <Link
                       key={room.id}
-                      href={`/hotels/${canonicalSlug}/rooms/${room.id}`}
+                      href={`/hotels/${canonicalSlug}/rooms/${room.id}${stayQuery}`}
                       className="focus-ring flex items-center justify-between gap-4 rounded-xl border border-deep/15 bg-white p-4 transition hover:border-deep/30 hover:shadow-sm"
                     >
                       <div className="flex min-w-0 items-center gap-3">
@@ -217,7 +233,7 @@ export default async function HotelDetailPage({
             </p>
             {/* BOOKING-01: was a disabled "Booking coming soon" button. */}
             <Link
-              href={`/hotels/${canonicalSlug}/book`}
+              href={`/hotels/${canonicalSlug}/book${stayQuery}`}
               className="focus-ring mt-5 block w-full rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2"
             >
               Book Now
