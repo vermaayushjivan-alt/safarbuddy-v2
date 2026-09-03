@@ -1,3 +1,4 @@
+// ROOT PATH: src/app/hotels/[slug]/rooms/[roomId]/page.tsx
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Users, BedDouble, Maximize } from "lucide-react";
@@ -23,10 +24,26 @@ function formatPrice(price: number | null): string {
 
 export default async function RoomDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; roomId: string }>;
+  searchParams: Promise<{
+    checkin?: string;
+    checkout?: string;
+    guests?: string;
+  }>;
 }) {
   const { slug, roomId } = await params;
+  const { checkin, checkout, guests } = await searchParams;
+
+  // HOME-HOTEL-SEARCH-01: carry dates/guests through to the booking form.
+  const stayParams = new URLSearchParams();
+  if (checkin) stayParams.set("checkin", checkin);
+  if (checkout) stayParams.set("checkout", checkout);
+  if (guests) stayParams.set("guests", guests);
+  const stayQuerySuffix = stayParams.toString()
+    ? `&${stayParams.toString()}`
+    : "";
 
   const hotel = await getHotelBySlug(slug);
   if (!hotel) {
@@ -105,7 +122,7 @@ export default async function RoomDetailPage({
               ₹{formatPrice(room.price)}
             </p>
             <Link
-              href={`/hotels/${canonicalSlug}/book?room=${room.id}`}
+              href={`/hotels/${canonicalSlug}/book?room=${room.id}${stayQuerySuffix}`}
               className="focus-ring mt-5 block w-full rounded-xl bg-deep py-2.5 text-center font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2"
             >
               Book This Room
@@ -117,4 +134,4 @@ export default async function RoomDetailPage({
       <Footer />
     </main>
   );
-    }
+}
