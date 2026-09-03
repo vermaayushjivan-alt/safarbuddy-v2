@@ -1,6 +1,7 @@
 // ROOT PATH: src/app/hotels/[slug]/page.tsx
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { MapPin, Star } from "lucide-react";
 import Navbar from "@/components/home/Navbar";
@@ -8,7 +9,67 @@ import Footer from "@/components/home/Footer";
 import { getHotelBySlug, getHotelGalleryImages } from "@/app/actions/hotel.actions";
 import { getBookableRoomsForHotel } from "@/app/actions/room-type.actions";
 import { slugify } from "@/lib/utils/format";
+import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
 import ImageCarousel from "@/components/public/ImageCarousel";
+
+// SEO_AUDIT.md §3.2/§3.4 — every hotel previously inherited the exact
+// same site-wide title/description from the root layout. Built only
+// from fields confirmed to exist on HotelRecord (RULE 7/11 — no
+// invented ratings, amenities, or copy). getHotelBySlug() already
+// filters to status === 'active' (see hotel.repository.ts
+// queryHotelBySlugValue), so every hotel this resolves to is public by
+// definition — no separate noindex branch is needed here.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const hotel = await getHotelBySlug(slug);
+
+  if (!hotel) {
+    return { title: `Hotel not found | ${SITE_NAME}` };
+  }
+
+  const canonicalSlug = slugify(hotel.slug) || hotel.slug;
+  const locationBits = [hotel.city, hotel.state].filter(Boolean).join(", ");
+  const title = locationBits
+    ? `${hotel.hotel_name} — Hotel in ${locationBits} | ${SITE_NAME}`
+    : `${hotel.hotel_name} | ${SITE_NAME}`;
+
+  const rawDescription =
+    hotel.description?.trim() ||
+    (locationBits
+      ? `Book ${hotel.hotel_name} in ${locationBits}. Compare rooms and prices, and reserve directly on ${SITE_NAME}.`
+      : `Book ${hotel.hotel_name} on ${SITE_NAME}. Compare rooms and prices, and reserve directly.`);
+  const description =
+    rawDescription.length > 160
+      ? `${rawDescription.slice(0, 157).trimEnd()}...`
+      : rawDescription;
+
+  const canonicalPath = `/hotels/${canonicalSlug}`;
+  const ogImages = hotel.thumbnail ? [{ url: hotel.thumbnail }] : undefined;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      title,
+      description,
+      url: absoluteUrl(canonicalPath),
+      siteName: SITE_NAME,
+      type: "website",
+      images: ogImages,
+    },
+    twitter: {
+      card: ogImages ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: ogImages,
+    },
+  };
+}
 
 // HOTEL 404 FIX: this page fetches from Supabase inside a Server
 // Component. Next.js caches such fetches/route output by default
@@ -103,8 +164,71 @@ export default async function HotelDetailPage({
   // is_primary image — before this). See getHotelGalleryImages.
   const galleryImages = await getHotelGalleryImages(hotel.id);
 
+  // SEO_AUDIT.md §3.3 — no structured data existed anywhere. Built only
+  // from fields confirmed to exist on HotelRecord: no AggregateRating/
+  // Review block (PROJECT_STATUS.md shows no reviews system built yet
+  // — see SEO_AUDIT.md priority list item 4), no fabricated amenities.
+  // hotel.total_reviews/star_rating are real (if currently always
+  // null pre-reviews-system) HotelRecord fields, not invented ones.
+  const hotelJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Hotel",
+    name: hotel.hotel_name,
+    description: hotel.description ?? undefined,
+    url: absoluteUrl(`/hotels/${canonicalSlug}`),
+    image: galleryImages.length > 0 ? galleryImages.map((img) => img.publicUrl) : hotel.thumbnail ?? undefined,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: hotel.address ?? undefined,
+      addressLocality: hotel.city ?? undefined,
+      addressRegion: hotel.state ?? undefined,
+      addressCountry: hotel.country ?? undefined,
+    },
+    ...(hotel.latitude != null && hotel.longitude != null
+      ? {
+          geo: {
+            "@type": "GeoCoordinates",
+            latitude: hotel.latitude,
+            longitude: hotel.longitude,
+          },
+        }
+      : {}),
+    ...(hotel.star_rating != null
+      ? { starRating: { "@type": "Rating", ratingValue: hotel.star_rating } }
+      : {}),
+    ...(hotel.starting_price != null
+      ? {
+          priceRange: `₹${hotel.starting_price.toLocaleString("en-IN")}+`,
+        }
+      : {}),
+    telephone: hotel.phone ?? undefined,
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: absoluteUrl("/") },
+      { "@type": "ListItem", position: 2, name: "Hotels", item: absoluteUrl("/hotels") },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: hotel.hotel_name,
+        item: absoluteUrl(`/hotels/${canonicalSlug}`),
+      },
+    ],
+  };
+
   return (
     <main className="bg-cream">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(hotelJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <Navbar />
 
       <section className="mx-auto max-w-5xl px-6 py-12">
