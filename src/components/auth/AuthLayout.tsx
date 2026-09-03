@@ -15,6 +15,7 @@
  */
 
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 
 interface AuthLayoutProps {
@@ -39,6 +40,13 @@ export function AuthLayout({
           href="/"
           className="focus-ring mb-8 flex items-center justify-center gap-2 rounded-lg font-heading text-lg font-semibold text-[var(--color-deep)]"
         >
+          <Image
+            src="/brand/logo-mark.svg"
+            alt="SafarBuddy"
+            width={32}
+            height={32}
+            className="h-8 w-8"
+          />
           Safar<span className="text-[var(--color-orange)]">Buddy</span>
         </Link>
 
