@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -24,7 +25,14 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       fallback || (
         <div className="flex items-center justify-center min-h-screen">
           <div className="flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <Image
+              src="/brand/logo-mark.svg"
+              alt="SafarBuddy"
+              width={48}
+              height={48}
+              className="h-12 w-12 animate-pulse"
+              priority
+            />
             <p className="text-gray-600">Loading...</p>
           </div>
         </div>
