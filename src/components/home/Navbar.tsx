@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ProfileMenu from "@/components/layout/ProfileMenu";
@@ -28,9 +29,14 @@ return (
 href="/"
 className="focus-ring flex items-center gap-2 rounded-md"
 >
-<span className="grid h-9 w-9 place-items-center rounded-full bg-deep font-heading text-sm font-semibold text-cream">
-SB
-</span>
+<Image
+        src="/brand/logo-mark.svg"
+        alt="SafarBuddy"
+        width={36}
+        height={36}
+        className="h-9 w-9"
+        priority
+      />
 
       <span className="font-heading text-lg font-semibold text-deep">
         Safar<span className="text-orange">Buddy</span>
