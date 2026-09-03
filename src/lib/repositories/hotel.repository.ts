@@ -1,5 +1,6 @@
+// ROOT PATH: src/lib/repositories/hotel.repository.ts
 import { BaseRepository } from './base.repository';
-import { SupabaseClientType, DatabaseRecord } from './types';
+import { SupabaseClientType, DatabaseRecord, FilterOptions as FilterOption } from './types';
 import { slugify } from '@/lib/utils/format';
 
 // HotelRecord mirrors the actual public.hotels table shape verified
@@ -166,6 +167,40 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
   async getPublishedHotels(page: number = 1, limit: number = 20) {
     const result = await this.findWithPagination({
       filters: [{ column: 'status', operator: 'eq', value: 'active' }],
+      sort: { column: 'created_at', ascending: false },
+      pagination: { page, limit },
+    });
+
+    return {
+      ...result,
+      data: await this.resolveImages(result.data.map(withLegacyDefaults)),
+    };
+  }
+
+  // HOME-HOTEL-SEARCH-01: destination search for the homepage hero box
+  // and /hotels listing page. Matches getPublishedHotels() exactly
+  // (same status filter/sort/pagination shape), only adding an `ilike`
+  // filter on `city` when a non-empty query is supplied — so an empty
+  // query behaves identically to getPublishedHotels() rather than
+  // diverging into a second code path. `city` is a confirmed live
+  // column (see HotelRecord above / ADMIN-02).
+  async searchPublishedHotels(
+    city: string,
+    page: number = 1,
+    limit: number = 20
+  ) {
+    const trimmed = city.trim();
+
+    const filters: FilterOption[] = [
+      { column: 'status', operator: 'eq', value: 'active' },
+    ];
+
+    if (trimmed.length > 0) {
+      filters.push({ column: 'city', operator: 'ilike', value: `%${trimmed}%` });
+    }
+
+    const result = await this.findWithPagination({
+      filters,
       sort: { column: 'created_at', ascending: false },
       pagination: { page, limit },
     });
@@ -422,4 +457,5 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       throw new Error(`Failed to delete hotel image row: ${error.message}`);
     }
   }
-}
+            }
+      
