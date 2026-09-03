@@ -819,6 +819,134 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
   }
 
   // -------------------------------------------------------------------------
+  // ALL BOOKINGS - VENDOR (own hotels/packages only)
+  // -------------------------------------------------------------------------
+
+  // VENDOR-BOOKING-01: read-only, scoped to a single vendor_id. Callers
+  // must resolve vendorId themselves via requireVendorContext() — this
+  // method trusts whatever vendorId it is given and does no ownership
+  // check of its own (same division of responsibility as
+  // assertHotelOwnedByVendor() vs. the actions that call it).
+  async getBookingsByVendorId(
+    vendorId: string,
+    page: number = 1,
+    limit: number = 20,
+    status?: BookingStatus
+  ) {
+    const safePage =
+      Math.max(1, page);
+
+    const safeLimit =
+      Math.min(
+        Math.max(1, limit),
+        100
+      );
+
+    const from =
+      (safePage - 1) *
+      safeLimit;
+
+    const to =
+      from +
+      safeLimit -
+      1;
+
+    let query =
+      this.supabase
+        .from("bookings")
+        .select(
+          `
+            *,
+            currency_record:currencies!bookings_currency_id_fkey(
+              code,
+              symbol,
+              name
+            )
+          `,
+          {
+            count: "exact",
+          }
+        )
+        .eq(
+          "vendor_id",
+          vendorId
+        )
+        .is(
+          "deleted_at",
+          null
+        )
+        .order(
+          "created_at",
+          {
+            ascending: false,
+          }
+        );
+
+    if (status) {
+      query =
+        query.eq(
+          "booking_status",
+          status
+        );
+    }
+
+    const {
+      data,
+      error,
+      count,
+    } =
+      await query.range(
+        from,
+        to
+      );
+
+    if (error) {
+      console.error(
+        "[bookings] getBookingsByVendorId failed",
+        error
+      );
+
+      throw error;
+    }
+
+    const total =
+      count ?? 0;
+
+    const totalPages =
+      Math.ceil(
+        total /
+        safeLimit
+      );
+
+    return {
+      data:
+        (data ?? []).map(
+          (row) =>
+            mapBooking(
+              row as unknown as DatabaseBookingRow
+            )
+        ),
+
+      total,
+
+      page:
+        safePage,
+
+      limit:
+        safeLimit,
+
+      totalPages,
+
+      hasNext:
+        safePage <
+        totalPages,
+
+      hasPrev:
+        safePage > 1,
+    };
+  }
+
+  // -------------------------------------------------------------------------
   // CANCEL
   // -------------------------------------------------------------------------
 
@@ -917,250 +1045,4 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
 
   // -------------------------------------------------------------------------
   // CONFIRM + CONSUME INVENTORY (ROOM-05)
-  // -------------------------------------------------------------------------
-
-  // Called only from the Cashfree webhook once payment is confirmed
-  // successful. Confirms the booking AND consumes ROOM-04 inventory
-  // (room_inventory.booked_rooms / available_rooms) for every night of
-  // the stay.
-  //
-  // NOTE on atomicity: the Supabase JS client used throughout this
-  // repository has no multi-statement transaction primitive available
-  // (no RPC function for this has been added — ROOM-05 explicitly does
-  // not add schema/RPCs). This method reduces, but cannot fully
-  // eliminate, the race window: it (1) reads every night's inventory
-  // row first and refuses to proceed at all if any night is already
-  // sold out, then (2) writes each night's decrement as its own
-  // conditional UPDATE (`.eq('available_rooms', <value read in step 1>)`)
-  // so a concurrent booking that consumed a night in between is
-  // detected — that night's UPDATE affects zero rows — rather than
-  // silently overwritten. If any night fails this way, it throws
-  // without confirming the booking; nights already decremented before
-  // the failure are intentionally left decremented rather than rolled
-  // back (see the webhook route's comment: this case needs a human,
-  // not a silent retry).
-  async confirmBookingWithInventory(
-    id: string
-  ): Promise<BookingRecord> {
-    const booking = await this.getBookingById(id);
-
-    if (!booking) {
-      throw new Error("Booking not found.");
-    }
-
-    if (booking.status !== "pending") {
-      // Already confirmed (or in some other terminal state) — nothing
-      // to do. Avoids double-consuming inventory if the webhook is
-      // ever delivered more than once for the same payment.
-      return booking;
-    }
-
-    if (
-      booking.booking_type === "hotel" &&
-      booking.room_id &&
-      booking.check_in_date &&
-      booking.check_out_date
-    ) {
-      const nights = getBookingStayNights(
-        booking.check_in_date,
-        booking.check_out_date
-      );
-
-      if (nights.length > 0) {
-        const { data: inventoryRows, error: inventoryError } =
-          await this.supabase
-            .from("room_inventory")
-            .select(
-              "id, inventory_date, total_rooms, blocked_rooms, available_rooms, booked_rooms"
-            )
-            .eq("room_id", booking.room_id)
-            .gte("inventory_date", nights[0])
-            .lte("inventory_date", nights[nights.length - 1])
-            .is("deleted_at", null);
-
-        if (inventoryError) {
-          console.error(
-            "[bookings] confirmBookingWithInventory: inventory lookup failed",
-            inventoryError
-          );
-
-          throw inventoryError;
-        }
-
-        const rows = inventoryRows ?? [];
-
-        const rowsByDate = new Map(
-          rows.map((row) => [row.inventory_date, row])
-        );
-
-        // Step 1 (see class-level comment above this method): refuse
-        // entirely, before writing anything, if any single night is
-        // missing inventory or already sold out.
-        for (const night of nights) {
-          const row = rowsByDate.get(night);
-
-          if (!row) {
-            throw new Error(
-              `Inventory is not configured for ${night}.`
-            );
-          }
-
-          if (row.available_rooms < 1) {
-            throw new Error(
-              `No rooms available on ${night} — this room has since ` +
-                `sold out for the selected dates.`
-            );
-          }
-        }
-
-        // Step 2: consume one room for each night via a conditional
-        // UPDATE keyed off the booked_rooms value just read, so a
-        // concurrent booking that already consumed this night is
-        // detected (zero rows affected) instead of silently
-        // overwritten. available_rooms is recomputed with the same
-        // formula ROOM-04's setInventoryForDate uses
-        // (total_rooms - blocked_rooms - booked_rooms, floored at 0)
-        // so the two columns never drift out of sync.
-        for (const night of nights) {
-          const row = rowsByDate.get(night)!;
-
-          const newBookedRooms = row.booked_rooms + 1;
-          const newAvailableRooms = Math.max(
-            0,
-            row.total_rooms - row.blocked_rooms - newBookedRooms
-          );
-
-          const { data: updatedRows, error: updateError } =
-            await this.supabase
-              .from("room_inventory")
-              .update({
-                booked_rooms: newBookedRooms,
-                available_rooms: newAvailableRooms,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", row.id)
-              .eq("booked_rooms", row.booked_rooms)
-              .select("id");
-
-          if (updateError) {
-            console.error(
-              `[bookings] confirmBookingWithInventory: inventory ` +
-                `update failed for ${night}`,
-              updateError
-            );
-
-            throw updateError;
-          }
-
-          if (!updatedRows || updatedRows.length === 0) {
-            throw new Error(
-              `Inventory for ${night} changed concurrently — ` +
-                `please retry.`
-            );
-          }
-        }
-      }
-    }
-
-    const {
-      data,
-      error,
-    } = await this.supabase
-      .from("bookings")
-      .update({
-        booking_status:
-          "confirmed",
-
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", id)
-      .is("deleted_at", null)
-      .select(`
-        *,
-        currency_record:currencies!bookings_currency_id_fkey(
-          code,
-          symbol,
-          name
-        )
-      `)
-      .single();
-
-    if (error) {
-      console.error(
-        "[bookings] confirmBookingWithInventory: booking confirm failed",
-        error
-      );
-
-      throw error;
-    }
-
-    return mapBooking(
-      data as unknown as DatabaseBookingRow
-    );
-  }
-
-  // -------------------------------------------------------------------------
-  // COMPLETE
-  // -------------------------------------------------------------------------
-
-  async completeBooking(
-    id: string
-  ): Promise<BookingRecord> {
-    const {
-      data,
-      error,
-    } = await this.supabase
-      .from("bookings")
-      .update({
-        booking_status:
-          "completed",
-
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq("id", id)
-      .is("deleted_at", null)
-      .select(`
-        *,
-        currency_record:currencies!bookings_currency_id_fkey(
-          code,
-          symbol,
-          name
-        )
-      `)
-      .single();
-
-    if (error) {
-      console.error(
-        "[bookings] completeBooking failed",
-        error
-      );
-
-      throw error;
-    }
-
-    return mapBooking(
-      data as unknown as DatabaseBookingRow
-    );
-  }
-
-  // -------------------------------------------------------------------------
-  // BOOKING NUMBER
-  // -------------------------------------------------------------------------
-
-  private generateBookingNumber(): string {
-    const timestamp =
-      Date.now()
-        .toString(36)
-        .toUpperCase();
-
-    const random =
-      Math.random()
-        .toString(36)
-        .substring(2, 7)
-        .toUpperCase();
-
-    return `SB-${timestamp}-${random}`;
-  }
-}
+  // ---
