@@ -6,7 +6,15 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
-HOME-HOTEL-SEARCH-01 (2026-09-03, this session) — homepage Hero switched to Hotels-primary with a real functional search (new src/components/public/HotelSearchBar.tsx, HotelRepository.searchPublishedHotels(), /hotels now accepts city/checkin/checkout/guests and carries them through room + booking links into BookingForm's initial values). CODE COMPLETE, NOT VERIFIED — this sandbox has no node_modules and no network, so tsc/eslint could not be run at all this session (not even the usual "clean except fonts" build check). Must be typechecked/linted and walked through on a real dev server (search from homepage → results filter by city → book with dates pre-filled) before being trusted. Full detail in CHANGELOG.md's 2026-09-03 HOME-HOTEL-SEARCH-01 entry, including three explicitly-scoped-out gaps: no availability filter on hotel search (dates don't yet narrow which hotels show up), no checked-in/checked-out operational status for bookings, and other verticals (Flights/Bus/etc.) remain "Coming soon" placeholders with no backend.
+P0.3 Steps 2-5 (2026-09-05, this session) — hotel-owner onboarding dashboard, built on Step 1's already-complete owner-scoped layer (see DOC_DEBT.md item 8). CODE COMPLETE, NOT VERIFIED — same sandbox limitation as every session below: no node_modules and no network, so tsc/eslint could not be run at all this session, and no live Supabase was reachable for a functional walkthrough. New: src/app/hotel-owner/page.tsx (the route's first real page — layout.tsx has been role-gating an empty route since Step 1) and src/components/owner/OwnerHotelForm.tsx. Modified: src/components/public/PropertyListingForm.tsx (Step 3 — auto-redirects to /hotel-owner when submitPropertyListing() reused an existing session instead of creating a new one) and src/actions/auth.ts (Step 4 — loginAction's default landing, i.e. no explicit ?redirectTo, now sends a plain hotel_owner to /hotel-owner instead of "/"). Full detail, including the exact walkthrough steps still needed and the two scope assumptions made where the milestone's own docs never specified behavior (RULE 12), is in CHANGELOG.md's 2026-09-05 entry and PROJECT_STATUS.md v15.
+
+Also this session: DOC_DEBT.md item 6 (mangled "CHANGELOG (1).md"/"PROJECT_STATUS (1) (1).md" filenames) was reopened yet again in the delivered zip — renamed to canonical a third time. Given the recurrence (closed/reopened at least four times now across 2026-08-28, 2026-09-03, and 2026-09-05), DOC_DEBT.md now suggests this be fixed at whatever export/upload step produces the zip, rather than re-patched every session.
+
+Also this session, later: the user ran src/db/sql/011_vendor03_hotel_facilities.sql manually against production Supabase and confirmed via information_schema.columns — both public.hotel_facilities and public.hotel_facility_links exist with every expected column and correct type. VENDOR-03 M1 is now DEPLOYMENT READY (RULE 13/35). This unblocks functionally testing M2 (the live "List Your Property" form) end-to-end for the first time — still not done, since that requires a real browser walkthrough this sandbox cannot perform.
+
+Previous milestone
+
+HOME-HOTEL-SEARCH-01 (2026-09-03) — homepage Hero switched to Hotels-primary with a real functional search (new src/components/public/HotelSearchBar.tsx, HotelRepository.searchPublishedHotels(), /hotels now accepts city/checkin/checkout/guests and carries them through room + booking links into BookingForm's initial values). CODE COMPLETE, NOT VERIFIED — this sandbox has no node_modules and no network, so tsc/eslint could not be run at all this session (not even the usual "clean except fonts" build check). Must be typechecked/linted and walked through on a real dev server (search from homepage → results filter by city → book with dates pre-filled) before being trusted. Full detail in CHANGELOG.md's 2026-09-03 HOME-HOTEL-SEARCH-01 entry, including three explicitly-scoped-out gaps: no availability filter on hotel search (dates don't yet narrow which hotels show up), no checked-in/checked-out operational status for bookings, and other verticals (Flights/Bus/etc.) remain "Coming soon" placeholders with no backend.
 
 P0.3 audit continuation (2026-08-28, session after VENDOR-03/M2 below) — this is the actual most recent session; it was recorded in CHANGELOG.md at the time but never backfilled into this file or PROJECT_STATUS.md until now (DOC_DEBT.md item 10). Re-verified SESSION_HANDOFF_2026-08-28_P0_FIXES.md's claim that P0.3 Step 1 (owner-scoped repository/action layer) was "not yet started" — false, Step 1 was already fully present (VendorRepository.getVendorByOwnerUserId(), src/lib/auth/owner-context.ts, owner-hotel.actions.ts, owner-room-type.actions.ts, all confirmed on disk — see DOC_DEBT.md item 8). Steps 2-5 (onboarding wizard page, post-submit redirect, first-login smart redirect, submitted-for-review screen) confirmed genuinely NOT started — src/app/hotel-owner/ contains only layout.tsx.
 
@@ -106,34 +114,6 @@ Next action
 
 src/db/sql/010_vendor02_payout_kyc.sql — RUN 2026-09-03, confirmed live (see VENDOR-02 above). Done.
 
-src/db/sql/011_vendor03_hotel_facilities.sql is still NOT run in production — run it manually in the Supabase SQL editor next, then confirm the hotel_facilities/hotel_facility_links tables exist via information_schema.columns before relying on the live List-Your-Property flow (VENDOR-03 M1/M2 cannot be functionally tested until this is done). This requires live Supabase credentials this sandbox does not have — cannot be performed here (RULE 13: do not proceed on a guess).
+src/db/sql/011_vendor03_hotel_facilities.sql — RUN 2026-09-05 (this session), confirmed live via information_schema.columns: both public.hotel_facilities and public.hotel_facility_links exist with all expected columns and correct types (hotel_facilities: id uuid, code/label/category text, display_order integer, is_active boolean, created_at/updated_at timestamptz; hotel_facility_links: id/hotel_id/facility_id uuid, created_at timestamptz). VENDOR-03 M1 is now DEPLOYMENT READY per RULE 13/35 — the live "List Your Property" flow (M2) can now be functionally tested end-to-end for the first time. Done.
 
-Separately, and completable without DB access: P0.3 Steps 2-5 (onboarding wizard page, post-submit session redirect, first-login smart redirect, submitted-for-review screen) are the real next coding work — Step 1's foundation is already in place (see above).
-
-After the migrations are run: PAY-04 — needs its own RULE 15 audit, and needs Cashfree Payout API credentials (separate from the Payment Gateway credentials) before any real beneficiary-creation code can be written. Then CONTACT-02 (also needs its own audit).
-
-2026-08-30 audit session (this session) — no live Supabase/network access in this sandbox, so no migration was run and no new code was written against unverified schema. Work done: (1) cross-checked SESSION_HANDOFF.md/PROJECT_STATUS.md/DOC_DEBT.md's claims against actual on-disk code — DOC_DEBT items 8 and 9's claims both confirmed accurate on inspection; (2) found the CHANGELOG.md-vs-SESSION_HANDOFF.md/PROJECT_STATUS.md gap above and backfilled it (DOC_DEBT.md item 10); (3) DOC_DEBT.md item 6 (mangled "CHANGELOG (1).md"/"PROJECT_STATUS (1) (1).md" filenames) was still reopened in this delivered zip — renamed to canonical CHANGELOG.md/PROJECT_STATUS.md again. tsc/eslint could NOT be run this session (no node_modules, no network to install — sandbox has no npm registry access), so build-health claims from prior sessions are carried forward unverified, not re-confirmed.
-
-Other pending work
-
-Deferred booking scope.
-Architecture cleanup.
-Role-based dashboard pages.
-Remaining public routes.
-Supabase Storage/RLS live verification.
-Hotel vendor_id creation gap.
-findWithPagination empty-message issue.
-Google OAuth unexpected_failure.
-tsconfig.json `baseUrl` deprecated (TS5101) — noticed during this session's typecheck, not yet fixed, low priority.
-
-Frozen milestones
-
-HOME-01, HOME-02, HOME-03, ADMIN-01 through ADMIN-10, AUTH-05, AUTH-06, BOOKING-01, PAY-01, PAY-02, PAY-03, ROOM-01, ROOM-02, ROOM-03, ROOM-04, and ROOM-05 are frozen unless a real bug/regression requires reopening. CONTACT-01 is functionally complete (documentation backfilled this session) and treated as frozen in the same sense.
-
-Verification (this session, 2026-08-27)
-
-TypeScript (`npx tsc --noEmit`): PASS, 0 errors (only the pre-existing, unrelated tsconfig.json baseUrl deprecation warning).
-
-Two separate Vercel production builds: PASS, after each of the two build fixes.
-
-Cashfree live payment: confirmed work
+P0.3 Steps 2-5 (onboarding wizard page, post-submit session redirect, first-login smart redirect, submitted-for-review screen) — CODE COMPLETE this session (2026-09-05, see Current milestone above). NOT
