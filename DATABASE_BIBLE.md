@@ -92,8 +92,8 @@ production-run status, so the two can never silently drift again:
 | 007_currencies_read_policy.sql | yes | assumed yes (ROOM-03 frozen) |
 | 008_room05_booking_room_linkage.sql | **NO — missing from repo** | **NOT CONFIRMED** |
 | 009_contact01_notifications.sql | yes | **NOT CONFIRMED** |
-| 010_vendor02_payout_kyc.sql | yes | **NOT CONFIRMED — header says "not yet run in production"** |
-| 011_vendor03_hotel_facilities.sql | yes | **NOT CONFIRMED — new, written this session (VENDOR-03 M1)** |
+| 010_vendor02_payout_kyc.sql | yes | **CONFIRMED 2026-09-03** — public.vendor_payout_details verified live via information_schema.columns, all 12 columns match |
+| 011_vendor03_hotel_facilities.sql | yes | **CONFIRMED 2026-09-05** — public.hotel_facilities and public.hotel_facility_links verified live via information_schema.columns, all columns match |
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
 
 Any "assumed yes" above should be spot-checked against
