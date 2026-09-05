@@ -4,6 +4,91 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-05 — VENDOR-03 M1 migration confirmed live
+
+Status: VERIFICATION ONLY — no application code changed.
+
+User ran src/db/sql/011_vendor03_hotel_facilities.sql in the Supabase SQL editor and confirmed via information_schema.columns: public.hotel_facilities (id uuid, code/label/category text, display_order integer, is_active boolean, created_at/updated_at timestamptz) and public.hotel_facility_links (id/hotel_id/facility_id uuid, created_at timestamptz) both exist, all columns matching the migration exactly. VENDOR-03 M1 is now DEPLOYMENT READY per RULE 13/35.
+
+This unblocks M2 (the "List Your Property" public form) for real functional testing for the first time — the form's facility checklist and the property-listing action's facility-link writes had no live table to hit until now. Functional walkthrough (signup → submit with facilities selected → confirm hotel_facility_links rows exist) not yet performed — still needs a real browser session, which this sandbox cannot provide.
+
+Also corrected two stale claims found in PROJECT_STATUS.md while updating it for this: its Next Development Phase summary line still said VENDOR-02's migration was "not yet run" (actually confirmed live 2026-09-03, per that date's entry below) and still listed VENDOR-03 M2 as "not started" despite its own M2 bullet already saying CODE COMPLETE. Both fixed to match what was already stated elsewhere in the same file — see PROJECT_STATUS.md v16.
+
+2026-09-05 — P0.3 Steps 2-5 — Hotel-owner onboarding dashboard
+
+Status: CODE COMPLETE, NOT VERIFIED — same sandbox limitation as every
+prior session touching this milestone: no node_modules and no network,
+so tsc/eslint could not be run at all this session (RULE 21-23).
+
+Scope decision, since the milestone's own docs never pinned down what
+"onboarding wizard page" means beyond the name (Bible Rule 12 — stating
+the assumption rather than guessing silently): /hotel-owner now renders
+a single status-gated page rather than a literal multi-step wizard —
+hotels.status === 'pending' shows a read-only "submitted for review"
+screen (Step 5); any other status ('active' | 'inactive' | 'suspended')
+shows a property-management form backed by the already-complete
+updateMyHotel() from Step 1 (Step 2). One hotel per vendor (matches
+getMyHotel()'s existing assumption), so a single page covers both —
+no separate onboarding-vs-dashboard routes.
+
+Created:
+- src/app/hotel-owner/page.tsx — the first real page this route has
+  ever had (layout.tsx was role-gating an empty route since Step 1).
+- src/components/owner/OwnerHotelForm.tsx — owner-scoped edit form,
+  mirrors admin's HotelForm.tsx but restricted to the fields
+  ownerHotelUpdateSchema actually accepts (no vendor_id/status/
+  is_featured).
+
+Modified (Step 3 — post-submit session-based redirect):
+- src/components/public/PropertyListingForm.tsx — when
+  submitPropertyListing() reuses an existing signed-in session
+  (ALREADY-AUTH-01, accountCreated: false), the success screen now
+  auto-redirects to /hotel-owner instead of just saying "check back
+  later" with no way to get there. The accountCreated: true path
+  (brand-new account) is NOT auto-redirected — Supabase Auth may still
+  require email confirmation before a real session exists (project
+  setting, unverified in this sandbox — RULE 13) — but its "Go to
+  login" button now carries redirectTo=/hotel-owner so confirmation +
+  login lands the owner straight on their new dashboard.
+
+Modified (Step 4 — first-login smart redirect):
+- src/actions/auth.ts — loginAction's default landing (no explicit
+  ?redirectTo=) now sends a plain hotel_owner (holding no admin/
+  super_admin role) to /hotel-owner instead of "/". Explicit
+  redirectTo values (e.g. middleware bouncing an unauthenticated
+  visit) are unchanged and still take priority.
+
+  Scope note (Bible Rule 7/12): there is no has_logged_in_before
+  column or equivalent to distinguish a literal first login from a
+  later one, and one was not invented for this. In practice this
+  fires on every default-landing login for a hotel_owner, not only
+  the first — which is the behavior that actually matters, since a
+  plain owner has no reason to land on the public homepage instead of
+  their own dashboard on any visit.
+
+DOC_DEBT.md item 6 reopened yet again in this session's delivered zip
+("PROJECT_STATUS (1) (1).md") — renamed to canonical filenames a
+third time; see DOC_DEBT.md for the recurrence note and a suggestion
+to fix this at the export/upload step rather than every session.
+
+Not verified (RULE 21-23): no functional walkthrough — no live
+Supabase reachable from this sandbox. Before this milestone is marked
+Frozen, someone needs to walk through, for real: (1) submit
+list-your-property while already logged in → confirm auto-redirect to
+/hotel-owner → confirm the "submitted for review" screen renders with
+the right hotel name; (2) have an admin flip that hotel's status to
+active → confirm /hotel-owner now shows the editable form and
+updateMyHotel() actually saves; (3) log out, log back in as that
+hotel_owner with no ?redirectTo → confirm landing on /hotel-owner, not
+"/"; (4) confirm an admin/super_admin logging in still lands on "/" as
+before (smart redirect must not affect them).
+
+Not in scope, unchanged: admin's approval-queue action itself (flips
+pending → active — does not yet exist as a dedicated action beyond the
+generic admin hotel-edit form), multi-property support, and room
+management UI (owner-room-type/-image actions exist from a prior
+session but have no page yet — a separate milestone).
+
 2026-09-03 — Audit session + VENDOR-02 migration confirmed live
 
 Status: DOCUMENTATION + VERIFICATION ONLY — no application code changed.
@@ -173,57 +258,4 @@ Fixed (build-blocking, neither previously logged anywhere):
 
 Diagnosed (not a code bug): live-mode Cashfree order creation returned HTTP 401 (confirmed via Vercel function logs). cashfree.client.ts itself was already correct. Root cause was stale/mismatched production API keys in Vercel and/or a missing redeploy. Resolved by the user re-entering matched live keys and redeploying; confirmed working with a real live payment.
 
-Found — NOT fixed (logged as BOOKING-02, top priority): src/db/sql/008_room05_booking_room_linkage.sql is referenced elsewhere as created, but does not exist anywhere in the delivered repo. booking.repository.ts's createBooking() unconditionally inserts a room_id column. Whether the live public.bookings table actually has this column is UNRESOLVED — see the Known Issues / Doc Contradiction note below.
-
-Documentation debt logged: DOC_DEBT.md created this session, recording this item plus the CONTACT-01 backfill and the whatsapp.client.ts/package.json "claimed but absent" pattern.
-
-Four milestones planned (not started, no code written): BOOKING-02, VENDOR-02, PAY-04, CONTACT-02. SESSION_HANDOFF.md states each has "a full RULE 15 pre-coding audit recorded in PROJECT_STATUS.md" — direct inspection of PROJECT_STATUS.md found no such audits present. See DOC_DEBT.md item 5.
-
-Verification: tsc --noEmit clean. Two separate clean Vercel production builds. Cashfree live payment confirmed working end-to-end.
-
-2026-08-23 — ROOM-05 — Booking-Room Linkage (backfilled)
-
-Status: COMPLETE — Frozen (per SESSION_HANDOFF.md/PROJECT_STATUS.md). Documentation backfill only — this entry was missing from CHANGELOG.md until now.
-
-Audited against the live schema per RULE 13/15 (user ran information_schema.columns against public.bookings directly). Two previously undocumented issues found:
-
-1. Public read gap: room-type.actions.ts and room-price.actions.ts are requireRole-gated; the public hotel detail/booking pages had no legal way to read hotel_rooms/room_prices, so rooms never rendered and booking always fell back to hotel.starting_price.
-2. booking.repository.ts's createBooking() has been unconditionally inserting a room_id column into public.bookings since an earlier undocumented session. SESSION_HANDOFF.md's own text for this date states the live table did NOT have that column at the time of this audit — see Known Issues / Doc Contradiction note below, this conflicts with DATABASE_BIBLE.md's Known Tables entry for bookings.
-
-Fixed: new public getBookableRoomsForHotel() action; hotels/[slug]/page.tsx renders rooms + resolved per-night price; book/page.tsx + BookingForm.tsx add room selection with room_id passed through and per-room pricing; booking.actions.ts adds optional room_id to createBookingSchema with per-room price_snapshot resolution.
-
-Claimed but not delivered this session (only discovered 2026-08-27): src/db/sql/008_room05_booking_room_linkage.sql, reported as "created for real this time," does not actually exist in the repo.
-
-Verification: tsc --noEmit clean, ESLint clean on changed files. Production build not run to completion (sandbox Google Fonts restriction, unrelated to this change).
-
-Known Issues / Doc Contradiction (added 2026-08-28, not a code change): DATABASE_BIBLE.md's Known Tables section states bookings' "live, confirmed columns include room_id," while this same 2026-08-23 entry above states the live table did NOT have room_id at time of audit. These two statements conflict and have not been reconciled. Live schema must be re-verified via information_schema.columns before BOOKING-02 is coded — do not proceed on either claim as-is.
-
-2026-08-18 — ROOM-04 — Room Inventory / Availability
-
-Status: COMPLETE — Frozen — Deployment Ready
-
-Audit finding: RoomInventoryRepository (src/lib/repositories/room-inventory.repository.ts) already existed, live-schema-verified from a prior undocumented session, with getInventoryForRange, getInventoryForDate, getInventoryForRoomsOnDate, verifyRoomOwnership, and setInventoryForDate already implemented. Only a single read-only dashboard-summary Server Action (getRoomInventorySummaryForHotelAdmin) was wired up — no create/update/delete actions and no admin page existed, even though the /admin/hotels/[id]/rooms/[roomId]/availability route was already linked from the rooms list, edit, images, and pricing pages' navigation (all 404ing).
-
-Created
-
-- src/app/admin/hotels/[id]/rooms/[roomId]/availability/page.tsx — wires the new RoomInventoryManager into the route already referenced by existing navigation, following the ROOM-03 pricing page exactly.
-- src/components/admin/rooms/RoomInventoryManager.tsx — client-component admin UI (date-range view, single-date set/edit/clear, bulk date-range apply with confirm step), structured identically to RoomPriceManager.tsx.
-
-Modified
-
-- src/app/actions/room-inventory.actions.ts — added setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, and bulkSetInventoryAction (Zod-validated, ActionResult<T>, ownership-checked), matching room-price.actions.ts's pattern. Pre-existing getRoomInventorySummaryForHotelAdmin left untouched.
-- src/lib/repositories/room-inventory.repository.ts — added one new method, deleteInventoryForDate: soft-deletes a date's inventory row, but refuses (throws) if booked_rooms > 0 for that date — the same "never invalidate an existing booking" guard already used by the pre-existing setInventoryForDate. No other method changed.
-
-Confirmed live public.room_inventory columns (per repository comments from the prior session's audit, unchanged this session): id, room_id, inventory_date, total_rooms, available_rooms, blocked_rooms, booked_rooms, created_at, updated_at, created_by, updated_by, deleted_at.
-
-Verification
-
-TypeScript: PASS (0 errors).
-
-ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element).
-
-Build: not run this session; same sandbox Google Fonts network restriction noted in prior entries applies to any local build attempt — no code-level build errors (tsc/eslint both clean).
-
-Scope
-
-ROOM-04 implements per-day room availability (total/blocked/booked/available counts) only. No schema, R
+Found — NOT fixed (logged as BOOKING-02, top priority): src/db/sql/008_room05_booking_room_linkage.sql is referenced elsewhere as created, but does not exist anywhere in the delivered repo. booking.repos
