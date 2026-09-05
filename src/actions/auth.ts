@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 
 /* -------------------------------------------------------------------------- */
 /* Validation                                                                 */
@@ -91,7 +92,51 @@ export async function loginAction(
   }
 
   const redirectTo = formData.get("redirectTo");
-  redirect(typeof redirectTo === "string" && redirectTo ? redirectTo : "/");
+
+  if (typeof redirectTo === "string" && redirectTo) {
+    redirect(redirectTo);
+  }
+
+  // P0.3 Step 4 — smart default redirect (2026-09-05 session, see
+  // SESSION_HANDOFF.md). Only applies when the caller didn't already
+  // ask for a specific page (e.g. via ?redirectTo=... from middleware
+  // bouncing an unauthenticated visit) — that explicit request always
+  // wins, unchanged, above.
+  //
+  // Scope note (Bible Rule 12 — stating the assumption rather than
+  // guessing silently): there is no `has_logged_in_before` column or
+  // similar on `users`/`vendors` to actually distinguish a hotel_owner's
+  // FIRST login from a later one (adding one wasn't done here — Bible
+  // Rule 7, no inventing schema), so this applies on every default-
+  // landing login for a hotel_owner, not literally only the first. In
+  // practice this is the only login that matters for that role: once
+  // an owner reaches /hotel-owner they naturally navigate from there,
+  // and a plain hotel_owner has no reason to land on the public
+  // homepage instead of their own dashboard.
+  let destination = "/";
+
+  try {
+    const current = await getCurrentUser();
+    const roles = current?.roles ?? [];
+    const isPlainOwner =
+      roles.includes("hotel_owner") &&
+      !roles.includes("admin") &&
+      !roles.includes("super_admin");
+
+    if (isPlainOwner) {
+      destination = "/hotel-owner";
+    }
+  } catch {
+    // Role lookup failing here must never block an otherwise-successful
+    // login — same reasoning as every other best-effort catch in this
+    // codebase (RULE 38: still worth knowing about, even though it
+    // can't be allowed to fail the request).
+    console.error(
+      "[loginAction] role lookup for smart redirect failed; defaulting to /"
+    );
+  }
+
+  redirect(destination);
 }
 
 /* -------------------------------------------------------------------------- */
