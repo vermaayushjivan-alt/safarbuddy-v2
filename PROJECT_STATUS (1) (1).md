@@ -284,7 +284,7 @@ Role-Based Dashboard Pages
 
 /dashboard
 
-/hotel-owner
+/hotel-owner — CODE COMPLETE 2026-09-05 (P0.3 Steps 2-5), NOT VERIFIED. See Next Development Phase entry below. No longer an empty route, but not yet Frozen — needs a real functional walkthrough first.
 
 /travel-agent
 
@@ -310,15 +310,15 @@ Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
 Next Development Phase
 
-ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration not yet run in production (see below). VENDOR-03 — M1 CODE COMPLETE (see below), M2–M4 not started. PAY-04/CONTACT-02 have no RULE 15 pre-coding audit recorded yet — SESSION_HANDOFF.md's original claim that one exists for each was false (see DOC_DEBT.md item 5 — that citation is itself dangling, logged as its own open item). Do not start coding either until that audit is actually performed and recorded here.
+ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 partially covered, M4 not started. PAY-04/CONTACT-02 have no RULE 15 pre-coding audit recorded yet — SESSION_HANDOFF.md's original claim that one exists for each was false (see DOC_DEBT.md item 5 — that citation is itself dangling, logged as its own open item). Do not start coding either until that audit is actually performed and recorded here.
 
 VENDOR-03 — Self-Service "List Your Property" (4-milestone plan, requested by project owner for international launch: a hotel owner should submit their property — details, facilities, payout, contact — in one form, without an admin manually creating records).
 
-- M1 — Schema Foundation. CODE COMPLETE 2026-08-28, migration not yet run in production. RULE 15 audit recorded in chat session (not duplicated here in full — summary: hotels had no facilities column; no safe user_roles-write path existed). Delivered: src/db/sql/011_vendor03_hotel_facilities.sql (hotel_facilities catalog + hotel_facility_links junction, RLS enabled with public-read policies), src/lib/repositories/hotel-facility.repository.ts, src/lib/auth/roles.ts (grantSelfServiceRole/hasSelfServiceRole, hardcoded to hotel_owner/vendor only — see file for why this is safe without its own requireRole() call). tsc --noEmit and eslint both clean on new files. NOT YET RUN against production — run manually in Supabase SQL editor, then confirm via information_schema.columns per RULE 13 before starting M2.
-- M2 — Public "List Your Property" flow. NOT STARTED. Planned: homepage CTA button, single consolidated public form (owner/account info + property details + facilities checklist from M1's catalog + payout/bank details + contact) submitting once to a new Server Action that creates the user (if new)/vendor/hotel(status=pending)/payout row/facility links together, and calls grantSelfServiceRole(userId, 'hotel_owner'). Needs its own RULE 15 audit before coding (in particular: how "user already logged in vs new visitor" is handled, and Supabase Storage path for property photo/ID-proof upload — not yet designed).
-- M2 — Public "List Your Property" flow. CODE COMPLETE 2026-08-28,
-  migration (011, from M1) still not run in production — M2 depends on
-  it. RULE 15 decision: submitPropertyListing() is NOT requireRole()
+- M1 — Schema Foundation. CODE COMPLETE 2026-08-28. Migration RUN AND CONFIRMED IN PRODUCTION 2026-09-05: public.hotel_facilities and public.hotel_facility_links verified live via information_schema.columns — all expected columns present with correct types (hotel_facilities: id uuid, code/label/category text, display_order integer, is_active boolean, created_at/updated_at timestamptz; hotel_facility_links: id/hotel_id/facility_id uuid, created_at timestamptz), per RULE 13/35. M1 is now DEPLOYMENT READY. RULE 15 audit recorded in chat session (not duplicated here in full — summary: hotels had no facilities column; no safe user_roles-write path existed). Delivered: src/db/sql/011_vendor03_hotel_facilities.sql (hotel_facilities catalog + hotel_facility_links junction, RLS enabled with public-read policies), src/lib/repositories/hotel-facility.repository.ts, src/lib/auth/roles.ts (grantSelfServiceRole/hasSelfServiceRole, hardcoded to hotel_owner/vendor only — see file for why this is safe without its own requireRole() call). tsc --noEmit and eslint both clean on new files.
+- M2 — Public "List Your Property" flow. CODE COMPLETE 2026-08-28.
+  Migration (011, from M1) RUN AND CONFIRMED IN PRODUCTION 2026-09-05
+  (see M1 above) — M2's dependency is now satisfied; the live form can
+  be functionally tested end-to-end for the first time. RULE 15 decision: submitPropertyListing() is NOT requireRole()
   gated (a brand-new visitor has no role yet); safety instead comes
   from using createServiceRoleClient() for all writes (trusted-server
   pattern already established for the Cashfree webhook), only ever
@@ -328,77 +328,4 @@ VENDOR-03 — Self-Service "List Your Property" (4-milestone plan, requested by 
   status='pending' — never auto-published. Delivered: one consolidated
   Zod schema/form covering owner account + property details +
   facilities checklist (from M1's catalog) + payout/contact, submitted
-  in a single POST — no multi-step wizard, per explicit request.
-  Files: src/app/actions/property-listing.actions.ts,
-  src/components/public/PropertyListingForm.tsx,
-  src/app/list-your-property/page.tsx, "List Your Property" button
-  added to src/components/home/Navbar.tsx. RULE 29 backfill: added
-  GMAIL_USER/GMAIL_APP_PASSWORD (previously read via process.env
-  without being in serverEnvSchema/env.d.ts despite a code comment
-  claiming otherwise — see DOC_DEBT.md item 7) and
-  ADMIN_NOTIFICATION_EMAIL to serverEnvSchema, env.d.ts, .env.example.
-  tsc --noEmit: PASS. eslint (project-wide): PASS, 0 errors (1
-  pre-existing unrelated warning in components/layout/ProfileMenu.tsx,
-  not touched this session). Production build (`next build`): NOT
-  VERIFIED in this sandbox — fails only on fonts.googleapis.com being
-  network-blocked in this container (RULE 23), unrelated to any code
-  changed here; must be confirmed on a real deploy (Vercel) before
-  Frozen.
-  Not started within M2's own scope: property photo/ID-proof upload
-  (no Storage bucket/path designed yet — flagged, not silently
-  assumed). Functional walkthrough (RULE 21/22): NOT performed — no
-  live Supabase project reachable from this sandbox; must be walked
-  through end-to-end (real signup + submission) before Frozen.
-- M3 — Notifications. PARTIALLY COVERED by M2: a best-effort admin
-  alert email is already sent on submission (via existing sendEmail(),
-  gated on ADMIN_NOTIFICATION_EMAIL being set; skipped+logged, not
-  thrown, if unset — RULE 30) without touching the notifications
-  table at all. Remaining scope: owner-facing confirmation
-  email/WhatsApp, and a dashboard-alert equivalent to CONTACT-01's for
-  new listings (still blocked on notifications.booking_id being
-  NOT NULL — needs its own migration or table, not started).
-- M4 — Admin approval UI. NOT STARTED. Depends on M2. Review/approve/reject queue for hotels with status='pending' created via self-service.
-
-VENDOR-02 — Hotel Owner Payout KYC Capture. RULE 15 audit performed and code written 2026-08-28 (see v14 above). NOT YET DEPLOYMENT READY: src/db/sql/010_vendor02_payout_kyc.sql has not been run against production yet — run it manually in the Supabase SQL editor, then confirm public.vendor_payout_details exists via information_schema.columns before relying on the new admin page. Cashfree beneficiary creation is intentionally not implemented (inert stub) pending Payout API credentials.
-
-PAY-04 — Automated Split Settlement via Cashfree Easy Split. Depends on VENDOR-02 (code complete, migration pending) and on Cashfree Payout credentials being provided. Named in SESSION_HANDOFF.md 2026-08-27; audit not yet done.
-
-CONTACT-02 — Payment-Triggered Notifications (move CONTACT-01's notification trigger from booking-creation to payment-success). Depends on PAY-04. Named in SESSION_HANDOFF.md 2026-08-27; audit not yet done.
-
-Dedicated Architecture Cleanup
-
-Perform only after explicit cleanup sign-off and dependency/import verification.
-
-Final Production Hardening
-
-Storage/RLS, UUID routes, schema consistency, auth/role guards, error boundaries, navigation, dead code, TypeScript, ESLint, build and deployment verification.
-
-Version History
-
-v1 — Reconciled project status with actual repository state.
-
-v2 (2026-08-06) — Routing audit and ADMIN-09 completion.
-
-v3 (2026-08-07) — Stability/auth routing audit.
-
-v4 (2026-08-08) — Auth/database stabilization and Super Admin role normalization.
-
-v5 (2026-08-08) — UUID routing and repository hardening.
-
-v6 (2026-08-08) — BOOKING-01 completed/frozen.
-
-v7 (2026-08-12) — PAY-01/PAY-02 documentation backfill and PAY-03 admin UI.
-
-v8 (2026-08-12) — ADMIN-10 / ROOM-01 completed/frozen. Room type list/edit flow, form, repository, actions and Zod schema completed. Build/type errors related to RoomTypeForm and room-list return shape resolved. Deployment-ready state recorded.
-
-v9 (2026-08-12) — Pre-ROOM-03 hardening pass. Missing rooms/new route created (reuses RoomTypeForm). ROOM-02 image ownership vulnerability fixed (reorder/set-primary/delete now scoped to room_type_id). Upload/delete Storage↔DB failure handling hardened. ROOM-02 marked COMPLETE — Frozen. .gitignore restored from misnamed `gitignore` file (repo secrets were previously untracked-by-name only, not actually git-ignored); .env.example added. Two confirmed-unused stray files removed (stray-extension repository file, duplicate next.config). 005_room01_schema.sql confirmed genuinely absent — flagged LIVE VERIFICATION REQUIRED rather than reconstructed. src/lib/repository/, user.repository.ts, and src/lib/db/index.ts confirmed fully unused (documented for future cleanup, not deleted). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning). Production build: blocked by sandbox network restriction on Google Fonts fetch (environment-only, not a code defect — see PAY-03 note above for precedent).
-
-v10 (2026-08-16) — ROOM-03 documentation backfill and admin page wiring. Audit found RoomPriceRepository, room-price.actions.ts, and the RoomPriceManager component already implemented and live-schema-verified from an undocumented prior session, but never wired to a route (RoomPriceManager was dead/unreferenced code) and never recorded in PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF. Added the missing /admin/hotels/[id]/rooms/[roomId]/pricing page (existing nav links in the rooms list, edit, and images pages already pointed at this exact route). No repository, action, schema, or RLS changes — only the route was added. ROOM-03 marked COMPLETE — Frozen. Also discovered, but explicitly left out of scope: RoomInventoryRepository (ROOM-04 backend) exists with confirmed live room_inventory columns, but only a read-only summary action and no admin CRUD/page exist yet — documented under Next Development Phase rather than implemented, per RULE 11 (one milestone at a time). TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element). Production build: blocked only by the same sandbox Google Fonts network restriction as v9 (403 fetching Inter from fonts.googleapis.com); no code-level build errors.
-
-v11 (2026-08-18) — ROOM-04 completed. Added the missing create/update/delete Server Actions (setInventoryForDateAction, deleteInventoryForDateAction, getInventoryForRangeAction, bulkSetInventoryAction) to the pre-existing room-inventory.actions.ts, one new repository method (deleteInventoryForDate, guarded against clearing a date with existing bookings), the RoomInventoryManager admin component, and the /admin/hotels/[id]/rooms/[roomId]/availability page already referenced by existing nav links. Followed the ROOM-03 architectural pattern exactly (Zod validation, ActionResult<T>, requireRole + verifyRoomOwnership, single-date and bulk-date-range UI). No schema, RLS, or database changes. ROOM-04 marked COMPLETE — Frozen. TypeScript: PASS. ESLint: PASS (0 errors, 1 pre-existing unrelated warning — components/layout/ProfileMenu.tsx img element). Production build: not run this session (same sandbox Google Fonts network restriction noted in v9/v10 applies; no code-level build errors — tsc/eslint both clean).
-
-v12 (2026-08-28) — Documentation backfill only, no code changes. User confirmed PROJECT_STATUS.md/CHANGELOG.md were not updated in the prior two sessions (2026-08-23 ROOM-05, 2026-08-27 build-stability/planning), matching what direct inspection of the delivered repo found. Backfilled both files from SESSION_HANDOFF.md and DOC_DEBT.md's account of those sessions. ROOM-05 marked COMPLETE — Frozen (backfilled). Surfaced and logged, but deliberately NOT resolved by invention: (1) a direct contradiction between DATABASE_BIBLE.md (says bookings.room_id is live-confirmed) and the 2026-08-23 audit record (says it is not) — flagged under Known Issues, must be re-verified against information_schema before BOOKING-02 is coded; (2) SESSION_HANDOFF.md's claim that BOOKING-02/VENDOR-02/PAY-04/CONTACT-02 each have a full RULE 15 audit recorded here is false — no such audits exist in this file. Logged as DOC_DEBT.md item 5. No migration written, no schema assumed, per RULE 13.
-
-v13 (2026-08-28) — BOOKING-02 closed. User ran information_schema.columns and pg_attribute/pg_attrdef/pg_constraint directly against public.bookings, confirming room_id exists (uuid, nullable, no default, FK → hotel_rooms(id)). This resolves the v12 DATABASE_BIBLE.md/2026-08-23-audit contradiction in DATABASE_BIBLE.md's favor. Migration src/db/sql/008_room05_booking_room_linkage.sql created (idempotent, ADD COLUMN IF NOT EXISTS) to close the RULE 32 gap — it documents the confirmed live state rather than re-applying a change that was already live. No application code changed: booking.repository.ts already treated room_id as nullable/optional and was already correct. DATABASE_BIBLE.md's Migration Registry and Known Tables entries updated to match. VENDOR-02/PAY-04/CONTACT-02 remain named-but-unaudited — see Next Development Phase; none started.
-
-v14 (2026-08-28) — VENDOR-02 implemented (Hotel Owner Payout KYC Capture). RULE 15 audit recorded above led to a new src/db/sql/010_vendor02_payout_kyc.sql migration (not yet run in production — must be run manually in Supabase, then confirmed via information_schema.columns per RULE 13) creating public.vendor_payout_details as a table separate from public.vendors (bank_account_number, bank_ifsc, upi_id, cashfree_beneficiary_id, payout_status default 'pending'; unique index on vendor_id; RLS enabled with no public/authenticated policy — access is admin-only via BaseRepository + service role, same pattern as other content tables). PAN stays on public.vendors (pan_number) and is not duplicated. Created: src/lib/repositories/vendor-payout.repository.ts (VendorPayoutRepository, getByVendorId/upsertForVendor), src/app/actions/vendor-payout.actions.ts (admin-only, Zod-validated inline per vendor.actions.ts's actual convention — no src/lib/validations/ directory exists in this repo despite the ADMIN-10 entry referencing one), src/components/admin/vendors/VendorPayoutForm.tsx, src/app/admin/vendors/[id]/payout/page.tsx, src/lib/cashfree/cashfree-payouts.client.ts (inert stub — Cashfree Payouts needs its own separate credentials, not yet provided; matches the whatsapp.client.ts precedent, no invented API contract). Modified: src/app/admin/vendors/[id]/edit/page.tsx — added "Manage Payout Details" link next to the existing "Manage Branches" link. Decision (made by Claude, approved by user via "jo professional bhi ho aur asani se ho bhi jaye"): admin-managed capture rather than owner self-service, since src/app/vendor/ has only a role-guard layout and no actual page — building owner-facing auth/UI was out of scope for this milestone. Scope: capture + storage only. Cashfree beneficiary creation (calling cashfree-payouts.client.ts for real) and PAY-04's split-settlement logic are NOT implemented — both need real Payout API credentials first. TypeScript: PASS (0 errors). ESLint: PASS (0 errors) on all new/changed files.
+  in 
