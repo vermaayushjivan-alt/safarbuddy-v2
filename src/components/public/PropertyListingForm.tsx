@@ -162,6 +162,26 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
     });
   }
 
+  // P0.3 Step 3 (post-submit session-based redirect, 2026-09-05
+  // session): when submitPropertyListing() reused an existing signed-in
+  // session (ALREADY-AUTH-01 — accountCreated: false), the hotel_owner
+  // role has already been granted in this same request and the
+  // person's session cookie is already valid — there is no email to
+  // confirm, so there is no reason to leave them on this page. Sends
+  // them straight to the new /hotel-owner dashboard (Step 2) instead of
+  // just telling them to "check back later" with no way to get there.
+  //
+  // The accountCreated: true path is deliberately NOT auto-redirected
+  // here — Supabase Auth may still require email confirmation before a
+  // real session exists (project-level setting, unverified in this
+  // sandbox — Bible Rule 13), so redirecting immediately could land an
+  // unconfirmed visitor on a gated route with no session at all.
+  useEffect(() => {
+    if (success && !accountWasCreated) {
+      router.push("/hotel-owner");
+    }
+  }, [success, accountWasCreated, router]);
+
   if (success) {
     return (
       <Alert variant="success">
@@ -172,7 +192,7 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
             your listing status.{" "}
             <button
               type="button"
-              onClick={() => router.push("/login")}
+              onClick={() => router.push("/login?redirectTo=/hotel-owner")}
               className="font-medium underline"
             >
               Go to login
@@ -180,8 +200,8 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
           </>
         ) : (
           <>
-            Your property has been submitted for review. You can track its
-            status from your account once it&apos;s approved.
+            Your property has been submitted for review. Taking you to your
+            dashboard…
           </>
         )}
       </Alert>
@@ -490,4 +510,5 @@ function groupByCategory(
   }, {});
 }
 
-        
+
+                         
