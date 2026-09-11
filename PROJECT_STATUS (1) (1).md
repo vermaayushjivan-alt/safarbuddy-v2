@@ -64,7 +64,15 @@ Vendor CRUD, vendor branches, role-protected actions, VendorForm, VendorBranchMa
 
 BOOKING-01 (Hotel + Package Bookings) — COMPLETE — Frozen
 
-Authenticated hotel/package booking, booking repository, customer/admin actions, booking pages, My Bookings, and admin bookings management. Room/departure inventory, availability, guest checkout, vendor booking access and related features remain deferred.
+Authenticated hotel/package booking, booking repository, customer/admin actions, booking pages, My Bookings, and admin bookings management. Room/departure inventory, availability, vendor booking access and related features remain deferred. Guest checkout is no longer deferred — see BOOKING-03 below.
+
+BOOKING-03 (Guest Checkout) — CODE COMPLETE 2026-09-11, NOT VERIFIED
+
+Restored after a regression: this milestone was previously delivered but absent from the repo zip uploaded at the start of the 2026-09-11 session (createBooking() still threw UNAUTHENTICATED, migration 012 and the confirmation route did not exist) — confirmed by the user as the actual latest state, not a stale upload. See DOC_DEBT.md item 12 and CHANGELOG.md 2026-09-11 for full detail.
+
+Delivered: src/db/sql/012_booking03_guest_checkout.sql (customer_id nullable + guest_name/guest_email/guest_phone + bookings_customer_or_guest_check), createBooking() accepting unauthenticated callers via createServiceRoleClient() with required guest contact fields, getGuestBookingConfirmation(), BookingForm.tsx guest-contact section (isAuthenticated prop), public /booking-confirmation/[id] page, and the /packages/ + /booking-confirmation/ middleware public-route fix (package guest checkout was also blocked at the middleware layer, not just the page level).
+
+tsc --noEmit and eslint both clean on every changed file. NOT verified: migration 012 has not been run in production (no reachable Supabase instance in this sandbox); no live functional walkthrough. RULE 22 applies (bookings-mutation path) — do not mark Frozen until both are done.
 
 PAY-01 (Payments Schema) — COMPLETE — Frozen
 
