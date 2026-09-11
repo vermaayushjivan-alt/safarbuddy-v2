@@ -24,6 +24,7 @@ import { HotelRepository } from "@/lib/repositories/hotel.repository";
 import { PackageRepository } from "@/lib/repositories/package.repository";
 import { RoomTypeRepository } from "@/lib/repositories/room-type.repository";
 import { RoomPriceRepository } from "@/lib/repositories/room-price.repository";
+import { notifyBookingCreated } from "@/lib/notifications/dispatch";
 
 // -----------------------------------------------------------------------------
 // VALIDATION
@@ -626,6 +627,46 @@ export async function createBooking(
       }
     );
 
+  // NOTIFY-01 (this session): wire up CONTACT-01's notification
+  // dispatch, which was fully built (dashboard alert + email to the
+  // hotel/vendor contact captured at listing time) but was never
+  // actually called from createBooking() — so no booking, hotel or
+  // package, has ever triggered a notification. Deliberately uses its
+  // own service-role client rather than the `supabase` client above:
+  // this is an internal system side-effect, not a customer-facing
+  // read/write, so it must work identically for a guest checkout (no
+  // session at all) and a logged-in customer, without depending on
+  // RLS state on the vendors/notifications tables either way.
+  // notifyBookingCreated() never throws (see dispatch.ts) — a
+  // notification failure must never fail a booking that already
+  // succeeded.
+  await notifyBookingCreated(
+    createServiceRoleClient(),
+    {
+      bookingId: created.id,
+      bookingType: parsed.booking_type as BookingType,
+      itemName:
+        parsed.booking_type === "hotel"
+          ? (hotel?.hotel_name as string)
+          : (pkg?.package_name as string),
+      vendorId: vendorId,
+      itemContact:
+        parsed.booking_type === "hotel"
+          ? { phone: hotel?.phone ?? null, email: hotel?.email ?? null }
+          : null,
+      guestName:
+        !authUser && parsed.guest_name
+          ? parsed.guest_name
+          : "Registered customer",
+      checkInDate:
+        parsed.booking_type === "hotel" ? (parsed.check_in_date ?? null) : null,
+      checkOutDate:
+        parsed.booking_type === "hotel" ? (parsed.check_out_date ?? null) : null,
+      travelDate:
+        parsed.booking_type === "package" ? (parsed.travel_date ?? null) : null,
+    }
+  );
+
   return created;
 }
 
@@ -771,251 +812,4 @@ export async function cancelMyBooking(
       input
     );
 
-  const supabase =
-    await createClient();
-
-  const customerId =
-    await getPublicUserId(
-      supabase,
-      authUser.id
-    );
-
-  const repo =
-    new BookingRepository(
-      supabase
-    );
-
-  const existing =
-    await repo.getBookingById(
-      parsed.id
-    );
-
-  if (
-    !existing ||
-    existing.customer_id !==
-      customerId
-  ) {
-    throw new Error(
-      "Booking not found"
-    );
-  }
-
-  if (
-    existing.status !==
-      "pending" &&
-    existing.status !==
-      "confirmed"
-  ) {
-    throw new Error(
-      "Only pending or confirmed bookings can be cancelled"
-    );
-  }
-
-  return repo.cancelBooking(
-    parsed.id,
-    parsed.reason
-  );
-}
-
-// -----------------------------------------------------------------------------
-// ADMIN - ALL BOOKINGS
-// -----------------------------------------------------------------------------
-
-export async function getAllBookingsAdmin(
-  page: number = 1,
-  limit: number = 20,
-  status?: BookingStatus
-) {
-  await requireRole([
-    "admin",
-    "super_admin",
-  ]);
-
-  const supabase =
-    await createClient();
-
-  const repo =
-    new BookingRepository(
-      supabase
-    );
-
-  return repo.getAllBookings(
-    page,
-    limit,
-    status
-  );
-}
-
-// -----------------------------------------------------------------------------
-// ADMIN - ONE BOOKING
-// -----------------------------------------------------------------------------
-
-export async function getBookingByIdAdmin(
-  id: string
-): Promise<
-  BookingRecord | null
-> {
-  await requireRole([
-    "admin",
-    "super_admin",
-  ]);
-
-  const supabase =
-    await createClient();
-
-  const repo =
-    new BookingRepository(
-      supabase
-    );
-
-  return repo.getBookingById(
-    id
-  );
-}
-
-// -----------------------------------------------------------------------------
-// ADMIN - CONFIRM
-// -----------------------------------------------------------------------------
-
-export async function confirmBookingAdmin(
-  id: string
-): Promise<BookingRecord> {
-  await requireRole([
-    "admin",
-    "super_admin",
-  ]);
-
-  const supabase =
-    await createClient();
-
-  const repo =
-    new BookingRepository(
-      supabase
-    );
-
-  const existing =
-    await repo.getBookingById(
-      id
-    );
-
-  if (!existing) {
-    throw new Error(
-      "Booking not found"
-    );
-  }
-
-  if (
-    existing.status !==
-    "pending"
-  ) {
-    throw new Error(
-      "Only pending bookings can be confirmed"
-    );
-  }
-
-  return repo.confirmBooking(
-    id
-  );
-}
-
-// -----------------------------------------------------------------------------
-// ADMIN - CANCEL
-// -----------------------------------------------------------------------------
-
-export async function cancelBookingAdmin(
-  input: {
-    id: string;
-    reason: string;
-  }
-): Promise<BookingRecord> {
-  await requireRole([
-    "admin",
-    "super_admin",
-  ]);
-
-  const parsed =
-    cancelBookingSchema.parse(
-      input
-    );
-
-  const supabase =
-    await createClient();
-
-  const repo =
-    new BookingRepository(
-      supabase
-    );
-
-  const existing =
-    await repo.getBookingById(
-      parsed.id
-    );
-
-  if (!existing) {
-    throw new Error(
-      "Booking not found"
-    );
-  }
-
-  if (
-    existing.status !==
-      "pending" &&
-    existing.status !==
-      "confirmed"
-  ) {
-    throw new Error(
-      "Only pending or confirmed bookings can be cancelled"
-    );
-  }
-
-  return repo.cancelBooking(
-    parsed.id,
-    parsed.reason
-  );
-}
-
-// -----------------------------------------------------------------------------
-// ADMIN - COMPLETE
-// -----------------------------------------------------------------------------
-
-export async function completeBookingAdmin(
-  id: string
-): Promise<BookingRecord> {
-  await requireRole([
-    "admin",
-    "super_admin",
-  ]);
-
-  const supabase =
-    await createClient();
-
-  const repo =
-    new BookingRepository(
-      supabase
-    );
-
-  const existing =
-    await repo.getBookingById(
-      id
-    );
-
-  if (!existing) {
-    throw new Error(
-      "Booking not found"
-    );
-  }
-
-  if (
-    existing.status !==
-    "confirmed"
-  ) {
-    throw new Error(
-      "Only confirmed bookings can be marked completed"
-    );
-  }
-
-  return repo.completeBooking(
-    id
-  );
-      }
-    
+  const su
