@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 
-import { createClient } from "@/lib/supabase/server";
+import {
+  createClient,
+  createServiceRoleClient,
+} from "@/lib/supabase/server";
 import {
   requireRole,
   getAuthUser,
@@ -15,6 +18,7 @@ import {
   BookingStatus,
   BookingType,
 } from "@/lib/repositories/booking.repository";
+import { SupabaseClientType } from "@/lib/repositories/types";
 
 import { HotelRepository } from "@/lib/repositories/hotel.repository";
 import { PackageRepository } from "@/lib/repositories/package.repository";
@@ -88,6 +92,33 @@ const createBookingBaseSchema =
           1,
           "At least 1 guest is required"
         ),
+
+    // BOOKING-03: only read/validated when the caller has no session
+    // (see the superRefine below and createBooking()). Left optional
+    // here so the authenticated flow's existing payload shape keeps
+    // working unchanged.
+    guest_name:
+      z.string()
+        .trim()
+        .min(2, "Enter your full name.")
+        .max(120)
+        .nullable()
+        .optional(),
+
+    guest_email:
+      z.string()
+        .trim()
+        .email("Enter a valid email address.")
+        .nullable()
+        .optional(),
+
+    guest_phone:
+      z.string()
+        .trim()
+        .min(7, "Enter a valid phone number.")
+        .max(20)
+        .nullable()
+        .optional(),
   });
 
 const createBookingSchema =
@@ -255,10 +286,13 @@ const cancelBookingSchema =
 // pattern doesn't drift into N slightly-different copies again. This
 // thin wrapper is kept only so every call site below doesn't need to
 // change its arguments.
+// BOOKING-03: widened from the original `Awaited<ReturnType<typeof
+// createClient>>` to SupabaseClientType so this also accepts the
+// service-role client createBooking() now uses for a guest checkout.
+// authUser is always present at every existing call site, so this
+// only ever runs against the session client in practice.
 async function getPublicUserId(
-  supabase: Awaited<
-    ReturnType<typeof createClient>
-  >,
+  supabase: SupabaseClientType,
   authUserId: string
 ): Promise<string> {
   return resolvePublicUserId(supabase, authUserId);
@@ -273,9 +307,7 @@ async function getPublicUserId(
  * for soft deletion and does not contain is_active.
  */
 async function getInrCurrencyId(
-  supabase: Awaited<
-    ReturnType<typeof createClient>
-  >
+  supabase: SupabaseClientType
 ): Promise<string> {
   const {
     data,
@@ -322,14 +354,14 @@ async function getInrCurrencyId(
 export async function createBooking(
   input: CreateBookingInput
 ): Promise<BookingRecord> {
+  // BOOKING-03: a session is no longer required. When there is no
+  // authUser, this becomes a guest checkout — guest_name/email/phone
+  // are required instead (validated below) and every DB call for the
+  // rest of this function uses the service-role client, since a guest
+  // has no session for RLS to evaluate (same trusted-server-write
+  // pattern as property-listing.actions.ts's self-service submission).
   const authUser =
     await getAuthUser();
-
-  if (!authUser) {
-    throw new Error(
-      "UNAUTHENTICATED"
-    );
-  }
 
   let parsed;
 
@@ -349,17 +381,31 @@ export async function createBooking(
     );
   }
 
+  if (!authUser) {
+    if (
+      !parsed.guest_name ||
+      !parsed.guest_email ||
+      !parsed.guest_phone
+    ) {
+      throw new Error(
+        "Name, email, and phone are required to book without an account."
+      );
+    }
+  }
+
   const supabase =
-    await createClient();
+    authUser
+      ? await createClient()
+      : createServiceRoleClient();
 
   // ---------------------------------------------------------------------------
-  // Resolve public.users.id, INR currency, and the hotel/package price
-  // snapshot together. These three reads are fully independent of one
-  // another (none needs another's result), so they are fetched in
-  // parallel instead of one-after-another to cut round-trip latency on
-  // this hot path. The subsequent booking insert still runs only after
-  // all three have resolved, preserving the original ordering/validation
-  // guarantees.
+  // Resolve public.users.id (skipped for a guest), INR currency, and
+  // the hotel/package price snapshot together. These reads are fully
+  // independent of one another (none needs another's result), so they
+  // are fetched in parallel instead of one-after-another to cut
+  // round-trip latency on this hot path. The subsequent booking insert
+  // still runs only after all of them have resolved, preserving the
+  // original ordering/validation guarantees.
   // ---------------------------------------------------------------------------
 
   const hotelRepo =
@@ -374,7 +420,9 @@ export async function createBooking(
 
   const [customerId, currencyId, hotel, pkg] =
     await Promise.all([
-      getPublicUserId(supabase, authUser.id),
+      authUser
+        ? getPublicUserId(supabase, authUser.id)
+        : Promise.resolve(null),
       getInrCurrencyId(supabase),
       hotelRepo
         ? hotelRepo.getHotelById(parsed.hotel_id as string)
@@ -504,6 +552,15 @@ export async function createBooking(
         customer_id:
           customerId,
 
+        guest_name:
+          authUser ? null : parsed.guest_name,
+
+        guest_email:
+          authUser ? null : parsed.guest_email,
+
+        guest_phone:
+          authUser ? null : parsed.guest_phone,
+
         vendor_id:
           vendorId,
 
@@ -570,6 +627,38 @@ export async function createBooking(
     );
 
   return created;
+}
+
+// -----------------------------------------------------------------------------
+// BOOKING-03 - PUBLIC GUEST CONFIRMATION
+// -----------------------------------------------------------------------------
+
+// Deliberately not gated by getAuthUser()/requireRole() — a guest who
+// just checked out has no session at all. Safety comes from the
+// lookup key: `id` is the booking's own UUID primary key, returned to
+// the browser only once, right after createBooking() succeeds (see
+// BookingForm.tsx's redirect target) — not enumerable or guessable,
+// same trust model as a typical e-commerce order-confirmation link.
+// Reads via the service-role client for the same reason a guest write
+// does: there's no session for RLS to evaluate.
+export async function getGuestBookingConfirmation(
+  id: string
+): Promise<BookingRecord | null> {
+  if (!id || !id.trim()) {
+    return null;
+  }
+
+  const supabase =
+    createServiceRoleClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  return repo.getBookingById(
+    id
+  );
 }
 
 // -----------------------------------------------------------------------------
