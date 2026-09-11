@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import Navbar from '@/components/home/Navbar';
 import Footer from '@/components/home/Footer';
@@ -9,10 +8,15 @@ import BookingForm from '@/components/booking/BookingForm';
 
 // BOOKING-01 — no public /packages/[slug] listing/detail page exists yet
 // (only /admin/packages is built so far), so this route is addressed by
-// id. Not in middleware.ts's public allowlist, so an unauthenticated
-// request is already redirected to /login by middleware; the explicit
-// check below keeps this page's behavior self-contained and consistent
-// with the hotel booking page.
+// id.
+//
+// BOOKING-03: this page (and /packages/[id] generally) used to be
+// outside middleware.ts's public allowlist, and this page additionally
+// redirected to /login itself — both blocked guest checkout entirely
+// for packages. middleware.ts now allows the /packages/ prefix; the
+// redirect here is removed the same way it was for the hotel booking
+// page, and authUser is kept only to tell BookingForm whether to show
+// the guest-contact section.
 
 export default async function PackageBookingPage({
   params,
@@ -26,9 +30,6 @@ export default async function PackageBookingPage({
   }
 
   const authUser = await getAuthUser();
-  if (!authUser) {
-    redirect(`/login?redirectTo=/packages/${id}/book`);
-  }
 
   const pkg = await getPackageForBooking(id);
   if (!pkg) {
@@ -51,6 +52,7 @@ export default async function PackageBookingPage({
             targetId={pkg.id}
             targetName={pkg.package_name}
             startingPrice={pkg.starting_price}
+            isAuthenticated={Boolean(authUser)}
           />
         </div>
       </section>
