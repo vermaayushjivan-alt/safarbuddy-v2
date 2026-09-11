@@ -210,3 +210,60 @@ both files (clean). NOT verified via a live functional walkthrough
 (no reachable Supabase instance in this sandbox) — a hotel_owner
 account should set a real room rate and a real inventory row in
 production to confirm this fix actually restores access, per RULE 21-23.
+
+---
+
+12. BOOKING-03 (Guest Checkout) — previously delivered, absent from
+    this session's repo zip
+
+Numbering note: CHANGELOG.md's 2026-08-28 entry and SESSION_HANDOFF.md
+both cite a "DOC_DEBT.md item 10" (P0.3 audit backfill) and "item 11"
+(mangled-filename reopen) that do not actually exist as numbered
+entries in this file — themselves an instance of the dangling-citation
+pattern already logged as item 5. Rather than reuse 10/11 for a third,
+unrelated meaning, this entry and the next are numbered 12/13.
+
+What: SESSION_HANDOFF/CHANGELOG history (prior session, not present
+in this file's own earlier entries) describes BOOKING-03 as
+delivered: nullable customer_id + guest_name/email/phone columns
+(migration 012), createBooking() accepting unauthenticated callers,
+a getGuestBookingConfirmation() action, and a public
+/booking-confirmation/[id] page. None of this existed in the repo
+zip uploaded at the start of this session — createBooking() still
+unconditionally threw "UNAUTHENTICATED", no migration 012 file
+existed, and no /booking-confirmation route existed. Confirmed by
+the user this session to be a real regression (the zip is the
+latest state), not a stale/wrong upload.
+
+Files: src/app/actions/booking.actions.ts, src/lib/repositories/
+booking.repository.ts, src/components/booking/BookingForm.tsx,
+src/app/hotels/[slug]/book/page.tsx, src/app/packages/[id]/book/
+page.tsx, middleware.ts, src/db/sql/ (missing 012 file).
+
+Status: RESTORED this session (2026-09-11) — see CHANGELOG.md /
+PROJECT_STATUS.md for the current delivery. Root cause of the
+original loss is unknown (not diagnosable from a repo snapshot
+alone) — flagging so a future session doesn't assume a delivered
+milestone is safe from silently reverting again.
+
+---
+
+13. PROJECT_STATUS.md P0.3 Steps 2-5 (hotel-owner onboarding wizard)
+    — claimed CODE COMPLETE 2026-09-05, not present in this session's
+    repo zip
+
+What: PROJECT_STATUS.md and SESSION_HANDOFF.md both state the
+hotel-owner onboarding wizard (post-submit session redirect,
+first-login smart redirect, submitted-for-review screen) was CODE
+COMPLETE as of 2026-09-05. The repo zip uploaded at the start of
+this session has only src/app/hotel-owner/page.tsx and layout.tsx —
+no wizard sub-pages. Same "claimed but not actually present" pattern
+as items 2, 6, and 10.
+
+Files: src/app/hotel-owner/ (wizard sub-pages not present).
+
+Status: NOT fixed this session — out of scope (user's explicit
+priority is booking-setup completion — coupons/invoices/commissions
+— before returning to this). Logged per RULE 40 so the next session
+building on P0.3 verifies against the live repo/schema first rather
+than trusting PROJECT_STATUS.md's claim.
