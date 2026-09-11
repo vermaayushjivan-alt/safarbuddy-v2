@@ -812,4 +812,251 @@ export async function cancelMyBooking(
       input
     );
 
-  const su
+  const supabase =
+    await createClient();
+
+  const customerId =
+    await getPublicUserId(
+      supabase,
+      authUser.id
+    );
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      parsed.id
+    );
+
+  if (
+    !existing ||
+    existing.customer_id !==
+      customerId
+  ) {
+    throw new Error(
+      "Booking not found"
+    );
+  }
+
+  if (
+    existing.status !==
+      "pending" &&
+    existing.status !==
+      "confirmed"
+  ) {
+    throw new Error(
+      "Only pending or confirmed bookings can be cancelled"
+    );
+  }
+
+  return repo.cancelBooking(
+    parsed.id,
+    parsed.reason
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN - ALL BOOKINGS
+// -----------------------------------------------------------------------------
+
+export async function getAllBookingsAdmin(
+  page: number = 1,
+  limit: number = 20,
+  status?: BookingStatus
+) {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  return repo.getAllBookings(
+    page,
+    limit,
+    status
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN - ONE BOOKING
+// -----------------------------------------------------------------------------
+
+export async function getBookingByIdAdmin(
+  id: string
+): Promise<
+  BookingRecord | null
+> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  return repo.getBookingById(
+    id
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN - CONFIRM
+// -----------------------------------------------------------------------------
+
+export async function confirmBookingAdmin(
+  id: string
+): Promise<BookingRecord> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      id
+    );
+
+  if (!existing) {
+    throw new Error(
+      "Booking not found"
+    );
+  }
+
+  if (
+    existing.status !==
+    "pending"
+  ) {
+    throw new Error(
+      "Only pending bookings can be confirmed"
+    );
+  }
+
+  return repo.confirmBooking(
+    id
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN - CANCEL
+// -----------------------------------------------------------------------------
+
+export async function cancelBookingAdmin(
+  input: {
+    id: string;
+    reason: string;
+  }
+): Promise<BookingRecord> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const parsed =
+    cancelBookingSchema.parse(
+      input
+    );
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      parsed.id
+    );
+
+  if (!existing) {
+    throw new Error(
+      "Booking not found"
+    );
+  }
+
+  if (
+    existing.status !==
+      "pending" &&
+    existing.status !==
+      "confirmed"
+  ) {
+    throw new Error(
+      "Only pending or confirmed bookings can be cancelled"
+    );
+  }
+
+  return repo.cancelBooking(
+    parsed.id,
+    parsed.reason
+  );
+}
+
+// -----------------------------------------------------------------------------
+// ADMIN - COMPLETE
+// -----------------------------------------------------------------------------
+
+export async function completeBookingAdmin(
+  id: string
+): Promise<BookingRecord> {
+  await requireRole([
+    "admin",
+    "super_admin",
+  ]);
+
+  const supabase =
+    await createClient();
+
+  const repo =
+    new BookingRepository(
+      supabase
+    );
+
+  const existing =
+    await repo.getBookingById(
+      id
+    );
+
+  if (!existing) {
+    throw new Error(
+      "Booking not found"
+    );
+  }
+
+  if (
+    existing.status !==
+    "confirmed"
+  ) {
+    throw new Error(
+      "Only confirmed bookings can be marked completed"
+    );
+  }
+
+  return repo.completeBooking(
+    id
+  );
+      }
+    
