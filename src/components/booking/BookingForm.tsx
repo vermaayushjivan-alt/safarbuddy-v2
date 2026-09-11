@@ -26,6 +26,10 @@ interface BookingFormProps {
   initialCheckInDate?: string;
   initialCheckOutDate?: string;
   initialNumGuests?: number;
+  // BOOKING-03: when false, the guest-contact section below is shown
+  // and required, and a successful booking redirects to the public
+  // confirmation page instead of the (session-only) dashboard.
+  isAuthenticated: boolean;
 }
 
 function formatPrice(price: number | null): string {
@@ -54,6 +58,7 @@ export default function BookingForm({
   initialCheckInDate = '',
   initialCheckOutDate = '',
   initialNumGuests = 1,
+  isAuthenticated,
 }: BookingFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -63,6 +68,12 @@ export default function BookingForm({
   const [checkOutDate, setCheckOutDate] = useState(initialCheckOutDate);
   const [travelDate, setTravelDate] = useState('');
   const [numGuests, setNumGuests] = useState(initialNumGuests);
+
+  // BOOKING-03: only used/shown/validated when !isAuthenticated.
+  const [guestName, setGuestName] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
+
   const [roomId, setRoomId] = useState<string>(
     preselectedRoomId && rooms.some((r) => r.id === preselectedRoomId)
       ? preselectedRoomId
@@ -123,6 +134,14 @@ export default function BookingForm({
       return;
     }
 
+    // BOOKING-03: guest checkout — required only without a session.
+    if (!isAuthenticated) {
+      if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
+        setError('Please enter your name, email, and phone to book without an account.');
+        return;
+      }
+    }
+
     const input: CreateBookingInput = {
       booking_type: mode,
       hotel_id: mode === 'hotel' ? targetId : null,
@@ -135,6 +154,9 @@ export default function BookingForm({
       check_out_date: mode === 'hotel' ? checkOutDate : null,
       travel_date: mode === 'package' ? travelDate : null,
       num_guests: numGuests,
+      guest_name: isAuthenticated ? null : guestName.trim(),
+      guest_email: isAuthenticated ? null : guestEmail.trim(),
+      guest_phone: isAuthenticated ? null : guestPhone.trim(),
     };
 
     startTransition(async () => {
@@ -144,10 +166,17 @@ export default function BookingForm({
         // router.refresh() removed: it was invalidating and re-fetching
         // the *current* (booking form) route's data immediately before
         // navigating away from it via router.push(), which is a wasted
-        // round trip — the destination page (/dashboard/bookings) already
-        // fetches its own fresh data on navigation as a Server Component.
+        // round trip — the destination page already fetches its own
+        // fresh data on navigation as a Server Component.
+        //
+        // BOOKING-03: a guest has no /dashboard/bookings (it requires a
+        // session), so guests go to the public confirmation page
+        // instead — the only route that resolves this booking's id
+        // without one.
         router.push(
-          `/dashboard/bookings?created=${booking.id}`
+          isAuthenticated
+            ? `/dashboard/bookings?created=${booking.id}`
+            : `/booking-confirmation/${booking.id}`
         );
       } catch (err) {
         setError(
@@ -271,6 +300,50 @@ export default function BookingForm({
         />
       </Field>
 
+      {!isAuthenticated && (
+        <div className="space-y-5 border-t border-deep/10 pt-5">
+          <p className="text-[13px] font-semibold text-deep">
+            Your details
+          </p>
+
+          <Field label="Full name" required>
+            <input
+              type="text"
+              required
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field label="Email" required>
+              <input
+                type="email"
+                required
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="Phone" required>
+              <input
+                type="tel"
+                required
+                value={guestPhone}
+                onChange={(e) => setGuestPhone(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <p className="text-[11px] text-ink/45">
+            We&apos;ll send your booking confirmation to this email.
+          </p>
+        </div>
+      )}
+
       <div className="pt-2">
         <button
           type="submit"
@@ -314,4 +387,4 @@ function Field({
   );
     }
 
-                
+
