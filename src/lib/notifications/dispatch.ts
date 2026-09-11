@@ -1,23 +1,35 @@
 import { SupabaseClientType } from '@/lib/repositories/types';
 import { NotificationRepository } from '@/lib/repositories/notification.repository';
 import { VendorRepository } from '@/lib/repositories/vendor.repository';
-import { HotelRecord } from '@/lib/repositories/hotel.repository';
 import { sendEmail } from './email.client';
 import { sendWhatsApp } from './whatsapp.client';
 
-// CONTACT-01 Part 2: fires when a hotel booking is created. Never
-// throws — a notification failure (missing API key, network error,
-// bad contact data) must never break the booking itself. Every
-// channel is attempted and recorded independently, matching the
-// "never invalidate a booking" caution already used elsewhere in
-// this codebase (see ROOM-04's deleteInventoryForDate guard).
+// CONTACT-01 Part 2: fires when a booking is created. Never throws —
+// a notification failure (missing API key, network error, bad
+// contact data) must never break the booking itself. Every channel
+// is attempted and recorded independently, matching the "never
+// invalidate a booking" caution already used elsewhere in this
+// codebase (see ROOM-04's deleteInventoryForDate guard).
+//
+// NOTIFY-01 (this session): generalized from hotel-only to also cover
+// package bookings. A package has no phone/email columns of its own
+// (see PackageRecord) — only vendor_id — so `itemContact` is optional
+// and simply omitted by the package call site below. The hotel call
+// site keeps passing hotel.phone/hotel.email exactly as before.
 
 export interface NotifyBookingCreatedInput {
   bookingId: string;
-  hotel: HotelRecord;
+  bookingType: 'hotel' | 'package';
+  itemName: string;
+  vendorId: string | null;
+  itemContact?: {
+    phone: string | null;
+    email: string | null;
+  } | null;
   guestName: string;
   checkInDate: string | null;
   checkOutDate: string | null;
+  travelDate: string | null;
 }
 
 interface ResolvedContact {
@@ -27,27 +39,29 @@ interface ResolvedContact {
   name: string;
 }
 
-// Hotel's own phone/email/vendor_id take priority (CONTACT-01 Part 1).
-// Falls back to the linked vendor's business_email/business_phone
-// (VENDOR-01) only when the hotel has none of its own. Returns null
-// when neither source has a usable contact — the dashboard alert is
-// still created either way so the booking is never silently unnoticed.
+// The booked item's own phone/email takes priority when present
+// (hotel bookings — CONTACT-01 Part 1). Falls back to the linked
+// vendor's business_email/business_phone (VENDOR-01) when the item
+// has none of its own, or has none at all (package bookings always
+// take this path). Returns null when neither source has a usable
+// contact — the dashboard alert is still created either way so the
+// booking is never silently unnoticed.
 async function resolveContact(
   supabase: SupabaseClientType,
-  hotel: HotelRecord
+  input: NotifyBookingCreatedInput
 ): Promise<ResolvedContact | null> {
-  if (hotel.phone || hotel.email) {
+  if (input.itemContact?.phone || input.itemContact?.email) {
     return {
       type: 'hotel',
-      email: hotel.email,
-      phone: hotel.phone,
-      name: hotel.hotel_name,
+      email: input.itemContact.email,
+      phone: input.itemContact.phone,
+      name: input.itemName,
     };
   }
 
-  if (hotel.vendor_id) {
+  if (input.vendorId) {
     const vendorRepo = new VendorRepository(supabase);
-    const vendor = await vendorRepo.getVendorById(hotel.vendor_id);
+    const vendor = await vendorRepo.getVendorById(input.vendorId);
 
     if (vendor && (vendor.business_email || vendor.business_phone)) {
       return {
@@ -64,14 +78,16 @@ async function resolveContact(
 
 function buildEmailHtml(input: NotifyBookingCreatedInput): string {
   const dates =
-    input.checkInDate && input.checkOutDate
-      ? `${input.checkInDate} to ${input.checkOutDate}`
-      : 'Dates not specified';
+    input.bookingType === 'hotel'
+      ? input.checkInDate && input.checkOutDate
+        ? `${input.checkInDate} to ${input.checkOutDate}`
+        : 'Dates not specified'
+      : input.travelDate ?? 'Travel date not specified';
 
   return `
-    <p>New booking received for <strong>${input.hotel.hotel_name}</strong>.</p>
+    <p>New booking received for <strong>${input.itemName}</strong>.</p>
     <p>Guest: ${input.guestName}</p>
-    <p>Dates: ${dates}</p>
+    <p>${input.bookingType === 'hotel' ? 'Dates' : 'Travel date'}: ${dates}</p>
     <p>Booking ID: ${input.bookingId}</p>
     <p>View it in the admin panel for full details.</p>
   `;
@@ -83,7 +99,7 @@ export async function notifyBookingCreated(
 ): Promise<void> {
   try {
     const notificationRepo = new NotificationRepository(supabase);
-    const contact = await resolveContact(supabase, input.hotel);
+    const contact = await resolveContact(supabase, input);
 
     // Dashboard alert is always created, even with no resolvable
     // contact — an admin should still see that a hotel has no
@@ -122,7 +138,7 @@ export async function notifyBookingCreated(
 
       const result = await sendEmail({
         to: contact.email,
-        subject: `New booking — ${input.hotel.hotel_name}`,
+        subject: `New booking — ${input.itemName}`,
         html: buildEmailHtml(input),
       });
 
@@ -162,8 +178,10 @@ export async function notifyBookingCreated(
         templateParams: [
           contact.name,
           input.guestName,
-          input.checkInDate ?? 'N/A',
-          input.checkOutDate ?? 'N/A',
+          input.bookingType === 'hotel'
+            ? (input.checkInDate ?? 'N/A')
+            : (input.travelDate ?? 'N/A'),
+          input.bookingType === 'hotel' ? (input.checkOutDate ?? 'N/A') : 'N/A',
         ],
       });
 
