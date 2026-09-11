@@ -22,6 +22,13 @@ const PUBLIC_ROUTES = [
   // visitors were bounced to /login before they could even see the
   // form -- breaking the host-signup funnel entirely.
   "/list-your-property",
+
+  // BOOKING-03: guest checkout. A guest must be able to reach a
+  // package's booking page (previously only /hotels/ had the prefix
+  // match below — /packages/[id] and /packages/[id]/book were
+  // login-gated here regardless of what the page itself did) and the
+  // post-booking confirmation page, which by definition is viewed
+  // with no session.
 ];
 
 function isPublicRoute(pathname: string) {
@@ -33,6 +40,10 @@ function isPublicRoute(pathname: string) {
     // /login even though the pages themselves require no session.
     pathname.startsWith("/hotels/") ||
     pathname.startsWith("/destinations/") ||
+    // BOOKING-03: same reasoning as /hotels/ above — /packages has its
+    // own dynamic detail/book routes that must stay unauthenticated too.
+    pathname.startsWith("/packages/") ||
+    pathname.startsWith("/booking-confirmation/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/public") ||
     /\.(svg|png|jpg|jpeg|ico|webp)$/.test(pathname)
