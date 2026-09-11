@@ -4,6 +4,62 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-11 — BOOKING-03 (Guest Checkout) — restored after regression
+
+Status: CODE COMPLETE, PARTIALLY VERIFIED.
+
+Root cause: the repo zip uploaded at the start of this session did not
+contain BOOKING-03 (guest checkout), previously delivered — createBooking()
+still unconditionally threw "UNAUTHENTICATED", migration 012 did not
+exist, and no /booking-confirmation route existed. Confirmed by the user
+to be the actual latest state, not a stale upload — logged as DOC_DEBT.md
+item 12. This session's Definition-of-Done items below cover the restore.
+
+Files changed:
+- src/db/sql/012_booking03_guest_checkout.sql (new) — customer_id made
+  nullable, guest_name/guest_email/guest_phone columns added,
+  bookings_customer_or_guest_check constraint.
+- src/lib/repositories/booking.repository.ts — guest columns threaded
+  through BookingRecord/DatabaseBookingRow/mapBooking/createBooking().
+- src/app/actions/booking.actions.ts — createBooking() no longer requires
+  a session; unauthenticated callers must supply guest_name/email/phone
+  and are routed through createServiceRoleClient() for every DB call in
+  the function (same trusted-server-write pattern as
+  property-listing.actions.ts's self-service submission — a guest has no
+  session for RLS to evaluate). New getGuestBookingConfirmation() action
+  for the public confirmation page.
+- src/components/booking/BookingForm.tsx — new required `isAuthenticated`
+  prop; renders and validates a guest-contact section when false; posts
+  a guest to /booking-confirmation/[id] instead of /dashboard/bookings.
+- src/app/hotels/[slug]/book/page.tsx, src/app/packages/[id]/book/page.tsx
+  — removed the login redirect for unauthenticated visitors; authUser is
+  now only used to set BookingForm's isAuthenticated prop.
+- src/app/booking-confirmation/[id]/page.tsx (new) — public confirmation
+  page, reads via getGuestBookingConfirmation().
+- middleware.ts — added `/packages/` and `/booking-confirmation/` to the
+  public-route prefix allowlist. `/packages/[id]` and `/packages/[id]/book`
+  were previously login-gated at the middleware layer regardless of the
+  page's own logic — this was blocking package guest-checkout entirely,
+  not just a hotel-side gap.
+
+Verified: `tsc --noEmit` clean and `eslint` clean on every file above —
+run for real this session (`npm install` succeeded against
+registry.npmjs.org, unlike prior sessions noting "no node_modules and no
+network" for this milestone).
+
+Not verified (RULE 21-23): migration 012 has not been run against
+production — no reachable Supabase instance in this sandbox. No live
+functional walkthrough (real browser, real guest booking end-to-end,
+confirmation email actually received) — same limitation. RULE 22 applies:
+this is a bookings-mutation path and needs that walkthrough before being
+marked Frozen.
+
+Also logged, not fixed this session (out of scope per user's explicit
+priority — booking-setup completion before returning to P0.3): PROJECT_
+STATUS.md's claim that hotel-owner onboarding wizard (P0.3 Steps 2-5) was
+CODE COMPLETE 2026-09-05 does not match this session's repo — see
+DOC_DEBT.md item 13.
+
 2026-09-05 — VENDOR-03 M1 migration confirmed live
 
 Status: VERIFICATION ONLY — no application code changed.
