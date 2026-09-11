@@ -27,6 +27,15 @@ Storage: Supabase Storage
   tables, live-schema-verified per-column during ROOM-01–04.
 - bookings, payments — live, confirmed columns include `room_id`
   (added for ROOM-05; migration file must exist per RULE 32).
+  `customer_id` is nullable as of BOOKING-03
+  (`012_booking03_guest_checkout.sql`) — a guest (unauthenticated)
+  booking has `customer_id = null` and populates `guest_name`/
+  `guest_email`/`guest_phone` instead; `bookings_customer_or_guest_check`
+  enforces at least one path is populated. RLS: **UNVERIFIED, same as
+  before this migration** — guest reads/writes go through
+  `createServiceRoleClient()` and never evaluate RLS at all, so this
+  status is unaffected either way; still flag per RULE 24 before
+  relying on RLS for the authenticated path.
 - notifications — added for CONTACT-01
   (`009_contact01_notifications.sql`); RLS status: **UNVERIFIED — flag
   per RULE 24, confirm before relying on it in production.**
