@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 import { runAction, type ActionResult } from "@/lib/actions/action-result";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { getAuthUser, requireRole, resolvePublicUserId } from "@/lib/auth/session";
 import { BookingRepository } from "@/lib/repositories/booking.repository";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/lib/repositories/payment.repository";
 import {
   createCashfreeOrder,
+  getCashfreeOrderStatus,
   CashfreeOrderPayload,
 } from "@/lib/cashfree/cashfree.client";
 
@@ -333,4 +334,65 @@ export async function getPaymentByIdAdmin(
   return paymentRepo.getPaymentById(
     validatedId
   );
+}
+
+// -----------------------------------------------------------------------------
+// PAY-05 — payment result-page outcome check.
+//
+// Root cause fixed here: /payment/success previously rendered a
+// hardcoded "Payment Submitted Successfully" message for EVERY visit,
+// regardless of what actually happened — Cashfree's hosted checkout
+// sends the customer back to the ONE return_url configured at order
+// creation for every outcome (success, failure, or a dropped/
+// cancelled attempt), not different URLs per outcome. The page must
+// check the real outcome itself; it never did.
+//
+// The webhook remains the ONLY thing that writes payment/booking
+// status (unchanged rule — see webhook route's own header comment).
+// This function is read-only: it checks the local DB first (the
+// common case, since the webhook is usually faster than the
+// customer's browser redirect), and falls back to asking Cashfree
+// directly only when the DB still shows "pending" — this covers the
+// (also common) race where the browser lands here before the
+// webhook has landed. No public auth — this is the return_url a
+// just-completed guest or customer lands on, session or not; the
+// order_id/booking_id pair is the same unguessable-URL trust model
+// already used by /booking-confirmation/[id].
+// -----------------------------------------------------------------------------
+
+export type PaymentResultOutcome = "success" | "failed" | "pending";
+
+export async function getPaymentOutcomeForResult(
+  orderId: string
+): Promise<PaymentResultOutcome> {
+  if (!orderId) return "pending";
+
+  const supabase = createServiceRoleClient();
+  const paymentRepo = new PaymentRepository(supabase);
+
+  const payment = await paymentRepo.getPaymentByOrderId(orderId);
+
+  if (!payment) {
+    // No matching payment row at all — nothing to show as success.
+    return "pending";
+  }
+
+  if (payment.status === "success") return "success";
+  if (payment.status === "failed" || payment.status === "cancelled") {
+    return "failed";
+  }
+
+  // Still "pending" in our DB — ask Cashfree directly rather than
+  // showing a guess. order_status values: PAID, ACTIVE (awaiting
+  // payment), EXPIRED, TERMINATED.
+  const liveStatus = await getCashfreeOrderStatus(orderId);
+
+  if (liveStatus === "PAID") return "success";
+  if (liveStatus === "EXPIRED" || liveStatus === "TERMINATED") {
+    return "failed";
+  }
+
+  // Genuinely still pending (ACTIVE) or the live check itself failed
+  // (liveStatus null) — never default to "success" in either case.
+  return "pending";
 }
