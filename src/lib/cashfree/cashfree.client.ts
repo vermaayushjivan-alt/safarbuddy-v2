@@ -168,6 +168,51 @@ export async function createCashfreeOrder(
 // Never throws on invalid signature — caller decides how to respond.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// getCashfreeOrderStatus
+// GET /orders/{order_id} — used by the /payment/success landing page
+// (PAY-05, this session) as a live fallback check. The webhook remains
+// the ONLY thing that ever writes payment/booking status to the DB —
+// this function is read-only and exists purely so the landing page can
+// show the customer an accurate message even in the (common) case
+// where their browser reaches the return_url before Cashfree's async
+// webhook has landed.
+// ---------------------------------------------------------------------------
+
+export async function getCashfreeOrderStatus(
+  orderId: string
+): Promise<string | null> {
+  const baseUrl = getCashfreeBaseUrl();
+  const headers = getCashfreeHeaders();
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${baseUrl}/orders/${encodeURIComponent(orderId)}`,
+      { method: 'GET', headers }
+    );
+  } catch (networkError) {
+    console.error('[Cashfree] Order status fetch failed (network)', networkError);
+    return null;
+  }
+
+  if (!response.ok) {
+    console.error(
+      `[Cashfree] Order status fetch failed: HTTP ${response.status}`
+    );
+    return null;
+  }
+
+  try {
+    const body = (await response.json()) as Record<string, unknown>;
+    const orderStatus = body['order_status'];
+    return typeof orderStatus === 'string' ? orderStatus : null;
+  } catch {
+    return null;
+  }
+}
+
 export function verifyWebhookSignature(
   timestamp: string,
   rawBody: string,
