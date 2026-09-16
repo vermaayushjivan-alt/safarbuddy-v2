@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyWebhookSignature } from "@/lib/cashfree/cashfree.client";
 import { PaymentRepository } from "@/lib/repositories/payment.repository";
 import { BookingRepository } from "@/lib/repositories/booking.repository";
+import { computeCommissionSplit } from "@/lib/payments/commission";
 
 export const runtime = "nodejs";
 
@@ -320,6 +321,16 @@ export async function POST(
     }
   }
 
+  // PAY-04 — Manual Settlement Tracking. Commission split is computed
+  // once, here, from the verified payment amount (Number(payment.amount)
+  // — already validated against the Cashfree webhook payload above, not
+  // re-read from the request). Snapshot only: never recalculated if the
+  // platform commission rate changes later.
+  const commissionSplit =
+    mappedStatus === "success"
+      ? computeCommissionSplit(Number(payment.amount))
+      : null;
+
   try {
     await paymentRepo.updatePaymentStatus(
       payment.id,
@@ -356,6 +367,12 @@ export async function POST(
           mappedStatus === "cancelled"
             ? new Date().toISOString()
             : null,
+
+        platform_commission_amount:
+          commissionSplit?.platformCommissionAmount ?? undefined,
+
+        vendor_payout_amount:
+          commissionSplit?.vendorPayoutAmount ?? undefined,
       }
     );
   } catch (error) {
