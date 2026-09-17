@@ -2,11 +2,13 @@ import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
 // NotificationRecord mirrors public.notifications
-// (src/db/sql/009_contact01_notifications.sql). One row per delivery
-// attempt per channel — see the migration file for why.
+// (src/db/sql/009_contact01_notifications.sql; recipient_type
+// expanded to include 'admin' by src/db/sql/016_contact03_admin_notify.sql).
+// One row per delivery attempt per channel — see the migration file
+// for why.
 export type NotificationChannel = 'email' | 'whatsapp' | 'dashboard';
 export type NotificationStatus = 'pending' | 'sent' | 'failed';
-export type NotificationRecipientType = 'hotel' | 'vendor';
+export type NotificationRecipientType = 'hotel' | 'vendor' | 'admin';
 
 export interface NotificationRecord extends DatabaseRecord {
   id: string;
