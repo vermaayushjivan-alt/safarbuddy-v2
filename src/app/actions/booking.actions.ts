@@ -405,6 +405,22 @@ export async function createBooking(
     }
   }
 
+  // CONTACT-03: name + phone are now required for EVERY booking, not
+  // just guest checkout. Root cause fixed here: a signed-in booking
+  // previously stored guest_name/guest_phone as null and relied only
+  // on the stale public.users profile, so the hotel/admin had no
+  // reliable, booking-time-confirmed way to reach the actual guest
+  // (who may not be the profile owner, or whose profile number is
+  // outdated). Email stays optional for a signed-in user only, since
+  // public.users already has one for that path.
+  if (authUser) {
+    if (!parsed.guest_name || !parsed.guest_phone) {
+      throw new Error(
+        "Name and phone are required to complete this booking."
+      );
+    }
+  }
+
   const supabase =
     authUser
       ? await createClient()
@@ -599,14 +615,19 @@ export async function createBooking(
         customer_id:
           customerId,
 
+        // CONTACT-03: stored for every booking now (not gated on
+        // `authUser ? null : ...` anymore) — this is the booking-time
+        // contact the hotel/admin notification actually uses, kept
+        // separate from (and possibly different from) the signed-in
+        // user's public.users profile.
         guest_name:
-          authUser ? null : parsed.guest_name,
+          parsed.guest_name,
 
         guest_email:
-          authUser ? null : parsed.guest_email,
+          parsed.guest_email,
 
         guest_phone:
-          authUser ? null : parsed.guest_phone,
+          parsed.guest_phone,
 
         vendor_id:
           vendorId,
