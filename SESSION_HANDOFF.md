@@ -6,6 +6,67 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
+Audit continuation: VENDOR-BOOKING-01 backfill (2026-09-17, same day,
+right after the CONTACT-02 session below) — user asked "what's next,"
+told to follow DEVELOPMENT_BIBLE.md's own logic rather than pick
+arbitrarily. RULE 40 (undocumented code must be logged immediately,
+before new scope starts) took priority over jumping straight into a
+new feature: found src/lib/auth/vendor-context.ts,
+src/app/actions/vendor-booking.actions.ts, src/app/vendor/page.tsx,
+src/app/vendor/bookings/page.tsx already fully built and wired — a
+read-only vendor booking-visibility view — with PROJECT_STATUS.md
+still listing that exact gap as deferred/pending. Backfilled into
+PROJECT_STATUS.md/CHANGELOG.md; no code changed. Full detail:
+DOC_DEBT.md item 17.
+
+Verified: tsc --noEmit PASS, eslint PASS (0 errors, whole project) —
+node_modules had to be reinstalled first (deleted by the previous
+turn's zip export before packaging).
+
+Next real candidate, once this is picked back up: invoices/vouchers —
+the one remaining Booking deferred-scope item with no existing code,
+no audit, and no doc-debt gap in front of it. Needs its own RULE 15
+audit before any code is written (what "invoice" vs "voucher" means
+here has never been scoped either — same caution as VENDOR-03 M3,
+DOC_DEBT.md item 16c — do not guess the product requirement, ask).
+
+Previous milestone
+
+Audit session + CONTACT-02 (2026-09-17, continuation of the same day's
+chat session, sandbox with working `npm install`) — user asked for an
+audit followed by the next milestone. Audit found: mangled filenames
+recurring a fifth time (fixed), PROJECT_STATUS.md truncated
+mid-sentence (fixed), VENDOR-03 M4 fully code-complete but
+undocumented (backfilled), VENDOR-03 M3 never actually scoped
+anywhere despite a standing "partially covered" claim (logged, not
+resolved — needs a product decision). Full detail: DOC_DEBT.md item
+16, CHANGELOG.md's 2026-09-17 "Audit session + CONTACT-02" entry.
+
+Then implemented CONTACT-02 (Payment-Triggered Notifications), which
+PROJECT_STATUS.md had explicitly blocked pending a RULE 15 audit — that
+audit was performed first (see CHANGELOG.md same entry) before any
+code was written. Moved notifyBookingCreated() from
+createBooking() (booking.actions.ts) to the Cashfree webhook
+(src/app/api/public/cashfree/webhook/route.ts), firing only after a
+payment is confirmed successful, instead of at every checkout attempt
+including abandoned ones.
+
+Verified: `npm install` succeeded in this sandbox (first session able
+to do so) — `tsc --noEmit` and `eslint` were run for real against the
+whole project, not carried forward from a prior claim. Both clean (one
+pre-existing, untouched <img> lint warning in ProfileMenu.tsx).
+
+Not verified / pending from this session: no live Cashfree webhook
+walkthrough (RULE 21/22/23) — needs a real test payment confirming
+the hotel/vendor notification now fires post-payment, not at
+checkout. VENDOR-03 M4's approve/reject flow also still has no live
+walkthrough (it was backfilled into the docs this session, not newly
+built, but was never verified live in any prior session either).
+VENDOR-03 M3 remains unscoped — see DOC_DEBT.md item 16c; do not
+start coding it without a product decision on what it actually covers.
+
+Previous milestone
+
 Admin panel + coupons production incident (2026-09-17, chat session, hotfix) — reported as "Admin nahi khul rha" (live 404 on /admin). Three stacked issues found and fixed: (1) src/app/admin/page.tsx had been overwritten with a coupon-edit page's content, which had never had a correct home of its own — restored the real dashboard (from an older uploaded zip) and gave the coupon-edit content its correct route at src/app/admin/coupons/[id]/page.tsx; (2) production's public.coupons table turned out to already exist with a completely different legacy schema, making migration 014's `create table if not exists` a silent no-op — reconciled live via a hand-written ALTER migration (014's on-disk file was NOT rewritten to match — pending); one real coupon row (WELCOME10) was briefly lost to a DROP TABLE CASCADE run by mistake in place of the safer ALTER script, then hand-recovered from data already visible earlier in the chat; (3) coupon.actions.ts's admin functions were blocked by coupons' RLS-enabled-no-policy state (0 rows on list, hard error on create) since they used the session client instead of createServiceRoleClient() — switched all five admin functions over. All three confirmed fixed live by the user. Full detail: CHANGELOG.md's 2026-09-17 "Admin panel + coupons production incident" entry, DOC_DEBT.md item 15.
 
 Not verified / pending from this session: 014_coupon01_coupons.sql rewrite to match the ALTER-based migration actually run (RULE 32); whether vendor_payout_details/vendor_settlements share the same RLS-session-client bug coupons had (UNVERIFIED — /admin/settlements loads without erroring, which isn't proof it shows real rows to an admin); RULE 34's pre-run destructive-change note was not followed for the DROP TABLE CASCADE actually run (identified as destructive only after the fact).
