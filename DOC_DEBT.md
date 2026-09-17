@@ -267,3 +267,99 @@ priority is booking-setup completion — coupons/invoices/commissions
 — before returning to this). Logged per RULE 40 so the next session
 building on P0.3 verifies against the live repo/schema first rather
 than trusting PROJECT_STATUS.md's claim.
+
+---
+
+15. Chat-session incident (2026-09-17, separate from item 14 above,
+    same root cause pattern): src/app/admin/page.tsx overwritten with
+    coupon-edit content; coupons table schema mismatch + data-loss
+    incident; coupons RLS gap
+
+What: Three related problems surfaced while debugging "Admin nahi
+khul rha" (reported as a live 404 on /admin) in a chat session, not a
+sandboxed repo-audit session — no CHANGELOG/PROJECT_STATUS entry
+exists for any of this yet.
+
+15a. src/app/admin/page.tsx (the actual /admin dashboard homepage)
+had been overwritten with an entire coupon-edit page's content
+(`AdminEditCouponPage`, expecting a `params.id` route param). Since
+`/admin` has no `[id]` segment, `id` was always undefined,
+`getCouponByIdAdmin(undefined)` always returned null, and
+`notFound()` fired on every load — this is what produced the live
+404. Root cause matches item 14's own diagnosis exactly (two files
+edited in the same round of fixes, a pasted block landing in the
+wrong path) but is a second, independent occurrence, not the same
+file. The coupon-edit content's actual intended destination,
+src/app/admin/coupons/[id]/page.tsx, did not exist at all — so this
+wasn't purely a swap, it was content that had never been placed
+anywhere correct. Fixed: real dashboard content restored (recovered
+from an older uploaded zip, safarbuddy-v2-main__9_.zip) to
+src/app/admin/page.tsx, adding Coupons and Settlements cards that the
+recovered older version predated; coupon-edit content moved to the
+correct src/app/admin/coupons/[id]/page.tsx.
+
+15b. Confirmed live in production 2026-09-17: `public.coupons` already
+existed with a completely different, unrelated legacy schema
+(usage_limit, per_user_limit, used_count, start_date, end_date,
+status columns — no scope/vendor_id/valid_from/valid_until/is_active)
+before 014_coupon01_coupons.sql was ever run. Its `create table if
+not exists` therefore silently no-opped against production, and every
+admin coupon page threw an uncaught DB error ("Something went wrong").
+Contained one real coupon row (WELCOME10) at the time this was found.
+Reconciled via a hand-written ALTER-based migration (add new columns,
+backfill from old columns, drop old columns, add constraints/indexes,
+enable RLS) run manually against production by the user — not by
+running 014's own DDL, which would have been a no-op. **Data-loss
+incident during this fix**: an earlier draft fix (a DROP TABLE CASCADE
++ recreate script, offered as the "if the table is empty" option
+before row count was confirmed) was run instead of the ALTER-based
+one, cascade-dropping the WELCOME10 row with no backup captured first
+(the backup-table step existed only in the ALTER-based script, not
+the one actually run). Recovered by hand-reconstructing an INSERT for
+WELCOME10 from data already captured earlier in the chat transcript
+(an information_schema/row-content query result) — exact original
+id/timestamps preserved, but this was a manual, chat-log-dependent
+recovery, not a real backup/restore. RULE 34 (destructive-change
+pre-run note in CHANGELOG) was not followed, because the destructive
+script's true effect was not identified as destructive-in-context
+until after it ran — logged here after the fact as the closest
+available compliance, and as a caution: when two migration options
+are handed to a person to choose between, confirm which one was
+actually run before assuming the safer path was taken.
+
+15c. Confirmed live 2026-09-17: `public.coupons` has RLS enabled with
+no policy (as 014's own header comment already said it would), but
+every admin function in coupon.actions.ts used the session client
+(`createClient()`) instead of `createServiceRoleClient()` — contrary
+to the same header comment's stated design. This produced exactly the
+two symptoms predicted by "RLS enabled, no policy": 0 rows on the
+admin list (SELECT silently returns nothing) and a hard
+"new row violates row-level security policy" error on create
+(INSERT is rejected outright). Fixed: all five admin functions
+(createCouponAdmin, updateCouponAdmin, setCouponActiveAdmin,
+getCouponByIdAdmin, getAllCouponsAdmin) switched to
+createServiceRoleClient(); requireRole() remains the authorization
+gate, unchanged.
+
+Files: src/app/admin/page.tsx, src/app/admin/coupons/[id]/page.tsx
+(new), src/app/actions/coupon.actions.ts, public.coupons (live schema,
+via manual SQL — no new file on disk matches what was actually run;
+014_coupon01_coupons.sql itself was NOT updated to reflect the
+ALTER-based reality, see DATABASE_BIBLE.md Migration Registry row for
+014 — pending).
+
+Status: CLOSED functionally (2026-09-17) — /admin, /admin/coupons, and
+/admin/coupons/[id] all confirmed working live by the user, including
+WELCOME10 visible again and a new coupon create attempt succeeding.
+NOT closed on documentation: (1) 014_coupon01_coupons.sql needs
+rewriting to an ALTER-based migration matching live reality (RULE 32),
+(2) CHANGELOG.md/PROJECT_STATUS.md need this session's fixes recorded
+(RULE 17/18) — done in the same pass as this entry, see the
+2026-09-17 "Admin panel + coupons production incident" CHANGELOG
+entry, (3) item 15b's RULE 34 gap is logged but not resolvable
+retroactively, (4) item 15b's manual-recovery data-loss risk pattern
+(two migration scripts handed over without first confirming row count,
+then the wrong one run) should inform how destructive-vs-safe SQL
+options are presented in any future session, (5) whether
+vendor_payout_details / vendor_settlements share coupons' item-15c RLS
+bug is UNVERIFIED — see DATABASE_BIBLE.md coupons RLS entry.
