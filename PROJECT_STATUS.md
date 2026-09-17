@@ -577,3 +577,57 @@ this is a notification-adjacent path off the payment webhook, not a
 bookings/payments mutation itself, but still): no live Cashfree
 webhook has been triggered against this code — must be walked through
 with a real test payment before Frozen.
+
+CONTACT-03 — Booking Contact Capture + Admin Payment Notification.
+CODE COMPLETE 2026-09-18 (chat session). RULE 15 audit performed
+before coding (see DEVELOPMENT_BIBLE.md Section K for the full
+Existing Architecture / Root Cause / Files / Why / Minimal Plan).
+Root cause: (1) a signed-in booking never captured guest_name/
+guest_phone (BookingForm.tsx gated the fields on !isAuthenticated),
+so the hotel/admin had no booking-time-confirmed contact for a
+signed-in guest, only their possibly-stale public.users profile; (2)
+CONTACT-02's notifyBookingCreated() only ever notified the hotel/
+vendor — no admin email channel existed, and notifications.
+recipient_type's CHECK constraint didn't even allow 'admin'. Fixed:
+booking.actions.ts + BookingForm.tsx now capture name+phone for every
+booking regardless of login state (email stays guest-only); dispatch.ts
+gained a new unconditional admin-alert block (email + dashboard row,
+reusing ADMIN_NOTIFICATION_EMAIL — the same env var property-listing.
+actions.ts already uses) and a fix for a latent bug where the function
+returned early (skipping any code after it, which would have included
+this new admin block) when no hotel/vendor contact resolved;
+NotificationRecipientType widened to 'hotel' | 'vendor' | 'admin';
+cashfree/webhook/route.ts now passes guestEmail/guestPhone into
+notifyBookingCreated(). Migration: src/db/sql/016_contact03_admin_notify.sql
+(recipient_type CHECK widened; comment-only update on bookings.guest_name/
+guest_email/guest_phone reflecting they're now always captured, not just
+for guest checkout).
+
+NOT verified: this session's sandbox has network disabled, so npm
+install/tsc --noEmit/eslint could not be run for real (unlike prior
+sessions). Every changed file was manually re-read end to end instead
+(see DEVELOPMENT_BIBLE.md Section K for what that caught, e.g. the
+NotificationRecipientType literal-union mismatch that tsc would
+normally catch). Run the toolchain for real, then a live walkthrough
+(a real signed-in booking + a real Cashfree payment, confirming both
+the hotel and the admin actually receive the email) before Frozen.
+Migration 016 not yet run in production.
+
+Correction (same day, user ran it): first attempt (v1 of migration
+016) failed live with `ERROR 42703: column "recipient_type" does not
+exist`. User ran `information_schema.columns` and it showed why:
+`public.notifications` already exists in production for a completely
+unrelated, pre-existing feature — a generic per-user notification feed
+(user_id/channel/notif_type/title/message/metadata jsonb/is_read/soft
+-delete columns), not referenced anywhere else in this codebase (same
+class of naming collision DOC_DEBT.md item 15 already documented for
+`014_coupon01_coupons.sql`'s legacy `coupons` table). 009 was in fact
+never actually applicable in production. Fix: CONTACT-01/02/03 now use
+a dedicated `public.booking_notifications` table instead (created by
+the revised 016_contact03_admin_notify.sql v2), and
+notification.repository.ts's `tableName` was updated to match. Not yet
+run/confirmed in production after this fix.
+
+Next action: run tsc/eslint for real and do the live walkthrough
+above; then resume INVOICE-01 Step 4 (admin UI — list + link from
+/admin/bookings detail), unchanged from before this session.
