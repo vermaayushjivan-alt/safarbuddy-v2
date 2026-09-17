@@ -4,6 +4,44 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-18 — CONTACT-03 (booking contact capture + admin payment
+notification)
+
+Status: CODE COMPLETE, NOT VERIFIED (sandbox network disabled this
+session — npm install/tsc/eslint could not be run for real; see
+SESSION_HANDOFF.md and DEVELOPMENT_BIBLE.md Section K for the full
+audit and what manual review caught in their place). New chat session,
+following Step 3b below.
+
+Fixed two gaps: (1) a signed-in booking never captured a booking-time
+name/phone — BookingForm.tsx/booking.actions.ts required and stored
+guest_name/guest_email/guest_phone only for guest checkout; now name+
+phone are required and stored for every booking, email stays
+guest-only. (2) CONTACT-02's notifyBookingCreated() only notified the
+hotel/vendor, with no admin email path at all (notifications.
+recipient_type's CHECK didn't even allow 'admin'); dispatch.ts gained
+an unconditional admin-alert block reusing ADMIN_NOTIFICATION_EMAIL
+(same env var property-listing.actions.ts already uses), and a latent
+early-return bug that would have skipped it was fixed in the same
+change. notification.repository.ts's NotificationRecipientType
+widened to include 'admin'. cashfree/webhook/route.ts now passes
+guestEmail/guestPhone through to notifyBookingCreated(). Migration:
+src/db/sql/016_contact03_admin_notify.sql.
+
+Not done: no admin UI reads the notifications table's 'dashboard' rows
+anywhere yet (pre-existing gap, confirmed by grep, out of this
+session's scope). generate-invoice.ts's recipient resolution
+untouched.
+
+Correction, same day: migration 016 v1 (`alter table
+public.notifications`) failed live — `public.notifications` turned out
+to be an unrelated, pre-existing table (generic per-user notification
+feed, not used by this codebase). Root cause + fix: see
+DEVELOPMENT_BIBLE.md Section K's addendum. Summary: CONTACT-01/02/03
+now use a new `public.booking_notifications` table instead (016 v2),
+and notification.repository.ts points there instead of
+`notifications`.
+
 2026-09-18 — INVOICE-01 Step 3b (shared template — web view + PDF)
 
 Status: CODE COMPLETE, NOT LIVE-VERIFIED. Same day, following session
