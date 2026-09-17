@@ -22,7 +22,6 @@ import { VendorRepository, type VendorRecord } from '@/lib/repositories/vendor.r
 import {
   VendorSettlementRepository,
   type VendorSettlementRecord,
-  type VendorSettlementWithVendorName,
 } from '@/lib/repositories/vendor-settlement.repository';
 import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 
@@ -176,6 +175,3 @@ export async function getMyReceivedPayments(
   const repo = new VendorSettlementRepository(supabase);
   return repo.getSettlementsByVendorId(vendor.id, page, limit);
 }
-
-export type { VendorSettlementRecord, VendorSettlementWithVendorName };
-
