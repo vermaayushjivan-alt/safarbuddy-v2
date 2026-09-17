@@ -484,6 +484,13 @@ export async function POST(
               ? { phone: bookedHotel.phone, email: bookedHotel.email }
               : null,
             guestName: booking.guest_name ?? "Registered customer",
+            // CONTACT-03: now always populated (see BOOKING-03/CONTACT-03
+            // comments on bookings.guest_email/guest_phone) — passed
+            // through so both the hotel/vendor email and the new admin
+            // alert can show the actual booking-time contact, not just
+            // the guest's name.
+            guestEmail: booking.guest_email,
+            guestPhone: booking.guest_phone,
             checkInDate: booking.check_in_date,
             checkOutDate: booking.check_out_date,
             travelDate: booking.travel_date,
