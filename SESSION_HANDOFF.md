@@ -6,6 +6,56 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
+INVOICE-01 Step 3b — shared template (web view + PDF) (2026-09-18,
+same day, new chat session, continuation of Step 3a below). Added
+`@react-pdf/renderer` (^4.9.0) to package.json — deferred from Step
+3a. Because react-pdf's Document/Page/View/Text are non-DOM primitives
+with their own layout engine, one literal JSX tree cannot render both
+HTML and a PDF; "one shared template" is implemented as one shared
+formatting/data layer both renderers consume instead, so the two
+outputs can never show different numbers or wording for the same
+invoice.
+
+Built this session: src/lib/invoices/invoice-view-model.ts —
+buildInvoiceViewModel(), pure function, InvoiceRecord → formatted
+InvoiceViewModel (dates, ₹-prefixed amounts matching the site's
+existing toLocaleString('en-IN') convention, a lineItems array that
+skips any field with no value). src/components/invoices/InvoiceView.tsx
+— web-page view, Tailwind-styled to match
+booking-confirmation/[id]/page.tsx's tokens (bg-cream/text-deep/
+text-ink). src/components/invoices/InvoiceDocument.tsx — PDF
+equivalent, react-pdf StyleSheet restating the same palette (react-pdf
+cannot read tailwind.config). src/lib/invoices/render-invoice-pdf.ts —
+renderInvoicePdfBuffer(), server-only wrapper around
+@react-pdf/renderer's renderToBuffer, for a future download route.
+
+Verified: `tsc --noEmit` and `eslint` both clean, project-wide (same
+one pre-existing ProfileMenu `<img>` warning as every prior session).
+Also ran a local-only smoke test: bundled the PDF path with esbuild
+and executed with plain node (tsx's CJS resolver could not load
+@react-pdf/hyphenate's ESM export map directly — a tsx-only quirk, not
+a code issue, since Next.js's own bundler resolves it fine), rendering
+InvoiceDocument against a fake InvoiceRecord end to end and producing
+a valid PDF buffer. Test script deleted after — not part of the repo.
+
+Deliberately not done: no route or page renders either component yet
+— no `/admin/bookings` invoice link, no customer download link, no
+route calling renderInvoicePdfBuffer(). That is Step 4 (admin UI) /
+Step 5 (customer UI), unchanged, still separate future sessions.
+
+Not verified this session: no live Cashfree webhook walkthrough (same
+as every INVOICE-01 session so far — no reachable Supabase/Cashfree
+from this sandbox); migration 015's production-run status is still
+user-reported-only, not independently confirmed (unchanged from Step
+3a — see DATABASE_BIBLE.md Migration Registry).
+
+Next action: Step 4 — admin UI (list + link from `/admin/bookings`
+detail; per DEVELOPMENT_BIBLE.md Section J, no separate admin
+generation UI needed since invoices are always auto-generated). Do
+not start Step 5 (customer UI) in the same session as Step 4.
+
+Previous milestone
+
 INVOICE-01 Step 3a — repository + Server Actions + webhook wiring
 (2026-09-18, new chat session, continuation of Step 2 below). User
 asked "is Step 3 big" before any code was written; Step 3 as originally
