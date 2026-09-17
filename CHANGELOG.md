@@ -4,6 +4,95 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-18 — INVOICE-01 Step 3a (repository + Server Actions + webhook wiring)
+
+Status: CODE COMPLETE, NOT LIVE-VERIFIED. Follows Step 2 (schema +
+PDF-library decision, 2026-09-17). User asked "is Step 3 big" before
+starting; Step 3 as originally scoped in DEVELOPMENT_BIBLE.md Section J
+bundled the repository/Server Action work together with "render both
+the web page and the PDF from one shared template" — judged too much
+for one session, so it was split into Step 3a (this session: data
+layer + generation logic + webhook wiring, no rendering) and a
+separate future Step 3b (shared template, PDF output). User confirmed
+the split before work started.
+
+Created: src/lib/repositories/invoice.repository.ts —
+InvoiceRepository (createInvoice, getInvoiceById,
+getInvoiceByBookingId), following the same BaseRepository/soft-delete
+pattern as vendor-settlement.repository.ts. invoice_seq/invoice_number
+are DB-generated (bigserial + generated column) and deliberately
+excluded from CreateInvoiceInput — Postgres fills them in on insert,
+same as vendor_settlements.receipt_number.
+
+Created: src/lib/invoices/generate-invoice.ts —
+generateInvoiceForBooking(), the business-logic layer RULE 3 requires
+outside the repository (same split notifications/dispatch.ts already
+established for CONTACT-02). Resolves the recipient snapshot
+(signed-in customer via the new UserRepository.getUserById(), or
+BOOKING-03 guest_name/guest_email/guest_phone), resolves vendor_name
+via VendorRepository when a vendor_id is present, and writes the
+snapshot row. Never throws — a generation failure must not turn an
+already-successful payment + booking-confirmation into a failed
+webhook response, same caution CONTACT-02 documented for
+notifyBookingCreated(). Handles both idempotency paths: an
+up-front getInvoiceByBookingId() check (expected-common case, any
+webhook retry) and a caught ConflictError from the DB's own UNIQUE
+constraint on booking_id (actual safety net, race-condition case).
+
+Modified: src/lib/repositories/user.repository.ts — added
+getUserById(), following the existing getXById naming convention
+(getHotelById, getVendorById, etc.); needed to resolve a signed-in
+customer's full_name/email/phone for the invoice snapshot.
+
+Created: src/app/actions/invoice.actions.ts — two fetch-only Server
+Actions, getInvoiceByBookingIdAdmin (requireRole admin/super_admin)
+and getMyInvoiceByBookingId (ownership check via
+resolvePublicUserId(), mirroring getMyBookingById in
+booking.actions.ts exactly). No create action — invoices are never
+user-triggered per the Step 1 product-scope decision. Neither action
+is wired into a page yet — that's Step 4 (admin UI) / Step 5 (customer
+UI), separate future sessions.
+
+Modified: src/app/api/public/cashfree/webhook/route.ts — added a call
+to generateInvoiceForBooking() immediately after the existing
+CONTACT-02 notification block, inside its own try/catch (belt-and-
+suspenders given generateInvoiceForBooking() itself never throws).
+Re-fetches bookedHotel/bookedPackage independently rather than reusing
+the notification block's own local consts, since those are scoped to
+that block's try {} and this block must survive on its own regardless
+of whether that one threw.
+
+Deliberately NOT done this session: `@react-pdf/renderer` was not
+added to package.json — nothing in Step 3a renders anything, so the
+dependency is deferred to Step 3b (matches migration 015's own header
+caution: "adding the dependency itself is Step 3 (backend) work, not
+this schema step" — refined further here to "not until the code that
+renders with it exists"). No web-page or PDF template. No admin/
+customer UI.
+
+DATABASE_BIBLE.md Migration Registry rows for 012, 013, and 015
+updated — user reported re-running (012, 013) or first running (015)
+all pending migrations this session; none of the three were
+independently re-verified via information_schema.columns in this
+sandbox (no reachable Supabase instance), so all three are marked
+"user reports run, not independently confirmed" rather than CONFIRMED,
+consistent with this file's existing evidence-based convention (see
+the 013/014 rows' own precedent for not trusting a claim alone).
+PROJECT_STATUS.md's INVOICE-01 entry updated to "Step 3a CODE
+COMPLETE." SESSION_HANDOFF.md's next action now points at Step 3b.
+
+Verified: `npm install` succeeded in this sandbox; `tsc --noEmit` and
+`eslint` both run for real against the whole project (not carried
+forward from a prior claim) — both clean, with the same single
+pre-existing untouched `<img>` lint warning in ProfileMenu.tsx noted
+in earlier sessions.
+
+Not verified / pending: no live Cashfree webhook walkthrough (this
+sandbox cannot reach production Supabase/Cashfree); migration 015 not
+independently confirmed via information_schema.columns (RULE 13/35);
+migrations 012/013 likewise re-flagged, not newly confirmed, despite
+the user's report that they were (re-)run this session.
+
 2026-09-17 — INVOICE-01 Step 2 (schema + PDF-library decision)
 
 Status: SCHEMA ONLY — no repository/action/UI code, per this
