@@ -32,4 +32,14 @@ export class UserRepository extends BaseRepository<UserRecord> {
   async findByEmail(email: string): Promise<UserRecord | null> {
     return this.findOne([{ column: 'email', operator: 'eq', value: email }]);
   }
+
+  // INVOICE-01 Step 3a: resolves a signed-in customer's display name/
+  // email/phone for the invoice snapshot (bookings.customer_id stores
+  // this table's id, not the auth user id — see booking.actions.ts's
+  // resolvePublicUserId() comment for the same distinction). Added here
+  // rather than inline in generate-invoice.ts to match this repo's
+  // existing getXById naming convention (getHotelById, getVendorById, etc.).
+  async getUserById(id: string): Promise<UserRecord | null> {
+    return this.findById(id);
+  }
 }
