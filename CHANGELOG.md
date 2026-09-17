@@ -4,6 +4,52 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-17 — INVOICE-01 Step 2 (schema + PDF-library decision)
+
+Status: SCHEMA ONLY — no repository/action/UI code, per this
+project's one-step-per-session plan (SESSION_HANDOFF.md). Follows
+Step 1's product-scope audit (DEVELOPMENT_BIBLE.md Section J).
+
+PDF library decided: `@react-pdf/renderer`, confirmed as the
+front-runner from Step 1 with no reason found to deviate — pure JS,
+runs in a normal Vercel serverless function (no headless Chromium),
+and renders from React components so the same template can drive both
+the web page and the PDF per the Step 1 product decision. The
+dependency itself is not yet added to package.json — that happens
+when Step 3 (backend) actually uses it, not in this schema-only
+session.
+
+Created: src/db/sql/015_invoice01_invoices.sql — new public.invoices
+table. One row per booking (booking_id UNIQUE), generated exactly
+once inside the Cashfree webhook right after confirmBooking() (same
+call site CONTACT-02 uses). Snapshots everything the invoice/voucher
+needs to render at generation time — recipient (resolved customer or
+BOOKING-03 guest fields), item (hotel_name/package_name), stay/travel
+dates, and amounts — rather than joining hotels/packages/vendors/
+bookings live on every view, since those rows can change after the
+booking. `amount_paid` is sourced from bookings.price_snapshot (the
+actual Cashfree-charged amount), continuing the COUPON-01 finding
+that price_snapshot, not subtotal/grand_total, is the one field that
+matches what was really charged. Human-facing invoice_number
+(SB-INV-000001) uses the same generated-column-over-bigserial pattern
+as vendor_settlements.receipt_number (migration 013). RLS enabled, no
+policy — same pattern as migrations 010/013/014; reads/writes go
+through Server Actions using the service role client, scoped
+explicitly (booking ownership / admin role), not through an RLS
+policy.
+
+Not created this session (Step 3, next): the PDF-library npm
+dependency, InvoiceRepository, the Server Action that creates the row
++ renders the web page/PDF, the webhook-route wiring, or any UI route.
+
+DATABASE_BIBLE.md Migration Registry gained a row for 015 (on disk,
+not yet run). PROJECT_STATUS.md's INVOICE-01 entry updated to "Step 2
+COMPLETE." SESSION_HANDOFF.md's next action now points at Step 3.
+
+Verified: none applicable — this is a single new SQL file, not yet
+run against production, so information_schema confirmation is
+deferred to the start of Step 3 (RULE 13) once it's actually run.
+
 2026-09-17 — Audit continuation: VENDOR-BOOKING-01 backfill
 
 Status: DOCUMENTATION ONLY — no application code changed.
