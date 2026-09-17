@@ -4,6 +4,79 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-18 — INVOICE-01 Step 3b (shared template — web view + PDF)
+
+Status: CODE COMPLETE, NOT LIVE-VERIFIED. Same day, following session
+after Step 3a below. Added `@react-pdf/renderer` (^4.9.0) to
+package.json, deferred from Step 3a per its own note ("add it when the
+code that uses it is written").
+
+Key design note: @react-pdf/renderer's Document/Page/View/Text are
+non-DOM primitives rendered by its own layout engine, not HTML — so a
+single literal JSX tree cannot serve both the web page and the PDF.
+"One shared template" (DEVELOPMENT_BIBLE.md Section J / Step 1 product
+decision) is implemented instead as one shared formatting/derivation
+layer that both renderers consume, so the two outputs can never drift
+into showing different numbers or wording for the same invoice.
+
+Created: src/lib/invoices/invoice-view-model.ts — buildInvoiceViewModel(),
+a pure function (no I/O) turning an InvoiceRecord into an
+InvoiceViewModel: formatted dates (en-IN, day/short-month/year),
+₹-prefixed amounts matching the toLocaleString('en-IN') convention
+already used throughout admin/public pages (falls back to a
+currency-code prefix for non-INR, since migration 015's schema doesn't
+hardcode INR), and a lineItems array that omits any amount field with
+no value (e.g. no coupon applied) rather than rendering a zero row.
+
+Created: src/components/invoices/InvoiceView.tsx — the customer/
+admin-facing web view. Pure presentational component (no data
+fetching, no auth check — the page that will render it in Step 4/5
+owns that), styled with the same Tailwind tokens as
+booking-confirmation/[id]/page.tsx (bg-cream, text-deep, text-ink,
+rounded-2xl border).
+
+Created: src/components/invoices/InvoiceDocument.tsx — the PDF
+equivalent, built from the same InvoiceViewModel. Uses a react-pdf
+StyleSheet restating the site's deep/ink/cream palette as hex values
+by eye, since react-pdf cannot consume tailwind.config directly.
+
+Created: src/lib/invoices/render-invoice-pdf.ts —
+renderInvoicePdfBuffer(), a server-only (`import 'server-only'`) thin
+wrapper around @react-pdf/renderer's renderToBuffer, so a future
+download route has one function to call instead of reaching into
+@react-pdf/renderer directly. No route calls it yet.
+
+Verification: `npm install`, `tsc --noEmit`, `eslint` (whole project)
+all run for real in this sandbox — clean (one pre-existing, untouched
+`<img>` lint warning in ProfileMenu.tsx, same as every prior session).
+Additionally, since neither tsc nor eslint prove a react-pdf tree
+actually renders at runtime, ran a one-off local smoke test: bundled
+scripts/test-invoice-pdf.mjs with esbuild (`--packages=external`) and
+executed the bundle with plain node — tsx's own CJS-based resolver
+could not load @react-pdf/hyphenate's ESM export map
+(ERR_PACKAGE_PATH_NOT_EXPORTED), a tsx-specific resolution quirk
+unrelated to the code (Next.js's own bundler resolves this package
+normally in every other project that uses it). The esbuild-bundled
+run rendered InvoiceDocument against a fake InvoiceRecord (hotel
+booking, INR, with a coupon line) end to end and produced a valid
+3094-byte PDF buffer. Both the test script and the bundled output were
+deleted afterward — this was a local sandbox check, not a committed
+test.
+
+Not done, on purpose: no page or route renders either component —
+no `/admin/bookings` invoice link (Step 4), no customer download link
+(Step 5), no route calling renderInvoicePdfBuffer(). Per
+SESSION_HANDOFF.md's one-step-at-a-time pattern, that stays separate.
+
+Pending Issues: no live Cashfree webhook walkthrough yet (unchanged
+from every prior INVOICE-01 session — no reachable Supabase/Cashfree
+in this sandbox); migration 015's production-run status remains
+user-reported-only, not independently confirmed via
+information_schema.columns (unchanged from Step 3a).
+
+PROJECT_STATUS.md and SESSION_HANDOFF.md updated in this same session
+per RULE 17/18.
+
 2026-09-18 — INVOICE-01 Step 3a (repository + Server Actions + webhook wiring)
 
 Status: CODE COMPLETE, NOT LIVE-VERIFIED. Follows Step 2 (schema +
