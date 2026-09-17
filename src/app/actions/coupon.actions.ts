@@ -12,15 +12,23 @@
 // against anyway (same reasoning as property-listing.actions.ts's
 // self-service submission).
 //
-// Admin actions use createClient() (the session client), matching the
-// existing convention in vendor-payout.actions.ts / vendor-settlement
-// .actions.ts for tables with RLS enabled but no policy defined. That
-// convention is followed here for consistency rather than re-decided
-// in this milestone — see this session's CHANGELOG entry for the
-// open question it shares with those two.
+// Admin actions use createServiceRoleClient() (bypasses RLS), not the
+// session client. coupons has RLS enabled with no policy defined (see
+// 014_coupon01_coupons.sql), so the session client is blocked by
+// Postgres RLS even for a caller that has already passed the
+// app-level requireRole(['admin','super_admin']) check — confirmed
+// live in production (2026-09-17): the session client produced
+// "0 coupons" on the admin list and a "new row violates row-level
+// security policy" error on create. Switched to the service role
+// client for all admin CRUD below; requireRole() remains the
+// authorization gate, called before the service role client is ever
+// used. vendor-payout.actions.ts / vendor-settlement.actions.ts still
+// use the session client for the same RLS-enabled-no-policy pattern —
+// unverified whether they have the same bug; flagged for a follow-up
+// session rather than changed here.
 
 import { z } from 'zod';
-import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/session';
 import { CouponRepository, type CouponRecord, type CouponWithVendorName } from '@/lib/repositories/coupon.repository';
 import { computeCouponDiscount } from '@/lib/coupons/coupon-discount';
@@ -69,7 +77,13 @@ export async function createCouponAdmin(
     const parsed = couponSchema.parse(input);
     assertScopeVendorPair(parsed);
 
-    const supabase = await createClient();
+    // coupons has RLS enabled with no policy defined (see
+    // 014_coupon01_coupons.sql) — the session client is blocked by
+    // Postgres RLS regardless of the app-level role check above, so
+    // admin CRUD must go through the service role client, which
+    // bypasses RLS. requireRole() has already verified the caller is
+    // admin/super_admin before this point.
+    const supabase = createServiceRoleClient();
     const repo = new CouponRepository(supabase);
 
     const existing = await repo.getCouponByCode(parsed.code);
@@ -104,7 +118,9 @@ export async function updateCouponAdmin(
     const parsed = couponSchema.parse(input);
     assertScopeVendorPair(parsed);
 
-    const supabase = await createClient();
+    // See createCouponAdmin above — coupons has no RLS policy, so
+    // admin writes must use the service role client.
+    const supabase = createServiceRoleClient();
     const repo = new CouponRepository(supabase);
 
     const existing = await repo.getCouponByCode(parsed.code);
@@ -135,7 +151,9 @@ export async function setCouponActiveAdmin(
 ): Promise<ActionResult<CouponRecord>> {
   return runAction(async () => {
     const current = await requireRole(['admin', 'super_admin']);
-    const supabase = await createClient();
+    // See createCouponAdmin above — coupons has no RLS policy, so
+    // admin writes must use the service role client.
+    const supabase = createServiceRoleClient();
     const repo = new CouponRepository(supabase);
     return repo.updateCoupon(id, { is_active: isActive, updated_by: current.id });
   });
@@ -143,7 +161,9 @@ export async function setCouponActiveAdmin(
 
 export async function getCouponByIdAdmin(id: string): Promise<CouponRecord | null> {
   await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
+  // See createCouponAdmin above — coupons has no RLS policy, so admin
+  // reads must use the service role client.
+  const supabase = createServiceRoleClient();
   const repo = new CouponRepository(supabase);
   return repo.getCouponById(id);
 }
@@ -159,7 +179,9 @@ export async function getAllCouponsAdmin(
   hasPrev: boolean;
 }> {
   await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
+  // See createCouponAdmin above — coupons has no RLS policy, so admin
+  // reads must use the service role client.
+  const supabase = createServiceRoleClient();
   const repo = new CouponRepository(supabase);
 
   const page_ = await repo.getAllCouponsAdmin(page, limit);
