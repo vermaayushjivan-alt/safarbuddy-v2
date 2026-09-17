@@ -190,10 +190,21 @@ export default function BookingForm({
       return;
     }
 
-    // BOOKING-03: guest checkout — required only without a session.
+    // BOOKING-03: guest checkout — email required only without a session.
     if (!isAuthenticated) {
       if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
         setError('Please enter your name, email, and phone to book without an account.');
+        return;
+      }
+    }
+
+    // CONTACT-03: name + phone are now required for every booking,
+    // including a signed-in one — this is the booking-time contact
+    // the hotel/admin notification actually uses, not the (possibly
+    // stale, or a different person's) profile on file.
+    if (isAuthenticated) {
+      if (!guestName.trim() || !guestPhone.trim()) {
+        setError('Please enter the name and phone number for this booking.');
         return;
       }
     }
@@ -210,9 +221,12 @@ export default function BookingForm({
       check_out_date: mode === 'hotel' ? checkOutDate : null,
       travel_date: mode === 'package' ? travelDate : null,
       num_guests: numGuests,
-      guest_name: isAuthenticated ? null : guestName.trim(),
+      // CONTACT-03: always sent now (name/phone required for every
+      // booking; email stays guest-only since a signed-in user's
+      // email is already on file).
+      guest_name: guestName.trim(),
       guest_email: isAuthenticated ? null : guestEmail.trim(),
-      guest_phone: isAuthenticated ? null : guestPhone.trim(),
+      guest_phone: guestPhone.trim(),
       // COUPON-01: only the code is sent — createBooking() re-validates
       // and re-computes the discount itself, ignoring any amount shown
       // here in the preview.
@@ -411,23 +425,29 @@ export default function BookingForm({
         />
       </Field>
 
-      {!isAuthenticated && (
-        <div className="space-y-5 border-t border-deep/10 pt-5">
-          <p className="text-[13px] font-semibold text-deep">
-            Your details
-          </p>
+      {/* CONTACT-03: name + phone are now captured for every booking
+          (signed-in or guest) — this is what the hotel/admin
+          notification uses to reach the actual guest, so it's asked
+          again here even for a signed-in user rather than silently
+          reused from their profile. Email stays guest-only since a
+          signed-in user's email is already on file. */}
+      <div className="space-y-5 border-t border-deep/10 pt-5">
+        <p className="text-[13px] font-semibold text-deep">
+          {isAuthenticated ? 'Booking contact' : 'Your details'}
+        </p>
 
-          <Field label="Full name" required>
-            <input
-              type="text"
-              required
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              className={inputClass}
-            />
-          </Field>
+        <Field label="Full name" required>
+          <input
+            type="text"
+            required
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {!isAuthenticated && (
             <Field label="Email" required>
               <input
                 type="email"
@@ -437,23 +457,25 @@ export default function BookingForm({
                 className={inputClass}
               />
             </Field>
+          )}
 
-            <Field label="Phone" required>
-              <input
-                type="tel"
-                required
-                value={guestPhone}
-                onChange={(e) => setGuestPhone(e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-          </div>
-
-          <p className="text-[11px] text-ink/45">
-            We&apos;ll send your booking confirmation to this email.
-          </p>
+          <Field label="Phone" required>
+            <input
+              type="tel"
+              required
+              value={guestPhone}
+              onChange={(e) => setGuestPhone(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
         </div>
-      )}
+
+        <p className="text-[11px] text-ink/45">
+          {isAuthenticated
+            ? "We'll use this name and number to reach you about this booking."
+            : "We'll send your booking confirmation to this email."}
+        </p>
+      </div>
 
       <div className="pt-2">
         <button
