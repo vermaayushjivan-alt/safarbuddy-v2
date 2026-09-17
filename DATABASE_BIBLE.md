@@ -50,6 +50,13 @@ Storage: Supabase Storage
   many-to-many selection, built for the upcoming self-service "List
   Your Property" flow (M2). RLS: **enabled in the migration itself**
   (not deferred) — see Row Level Security section below.
+- invoices — added for INVOICE-01 Step 2
+  (`015_invoice01_invoices.sql`), **not yet run in production**. One
+  snapshot row per booking (booking_id UNIQUE), generated inside the
+  Cashfree webhook after confirmBooking() (Step 3, not yet built).
+  RLS: **enabled, no policy** — same pattern as
+  vendor_payout_details/vendor_settlements/coupons. See Row Level
+  Security section below.
 
 ## Rules (v1, unchanged)
 - Never invent columns.
@@ -112,6 +119,22 @@ Storage: Supabase Storage
   was enabled in the same migration/session that created the tables
   (RULE 24), not deferred.
 
+### invoices (INVOICE-01 Step 2)
+- RLS enabled, **no policy** (matches vendor_payout_details/
+  vendor_settlements/coupons pattern) — not yet confirmed live since
+  the migration has not been run in production yet. Server Actions
+  (Step 3, not yet built) must use `createServiceRoleClient()` for
+  both the webhook's insert and any customer/admin read, scoped
+  explicitly (booking ownership / admin role) rather than relying on
+  an RLS policy — same open pattern as the tables above.
+- `booking_id` is UNIQUE — one invoice per booking, relying on the
+  webhook's existing PAY-02 idempotency (confirmBooking() only fires
+  once per successful payment) rather than adding a second guard here.
+- `amount_paid` is sourced from `bookings.price_snapshot`, not
+  subtotal/grand_total — continuing the COUPON-01 finding (migration
+  014) that price_snapshot is the one field that matches what
+  Cashfree actually charged.
+
 ## Migration Registry (new, v2)
 Every migration file that has ever been referenced as "created" in
 CHANGELOG/SESSION_HANDOFF is tracked here with its actual on-disk and
@@ -133,6 +156,7 @@ production-run status, so the two can never silently drift again:
 | 013_pay04_manual_settlement.sql | yes | **PARTIALLY CONFIRMED 2026-09-17** — /admin/settlements loads without error, but this was not independently verified via information_schema.columns this session, and vendor_settlements has the identical "RLS enabled, no policy" gap discovered on coupons the same session (see row below) — vendor-settlement.actions.ts still reads via the session client (`createClient()`), not the service role client. Flagged as DOC_DEBT item 15b: the page not erroring is not proof the session client can actually see real rows; must be independently re-checked before trusting this as CONFIRMED. |
 | 014_coupon01_coupons.sql | yes, but **does not match live production DDL** | **CONFIRMED 2026-09-17, via hand-applied ALTER migration, not this file verbatim** — see DOC_DEBT.md item 15 for the full incident. Summary: production already had an unrelated, differently-shaped legacy `public.coupons` table (usage_limit/per_user_limit/used_count/start_date/end_date/status columns) that this file's `CREATE TABLE IF NOT EXISTS` silently no-opped against. Reconciled live via manual `ALTER TABLE` (add new columns, backfill, drop old columns) instead of this file's DDL. This file must be rewritten to an `ALTER`-based migration matching what was actually run (RULE 32/33) — not done yet, tracked as a pending action below. Also confirmed live 2026-09-17: coupon.actions.ts's admin CRUD (`createCouponAdmin`, `updateCouponAdmin`, `setCouponActiveAdmin`, `getCouponByIdAdmin`, `getAllCouponsAdmin`) was switched from the session client to `createServiceRoleClient()` after production confirmed the session client got 0 rows on SELECT and a hard RLS-violation error on INSERT (RLS enabled, no policy, exactly as this file's own header comment already warned but the code didn't follow). |
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
+| 015_invoice01_invoices.sql | yes | **NOT RUN** — created 2026-09-17 (INVOICE-01 Step 2), no production run yet |
 
 Any "assumed yes" above should be spot-checked against
 `information_schema` next time that milestone's tables are touched —
