@@ -209,3 +209,171 @@ and recorded in SESSION_HANDOFF.md:
 If any of 1–9 cannot be completed (e.g. sandbox can't reach a live
 service), that item is explicitly marked "not verified — reason X,"
 never silently skipped.
+
+---
+
+## I. Planned Milestones — Owner Self-Service Expansion (added 2026-09-17)
+
+Three-part plan, recorded here per RULE 15 (pre-coding audit) BEFORE any
+of this is built, so no future session starts coding blind or
+duplicates what's already decided. All three share one dependency
+order: OWNER-DASH-01 first (it's the shell the other two live inside),
+then OFFERS and CALENDAR can be built in either order.
+
+None of this is started. Status on every item below is PLANNED — NOT
+STARTED until a session's own SESSION_HANDOFF entry says otherwise.
+
+### I.1 OWNER-DASH-01 — Unified Owner Portal (prerequisite for I.2/I.3)
+
+**Existing Architecture:** Owner-facing pages exist today at three
+unrelated routes with no shared navigation: `/hotel-owner` (property
+details form, via `owner-hotel.actions.ts`), `/vendor/bookings`
+(read-only bookings, `vendor-booking.actions.ts`), `/vendor/payments`
+(settlement history). `requireOwnerVendor()` (owner-context.ts) is
+already the single source of truth for "which vendor does this
+signed-in hotel_owner own" and is reused by every owner action file.
+Room type/image management (`owner-room-type.actions.ts`,
+`owner-room-image.actions.ts`) has server actions but **no page at
+all** — not reachable from any owner-facing route today.
+
+**Gap:** No single place an owner lands, no shared nav between
+property/rooms/offers/bookings/payouts, no completeness signal. A
+brand-new self-service owner (VENDOR-03) has no way to reach room
+management even though the backend already supports it.
+
+**Files (planned):**
+- `src/app/hotel-owner/layout.tsx` (modify) — add shared nav: Property,
+  Rooms & Pricing, Offers, Bookings, Payouts.
+- `src/app/hotel-owner/rooms/page.tsx` (new) — room list, links into
+  per-room type/images/pricing/availability (reuses existing
+  `owner-room-type.actions.ts` / `owner-room-image.actions.ts` — see
+  I.3 for the two still-missing action files this section depends on).
+- `src/app/hotel-owner/bookings/page.tsx` (new, moved from
+  `/vendor/bookings`) and `src/app/hotel-owner/payouts/page.tsx` (new,
+  moved from `/vendor/payments`) — same components/actions, new route
+  only. `/vendor/*` becomes a redirect to the new routes, not a second
+  copy (RULE 1).
+- `src/app/hotel-owner/page.tsx` (modify) — becomes a summary/overview
+  with a completeness indicator (property details filled? ≥1 room
+  added? ≥1 photo uploaded? payout details set?), each item linking
+  into its section.
+
+**Why:** RULE 1/9 (move, don't duplicate, `/vendor/*` logic) and RULE
+28 (every section still gates through the existing
+`requireOwnerVendor()`/`assertHotelOwnedByVendor()` pair — no new
+authorization pattern needed here, only navigation/layout).
+
+**Minimal Plan:** 1) add shared layout nav, 2) build `rooms` list page
+wired to existing owner room actions, 3) move bookings/payments pages
+under `/hotel-owner`, redirect old routes, 4) add the overview/
+completeness page. tsc/eslint clean, then a real hotel_owner login
+walkthrough (RULE 21) before Frozen.
+
+### I.2 OFFERS-01 — Owner Self-Service Discounts
+
+**Existing Architecture:** `public.coupons` (migration 014) already
+has `scope` (`'global'|'vendor'`) + `vendor_id`, `discount_type`
+(`percentage|flat`), `max_discount_amount`, `min_booking_amount`,
+`valid_from`/`valid_until`, `is_active`. `CouponRepository` and the
+discount-resolution logic (`src/lib/coupons/coupon-discount.ts`) are
+already correct and live-verified. `coupon.actions.ts` today only
+exposes **admin-gated** CRUD (`requireRole(['admin','super_admin'])` +
+`createServiceRoleClient()` — RLS-enabled-no-policy on `coupons`, same
+as `vendor_settlements`). Note: `public.offers` (ADMIN-08) is a
+*separate, unrelated* sitewide-banner table (title/image/free-text
+discount, no `vendor_id`) — do not confuse the two or attempt to reuse
+`offers` for this milestone.
+
+**Gap:** No self-service path for a `hotel_owner` to create/manage
+their own coupon. The data layer is already right; only an
+owner-scoped authorization wrapper is missing — building a parallel
+discount system would violate RULE 1/9.
+
+**Files (planned):**
+- `src/app/actions/owner-coupon.actions.ts` (new) — `createOwnerCoupon`,
+  `updateOwnerCoupon`, `setOwnerCouponActive`, `listOwnerCoupons`. Every
+  call resolves `vendor_id` via `requireOwnerVendor()` server-side —
+  never accepted from the client. `scope` is hardcoded to `'vendor'`;
+  an owner can never create a `scope='global'` coupon (admin-only,
+  RULE 6/27). Every read/update additionally checks the fetched
+  coupon's `vendor_id` matches the caller's resolved vendor (ownership
+  check, same shape as `assertHotelOwnedByVendor`, RULE 28).
+- `src/components/owner/OwnerCouponManager.tsx` (new) — list + create/
+  edit form, following the existing admin `/admin/coupons` UI pattern.
+- `src/app/hotel-owner/offers/page.tsx` (new) — hosted inside
+  OWNER-DASH-01's nav as the "Offers" section, not a standalone route.
+- No schema/migration change.
+
+**Why:** RULE 1/9 (reuse `coupons` table + `CouponRepository` exactly,
+add only an authorization layer) and RULE 28 (server-side ownership
+check on every mutation).
+
+**Minimal Plan:** 1) `owner-coupon.actions.ts`, mirroring
+`owner-room-type.actions.ts`'s ownership-check shape, 2)
+`OwnerCouponManager.tsx`, 3) wire into the Offers tab, 4) tsc/eslint
+clean, then a live walkthrough — a real hotel_owner creates a coupon
+and a real checkout applies it (RULE 21/22, this touches the
+booking-discount path) — before Frozen.
+
+### I.3 CALENDAR-01 — Owner Room Availability Calendar + Pricing
+
+**Existing Architecture:** `public.room_inventory` (ROOM-04, confirmed
+live) stores per-room-per-date `total_rooms`/`available_rooms`/
+`blocked_rooms`/`booked_rooms`. `RoomInventoryRepository` already has
+`getInventoryForRange()`, `setInventoryForDate()` (refuses to drop
+`total_rooms` below already-booked rooms for that date — never
+invalidates an existing booking), `deleteInventoryForDate()`, and an
+ownership check (`verifyRoomOwnership()` — the `owner_user_id` bug in
+this method was already fixed, see DOC_DEBT.md item 9).
+`room-inventory.actions.ts` exposes single-date AND
+`bulkSetInventoryAction()` (date-range bulk update), all admin-gated
+today. Admin already has a full working UI —
+`src/components/admin/rooms/RoomInventoryManager.tsx`, at
+`/admin/hotels/[id]/rooms/[roomId]/availability` — but it is a
+**list/table view with a date-range picker**, not a calendar grid.
+`room-price.repository.ts` / `room-price.actions.ts` (ROOM-03, per-date
+price overrides) is the same shape, also admin-only today. Neither has
+an owner-scoped counterpart — `owner-room-inventory.actions.ts` and
+`owner-room-price.actions.ts` do not exist yet (only
+`owner-room-type.actions.ts` and `owner-room-image.actions.ts` do).
+
+**Gap:** Same shape as OFFERS-01 — correct, tested business rules
+already exist on the admin side; only an owner-scoped authorization
+wrapper and a genuinely calendar-shaped UI are missing (no calendar
+grid component exists anywhere in the codebase yet — building a real
+one, not another table, is the point of this milestone per the
+project owner's explicit "advanced/professional" request).
+
+**Files (planned):**
+- `src/app/actions/owner-room-inventory.actions.ts` (new) — owner-scoped
+  mirror of `room-inventory.actions.ts`, reusing
+  `RoomInventoryRepository`, gated by `assertHotelOwnedByVendor()` per
+  room (same pattern as `owner-room-type.actions.ts`).
+- `src/app/actions/owner-room-price.actions.ts` (new) — same pattern
+  for `RoomPriceRepository`.
+- `src/components/owner/RoomAvailabilityCalendar.tsx` (new) — a real
+  month-grid: each day cell shows available/total/booked for the
+  selected room, click-to-edit a single date, "apply to range" for
+  bulk edits (owner-scoped counterpart of `bulkSetInventoryAction`),
+  and the per-date price override editable in the same cell — inventory
+  + pricing managed together per date, not two separate screens (this
+  is the upgrade over admin's current table view).
+- `src/app/hotel-owner/rooms/[roomId]/calendar/page.tsx` (new) — one
+  calendar per room, linked from OWNER-DASH-01's "Rooms & Pricing"
+  section.
+- No schema/migration change — reuses `room_inventory`/`room_prices`
+  exactly as they are.
+
+**Why:** RULE 1/9 (reuse both repositories exactly, no new inventory
+system), RULE 28 (per-room ownership check, not just per-role), RULE 36
+(one bounded `getInventoryForRange()` call per month view, never
+per-day).
+
+**Minimal Plan:** 1) `owner-room-inventory.actions.ts` and
+`owner-room-price.actions.ts`, mirroring `owner-room-type.actions.ts`'s
+ownership-check shape, 2) `RoomAvailabilityCalendar.tsx` as a real
+calendar grid, 3) wire into "Rooms & Pricing", one calendar per room,
+4) tsc/eslint clean, then a live walkthrough — a real hotel_owner
+blocks/unblocks dates and changes a price, and a test booking respects
+both (RULE 21/22, this touches booking-affecting inventory) — before
+Frozen.
