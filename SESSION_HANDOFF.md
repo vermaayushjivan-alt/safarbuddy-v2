@@ -6,6 +6,64 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
+INVOICE-01 Step 1 — scope audit (2026-09-17, new chat session,
+continuation of the planning session below). User answered the three
+scoping questions RULE 15 required before any code: one combined
+invoice/voucher document (not two), delivered as both a web page and a
+downloadable PDF, generated on payment success inside the existing
+Cashfree webhook (same call site CONTACT-02 already uses, right after
+confirmBooking()). Full audit recorded in DEVELOPMENT_BIBLE.md Section
+J; PROJECT_STATUS.md's INVOICE-01 entry updated to "Step 1 COMPLETE."
+No code written this session — per the 6-step plan below, Step 2
+(schema + PDF-library decision) is a separate future session.
+
+Next action: Step 2 — decide the PDF-generation library (front-runner:
+`@react-pdf/renderer`, not yet confirmed) and write the
+`public.invoices` migration only. Do not start the backend/UI steps in
+the same session as the schema step.
+
+Previous milestone
+
+Continuation planning (2026-09-17, new chat session) — user asked to
+continue the project, broken into small steps (one step per chat
+session going forward, so no session runs out of room mid-milestone).
+Per this file's own "Next real candidate" note below, invoices/vouchers
+is the only remaining Booking deferred-scope item with no existing
+code and no doc-debt gap in front of it — but RULE 15 forbids starting
+it without a product-scope audit first, and what "invoice" vs
+"voucher" means here has never been defined (same caution as VENDOR-03
+M3). No code written this session. Proposed step breakdown recorded
+here so the next several sessions each pick up exactly one step:
+
+1. INVOICE-01 scope audit (product decision, no code) — define invoice
+   vs voucher, trigger point, delivery method, recipient(s), data
+   fields, PDF vs HTML.
+2. INVOICE-01 schema — migration for whatever Step 1 decides (e.g.
+   invoices/vouchers table), following the RULE 15 pattern used for
+   every other milestone in this file.
+3. INVOICE-01 backend — repository + Server Actions to generate/fetch
+   an invoice or voucher, wired to the point in the booking/payment
+   flow Step 1 decides.
+4. INVOICE-01 admin UI — list/view (and resend, if Step 1 wants it).
+5. INVOICE-01 customer-facing UI — view/download from My Bookings or
+   the booking-confirmation page.
+6. Verification pass — tsc/eslint, then a live walkthrough checklist
+   for the user (this sandbox cannot reach production Supabase/Cashfree).
+
+Separately flagged, not part of this breakdown (live-verification-only
+items that need the user, not new code): migration 012 (BOOKING-03)
+still not run in production; migration 013 (PAY-04) still not run;
+014_coupon01_coupons.sql on-disk file still not rewritten to match the
+hand-run ALTER migration (RULE 32 — deferred until the exact ALTER SQL
+actually run is available to copy, not reconstructed from memory per
+RULE 8); CONTACT-02's webhook path and VENDOR-03 M4's approve/reject
+flow still have no live walkthrough.
+
+Next action: run Step 1 (INVOICE-01 scope audit) — see the question
+asked in the same chat turn that added this entry.
+
+Previous milestone
+
 Audit continuation: VENDOR-BOOKING-01 backfill (2026-09-17, same day,
 right after the CONTACT-02 session below) — user asked "what's next,"
 told to follow DEVELOPMENT_BIBLE.md's own logic rather than pick
