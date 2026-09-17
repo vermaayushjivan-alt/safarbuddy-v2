@@ -25,6 +25,7 @@ import { PackageRepository } from "@/lib/repositories/package.repository";
 import { RoomTypeRepository } from "@/lib/repositories/room-type.repository";
 import { RoomPriceRepository } from "@/lib/repositories/room-price.repository";
 import { notifyBookingCreated } from "@/lib/notifications/dispatch";
+import { resolveCouponForBooking } from "@/app/actions/coupon.actions";
 
 // -----------------------------------------------------------------------------
 // VALIDATION
@@ -118,6 +119,17 @@ const createBookingBaseSchema =
         .trim()
         .min(7, "Enter a valid phone number.")
         .max(20)
+        .nullable()
+        .optional(),
+
+    // COUPON-01: optional. Re-validated and re-priced entirely
+    // server-side in createBooking() below — never trust a
+    // client-supplied discount amount, only the code itself.
+    coupon_code:
+      z.string()
+        .trim()
+        .min(1)
+        .max(40)
         .nullable()
         .optional(),
   });
@@ -527,6 +539,41 @@ export async function createBooking(
       null;
   }
 
+  // ---------------------------------------------------------------------------
+  // COUPON-01: applied here, after priceSnapshot is finalized for both
+  // hotel and package branches (including the room-specific price
+  // override above), and before it is validated/persisted. This is the
+  // ONLY place a coupon actually changes what gets charged — see
+  // 014_coupon01_coupons.sql for why coupon_discount/grand_total are
+  // deliberately not used for this. Re-validates and re-computes the
+  // discount from scratch against this server-resolved priceSnapshot;
+  // never trusts any discount amount the client may have shown during
+  // a checkout preview (see coupon.actions.ts's validateCouponPublic).
+  // ---------------------------------------------------------------------------
+
+  let couponId: string | null = null;
+  let couponCode: string | null = null;
+  let couponDiscountAmount: number | null = null;
+
+  if (parsed.coupon_code) {
+    const couponResult = await resolveCouponForBooking({
+      code: parsed.coupon_code,
+      vendorId,
+      subtotal: priceSnapshot,
+    });
+
+    if (!couponResult.valid) {
+      throw new Error(couponResult.reason);
+    }
+
+    couponId = couponResult.couponId;
+    couponCode = couponResult.code;
+    couponDiscountAmount = couponResult.discountAmount;
+
+    priceSnapshot =
+      Math.round((priceSnapshot - couponDiscountAmount) * 100) / 100;
+  }
+
   if (
     !Number.isFinite(
       priceSnapshot
@@ -609,6 +656,15 @@ export async function createBooking(
 
         price_snapshot:
           priceSnapshot,
+
+        coupon_id:
+          couponId,
+
+        coupon_code:
+          couponCode,
+
+        coupon_discount_amount:
+          couponDiscountAmount,
 
         currency_id:
           currencyId,
