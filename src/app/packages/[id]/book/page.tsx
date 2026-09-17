@@ -52,6 +52,7 @@ export default async function PackageBookingPage({
             targetId={pkg.id}
             targetName={pkg.package_name}
             startingPrice={pkg.starting_price}
+            vendorId={pkg.vendor_id ?? null}
             isAuthenticated={Boolean(authUser)}
           />
         </div>
