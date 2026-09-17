@@ -19,6 +19,13 @@ import { sendWhatsApp } from './whatsapp.client';
 
 export interface NotifyBookingCreatedInput {
   bookingId: string;
+  // BOOKING-NUM-01: the human-facing reference (e.g. SB-20260918-A1B2C3,
+  // from BookingRepository.generateBookingNumber()) — shown in every
+  // email/subject line instead of the raw `bookingId` UUID, which is
+  // kept only for the internal booking_id FK column below. Never shown
+  // to a hotel/vendor/admin directly; a UUID is not a "booking ID" a
+  // human should be reading off an email.
+  bookingNumber: string;
   bookingType: 'hotel' | 'package';
   itemName: string;
   vendorId: string | null;
@@ -90,13 +97,19 @@ function buildEmailHtml(input: NotifyBookingCreatedInput): string {
         : 'Dates not specified'
       : input.travelDate ?? 'Travel date not specified';
 
+  // DISINTERMEDIATION-01: the hotel/vendor email intentionally does NOT
+  // include the guest's phone/email — a hotel with the guest's direct
+  // contact could take the conversation (and any future rebooking)
+  // off-platform, cutting SafarBuddy out. Guest contact details are
+  // only ever shown in the admin alert (buildAdminEmailHtml below),
+  // which the platform itself controls. Do not add guestPhone/
+  // guestEmail back into this template without a deliberate product
+  // decision to reverse this.
   return `
     <p>New booking received for <strong>${input.itemName}</strong>.</p>
     <p>Guest: ${input.guestName}</p>
-    ${input.guestPhone ? `<p>Guest phone: ${input.guestPhone}</p>` : ''}
-    ${input.guestEmail ? `<p>Guest email: ${input.guestEmail}</p>` : ''}
     <p>${input.bookingType === 'hotel' ? 'Dates' : 'Travel date'}: ${dates}</p>
-    <p>Booking ID: ${input.bookingId}</p>
+    <p>Booking ID: ${input.bookingNumber}</p>
     <p>View it in the admin panel for full details.</p>
   `;
 }
@@ -122,7 +135,7 @@ function buildAdminEmailHtml(
     ${input.guestPhone ? `<p>Guest phone: ${input.guestPhone}</p>` : ''}
     ${input.guestEmail ? `<p>Guest email: ${input.guestEmail}</p>` : ''}
     <p>${input.bookingType === 'hotel' ? 'Dates' : 'Travel date'}: ${dates}</p>
-    <p>Booking ID: ${input.bookingId}</p>
+    <p>Booking ID: ${input.bookingNumber}</p>
     <p>
       ${contact ? `${contact.type === 'hotel' ? 'Hotel' : 'Vendor'} notified: ${contact.name}${contact.email ? ` (${contact.email})` : ''}` : 'No hotel/vendor contact was configured — they were NOT notified.'}
     </p>
@@ -271,7 +284,7 @@ export async function notifyBookingCreated(
 
       const result = await sendEmail({
         to: adminEmail,
-        subject: `Payment confirmed — ${input.itemName} (${input.bookingId})`,
+        subject: `Payment confirmed — ${input.itemName} (${input.bookingNumber})`,
         html: buildAdminEmailHtml(input, contact),
       });
 
