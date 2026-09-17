@@ -7,6 +7,9 @@ import { verifyWebhookSignature } from "@/lib/cashfree/cashfree.client";
 import { PaymentRepository } from "@/lib/repositories/payment.repository";
 import { BookingRepository } from "@/lib/repositories/booking.repository";
 import { computeCommissionSplit } from "@/lib/payments/commission";
+import { HotelRepository } from "@/lib/repositories/hotel.repository";
+import { PackageRepository } from "@/lib/repositories/package.repository";
+import { notifyBookingCreated } from "@/lib/notifications/dispatch";
 
 export const runtime = "nodejs";
 
@@ -421,6 +424,86 @@ export async function POST(
         );
 
         return serverError();
+      }
+
+      // CONTACT-02 — Payment-Triggered Notifications.
+      //
+      // RULE 15 audit: notifyBookingCreated() (CONTACT-01) previously
+      // fired from createBooking() in booking.actions.ts, i.e. the
+      // instant a `bookings` row was inserted with status='pending' —
+      // before Cashfree had confirmed anything. Every checkout attempt
+      // alerted the hotel/vendor, including ones the guest abandoned
+      // at the payment page and never paid for. Root cause: the
+      // notification trigger point was "booking exists", not "booking
+      // is actually going to happen." Moved here, right after the
+      // booking is confirmed on a verified successful payment (this
+      // whole block only runs once per payment — see the terminal-
+      // status idempotency check above — and only when the booking
+      // was still 'pending', so this fires exactly once per booking).
+      //
+      // Files: booking.actions.ts (notifyBookingCreated() call and its
+      // now-unused import removed — no duplicate trigger left behind,
+      // RULE 11), this file (call added).
+      //
+      // Why here and not inside confirmBooking() itself: confirmBooking()
+      // lives in the repository layer (RULE 3 — data layer only, no
+      // side effects/business logic), so the trigger belongs in the
+      // caller, same pattern CONTACT-01 already used.
+      //
+      // Minimal plan: fetch just enough (hotel or package row, for
+      // name/contact/vendor_id) to rebuild the same
+      // NotifyBookingCreatedInput shape CONTACT-01 already defined —
+      // no changes to dispatch.ts itself.
+      try {
+        const bookedHotel =
+          booking.booking_type === "hotel"
+            ? await new HotelRepository(supabase).getHotelById(
+                booking.hotel_id as string
+              )
+            : null;
+
+        const bookedPackage =
+          booking.booking_type === "package"
+            ? await new PackageRepository(supabase).getPackageById(
+                booking.package_id as string
+              )
+            : null;
+
+        const bookedItem = bookedHotel ?? bookedPackage;
+
+        if (bookedItem) {
+          await notifyBookingCreated(supabase, {
+            bookingId: booking.id,
+            bookingType: booking.booking_type,
+            itemName: bookedHotel
+              ? bookedHotel.hotel_name
+              : (bookedPackage as { package_name: string }).package_name,
+            vendorId: bookedItem.vendor_id,
+            itemContact: bookedHotel
+              ? { phone: bookedHotel.phone, email: bookedHotel.email }
+              : null,
+            guestName: booking.guest_name ?? "Registered customer",
+            checkInDate: booking.check_in_date,
+            checkOutDate: booking.check_out_date,
+            travelDate: booking.travel_date,
+          });
+        } else {
+          console.error(
+            `[Cashfree Webhook] notifyBookingCreated skipped — ${booking.booking_type} ` +
+              `${booking.booking_type === "hotel" ? booking.hotel_id : booking.package_id} not found`
+          );
+        }
+      } catch (error) {
+        // notifyBookingCreated() itself never throws (see dispatch.ts),
+        // but the hotel/package lookup above can. Either way this must
+        // never turn into a failed webhook response — the payment and
+        // booking are already correctly recorded above; a notification
+        // failure must not make Cashfree retry a webhook that already
+        // succeeded.
+        console.error(
+          "[Cashfree Webhook] notifyBookingCreated dispatch failed",
+          error
+        );
       }
     }
   }
