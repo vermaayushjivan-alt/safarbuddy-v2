@@ -335,10 +335,22 @@ invoices/vouchers — coupons and commissions are both done now (coupons
 as COUPON-01 below, commissions as manual tracking, not automated
 payouts).
 
-COUPON-01 — Discount Coupons. CODE COMPLETE 2026-09-17, NOT VERIFIED
-(migration 014 not yet run in production, no live functional
-walkthrough). Full file list and RULE 15 audit summary in CHANGELOG.md's
-2026-09-17 entry. Headline finding from that audit: bookings.
+COUPON-01 — Discount Coupons. CODE COMPLETE 2026-09-17, PRODUCTION
+HOTFIXED 2026-09-17 (same day, follow-up chat session — see
+CHANGELOG.md "Admin panel + coupons production incident" entry and
+DOC_DEBT.md item 15). Migration 014 as written on disk was a no-op
+against production (a pre-existing, differently-shaped legacy
+`coupons` table already existed there); reconciled live via a
+hand-written ALTER-based migration instead — the on-disk migration
+file has NOT yet been rewritten to match (pending). Admin CRUD
+(coupon.actions.ts) also required switching from the session client
+to createServiceRoleClient() to work around coupons' RLS-enabled-
+no-policy state (same fix pattern flagged as an open question for
+vendor_payout_details/vendor_settlements — see DATABASE_BIBLE.md).
+Verified live by the user: /admin/coupons lists and creates coupons
+successfully. Full file list and RULE 15 audit summary in
+CHANGELOG.md's original 2026-09-17 entry. Headline finding from that
+audit: bookings.
 price_snapshot — not subtotal/coupon_discount/grand_total — is what
 Cashfree actually charges, so the discount is applied there directly;
 the new coupon_id/coupon_code/coupon_discount_amount columns on
