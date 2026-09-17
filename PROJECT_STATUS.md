@@ -260,7 +260,10 @@ Pending
 
 Booking — deferred scope
 
-Room/departure inventory, availability calendars, coupons, commissions, invoices, vouchers, notifications, guest checkout, and vendor-facing booking access.
+Room/departure inventory, availability calendars, invoices, vouchers.
+Coupons, commissions, notifications, guest checkout, and vendor-facing
+booking access are no longer deferred — see COUPON-01, PAY-04,
+CONTACT-01/CONTACT-02, BOOKING-03, and VENDOR-BOOKING-01 respectively.
 
 Room Management — future milestones
 
@@ -318,7 +321,34 @@ Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
 Next Development Phase
 
-ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 partially covered, M4 not started. PAY-04 — CODE COMPLETE 2026-09-17 (RULE 15 audit performed in chat session, see CHANGELOG.md same date) — this turned out to be manual settlement tracking (fixed 20% commission split + admin-logged payout receipts), not the originally-scoped Cashfree Payouts split-settlement automation; that automation is still not started and remains blocked on migration 010 (not yet run in production) and the unwired Cashfree Payouts client. Migration 013 (PAY-04's own schema) is also not yet run in production — see DATABASE_BIBLE.md Migration Registry. CONTACT-02 still has no RULE 15 pre-coding audit recorded — SESSION_HANDOFF.md's original claim that one exists was false (see DOC_DEBT.md item 5 — that citation is itself dangling, logged as its own open item). Do not start coding CONTACT-02 until that audit is actually performed and recorded here.
+ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 not scoped (dangling claim corrected 2026-09-17, see DOC_DEBT.md item 16c); M4 CODE COMPLETE, backfilled 2026-09-17, NOT VERIFIED live (see below). CONTACT-02 — CODE COMPLETE 2026-09-17, NOT VERIFIED live (see below). PAY-04 — CODE COMPLETE 2026-09-17 (RULE 15 audit performed in chat session, see CHANGELOG.md same date) — this turned out to be manual settlement tracking (fixed 20% commission split + admin-logged payout receipts), not the originally-scoped Cashfree Payouts split-settlement automation; that automation is still not started and remains blocked on migration 010 (not yet run in production) and the unwired Cashfree Payouts client. Migration 013 (PAY-04's own schema) is also not yet run in production — see DATABASE_BIBLE.md Migration Registry. CONTACT-02's RULE 15 audit was performed and recorded 2026-09-17 (see CONTACT-02 entry above and CHANGELOG.md same date) — DOC_DEBT.md item 5's original dangling-audit claim remains open only as a historical record of the earlier false claim, not as a live blocker anymore.
+
+VENDOR-BOOKING-01 — Vendor-Facing Booking Visibility (read-only).
+CODE COMPLETE, backfilled into this file 2026-09-17 (previously
+undocumented — DOC_DEBT.md item 17). Discovered already fully
+implemented on disk during the same 2026-09-17 audit session that
+found VENDOR-03 M4. Closes the "vendor-facing booking access" gap
+this file's own Pending section had listed since at least the
+2026-08-27 planning session. A signed-in `vendor`/`hotel_owner`
+account can view their own bookings (dates, guests, price, status),
+filterable by status and paginated — read-only by explicit design; no
+confirm/cancel/complete action exists here, that stays admin-only
+until a vendor-write workflow is separately scoped and audited (RULE
+11/28). requireVendorContext() (src/lib/auth/vendor-context.ts) is a
+new, deliberately separate read-only counterpart to owner-context.ts's
+write-scoped requireOwnerVendor() — accepts the 'vendor' role, which
+the write path intentionally does not. Created: src/lib/auth/vendor-context.ts,
+src/app/actions/vendor-booking.actions.ts, src/app/vendor/page.tsx
+(redirects to /vendor/bookings — no full vendor dashboard home is in
+scope yet), src/app/vendor/bookings/page.tsx. Modified:
+src/lib/repositories/booking.repository.ts (getBookingsByVendorId, a
+new read-only method scoped to a single vendor_id — no existing method
+signature changed). No schema/migration change — reuses the existing
+bookings.vendor_id column already populated at booking-creation time.
+Verification (2026-09-17 audit session): tsc --noEmit PASS, eslint
+PASS (0 errors, whole project). NOT verified: no live Supabase
+reachable in this sandbox — no real vendor account has exercised this
+page end-to-end (RULE 21/23).
 
 PAY-04 — Manual Settlement Tracking. CODE COMPLETE 2026-09-17, NOT
 VERIFIED (migration 013 not yet run in production, no live functional
@@ -378,4 +408,82 @@ VENDOR-03 — Self-Service "List Your Property" (4-milestone plan, requested by 
   status='pending' — never auto-published. Delivered: one consolidated
   Zod schema/form covering owner account + property details +
   facilities checklist (from M1's catalog) + payout/contact, submitted
-  in 
+  in one form/one submit via property-listing.actions.ts
+  (getFacilityCatalog() + submitPropertyListing()), a public
+  /list-your-property route, and a "List Your Property" button on the
+  homepage Navbar. Property photo/ID-proof upload explicitly out of
+  scope (no Storage bucket designed yet — see M3 below). Full file
+  list in CHANGELOG.md's 2026-08-28 "VENDOR-03 (M2)" entry.
+  Verification: tsc --noEmit PASS, eslint PASS (0 errors). NOT
+  verified: no functional walkthrough (no live Supabase reachable in
+  any sandbox session yet); migration 011 not run in production at
+  the time M2 was written (RUN AND CONFIRMED 2026-09-05, see M1
+  above — M2 itself has still never been walked through live).
+
+- M3 — Property Photo / ID-Proof Upload. NOT SCOPED. No session has
+  ever written a milestone-plan entry defining M3's boundaries beyond
+  the one-line deferral in M2's own CHANGELOG entry ("property
+  photo/ID-proof upload — no Storage bucket/path designed yet").
+  PROJECT_STATUS.md's own "Next Development Phase" summary line has
+  claimed "M3 partially covered" since at least 2026-09-05 with
+  nothing behind that claim anywhere in this file, SESSION_HANDOFF.md,
+  or CHANGELOG.md — logged as DOC_DEBT.md item 16c (2026-09-17 audit).
+  Do not start coding M3 until a real RULE 15 audit + scope decision
+  (what "partially covered" was ever supposed to mean, whether ID-proof
+  upload needs its own private Storage bucket + admin-only read
+  access given it's identity-document-adjacent, and how it interacts
+  with M4's approval queue) is recorded here.
+
+- M4 — Admin Approval Queue. CODE COMPLETE, backfilled into this file
+  2026-09-17 (previously undocumented — DOC_DEBT.md item 16d).
+  Discovered already fully implemented on disk during a 2026-09-17
+  audit session, with its own RULE 15 audit note already written
+  in-code (see hotel.actions.ts). Reviews hotels+vendors created via
+  M2's self-service flow (status='pending') and lets an admin
+  approve (hotel → 'active', and its linked vendor → 'active' only if
+  the vendor is still 'pending' — never overwrites a vendor an admin
+  separately suspended for another reason) or reject (hotel →
+  'suspended' — HOTEL_STATUS_VALUES has no 'rejected' member and
+  RULE 8 forbids inventing one; the linked vendor is deliberately left
+  untouched on reject, since one rejected listing shouldn't suspend an
+  owner account that may submit another property later).
+  Created: src/app/admin/hotels/pending/page.tsx. Modified:
+  src/app/actions/hotel.actions.ts (getPendingHotelsAdmin,
+  approveHotelAdmin, rejectHotelAdmin), src/lib/repositories/hotel.repository.ts
+  (getHotelsByStatus). Role-gated requireRole(['admin','super_admin'])
+  on every action (RULE 6/27). Linked from /admin/hotels and mentioned
+  on the /admin dashboard card. No schema/migration change — reuses
+  the existing hotels.status/vendors.status columns from M1/DATABASE_BIBLE.
+  Verification (2026-09-17 audit session): tsc --noEmit PASS, eslint
+  PASS (0 errors, whole project) — first session able to actually run
+  either, since npm install succeeded in this sandbox. NOT verified:
+  no live Supabase reachable, so Approve/Reject has never been walked
+  through against a real pending listing (RULE 21/23) — must be done
+  before Frozen.
+
+CONTACT-02 — Payment-Triggered Notifications. CODE COMPLETE
+2026-09-17 (chat session, same day as PAY-04/COUPON-01/the admin
+incident above). RULE 15 audit performed before coding (see
+CHANGELOG.md's 2026-09-17 "CONTACT-02" entry for the full
+Existing Architecture / Root Cause / Files / Why / Minimal Plan).
+Root cause: notifyBookingCreated() (CONTACT-01) fired from
+createBooking() at booking-insertion time — before any payment
+existed — so every checkout attempt alerted the hotel/vendor,
+including ones abandoned at the Cashfree payment page and never
+paid for. Fixed by moving the call from booking.actions.ts to
+src/app/api/public/cashfree/webhook/route.ts, right after a
+successful payment confirms the booking (bookingRepo.confirmBooking())
+— fires exactly once per booking, only on a verified successful
+payment. No changes to dispatch.ts itself (RULE 9 — reused the exact
+same NotifyBookingCreatedInput contract CONTACT-01 already defined).
+Depended on PAY-04 per the original milestone plan; PAY-04 is CODE
+COMPLETE (see above) so this was unblocked for coding, though PAY-04
+itself is still NOT VERIFIED/not Frozen (migration 013 not yet run in
+production) — CONTACT-02's own code has no dependency on PAY-04's
+migration, only on the webhook route PAY-04 already touches.
+Verification: tsc --noEmit PASS, eslint PASS (0 errors, whole
+project, same run as VENDOR-03/M4 above). NOT verified (RULE 21/22 —
+this is a notification-adjacent path off the payment webhook, not a
+bookings/payments mutation itself, but still): no live Cashfree
+webhook has been triggered against this code — must be walked through
+with a real test payment before Frozen.
