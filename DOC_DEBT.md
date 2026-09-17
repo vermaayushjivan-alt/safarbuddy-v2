@@ -363,3 +363,130 @@ then the wrong one run) should inform how destructive-vs-safe SQL
 options are presented in any future session, (5) whether
 vendor_payout_details / vendor_settlements share coupons' item-15c RLS
 bug is UNVERIFIED — see DATABASE_BIBLE.md coupons RLS entry.
+
+---
+
+16. Audit session (2026-09-17, continuation of the same day's chat
+    session as item 15): mangled filenames recurred a fifth time;
+    PROJECT_STATUS.md found truncated mid-sentence; VENDOR-03 M4
+    (Admin Approval Queue) found fully CODE COMPLETE on disk but
+    claimed "not started" everywhere
+
+16a. `CHANGELOG.md` and `next.config.ts` were present under mangled
+names again — `CHANGELOG .md` (trailing space) and `next.config (2).ts`
+— the same pattern as item 6, now recurring for a fifth time (previously
+closed/reopened across 2026-08-28, 2026-09-03, 2026-09-05, and now
+2026-09-17). Renamed `CHANGELOG .md` → `CHANGELOG.md`. Compared
+`next.config (2).ts` against the canonical `next.config.ts` line by
+line before touching anything (RULE 7-adjacent caution — do not assume
+which of two same-purpose files is stale): confirmed `next.config.ts`
+already contains everything `next.config (2).ts` has and more
+(the `(2)` file was missing the `images.remotePatterns` Supabase
+hostname entry, the SVG/CSP image config, and the documented
+`experimental.serverActions.bodySizeLimit` fix for the >1MB image
+upload bug) — `next.config (2).ts` was the stale duplicate, not a
+newer version. Removed it; no code change, both were pre-existing.
+Per item 6's own prior note, this is now the fifth occurrence — still
+recommend fixing this at whatever export/upload step produces the
+zip, rather than re-patching it every session.
+
+16b. `PROJECT_STATUS.md` was found truncated mid-sentence at the very
+end of the file (the VENDOR-03 M2 entry's "Delivered:" list cuts off
+after "...one consolidated Zod schema/form covering owner account +
+property details + facilities checklist (from M1's catalog) +
+payout/contact, submitted\nin " — no closing text, no M3 entry, no M4
+entry, despite the same file's own "Next Development Phase" summary
+line claiming "M3 partially covered, M4 not started"). Root cause not
+determined — could be an export/copy truncation (same family of
+issue as item 6/16a) or content that was genuinely never written.
+Fixed by completing the M2 entry's file list from CHANGELOG.md's
+matching 2026-08-28 entry (the two were never actually in conflict,
+just cut off) and adding real M3/M4 entries — see PROJECT_STATUS.md's
+VENDOR-03 section, this session.
+
+16c. Nowhere in PROJECT_STATUS.md, SESSION_HANDOFF.md, CHANGELOG.md,
+or DEVELOPMENT_BIBLE.md is VENDOR-03 M3 ever actually scoped — no
+milestone plan entry defines what M3 covers, only that CHANGELOG.md's
+2026-08-28 M2 entry says "property photo/ID-proof upload... no
+Storage bucket/path designed yet" was explicitly deferred out of M2.
+The "M3 partially covered" line in PROJECT_STATUS.md's Next
+Development Phase summary is therefore a dangling claim with nothing
+behind it — same class of issue as item 5's dangling citation. Not
+resolved this session (would require a product decision on M3's real
+scope, which is outside a documentation-audit session — RULE 12, no
+assumptions). Logged so the next session either scopes M3 properly
+(most likely: property photo/ID-proof upload, per the M2 deferral
+note above) or removes the dangling claim.
+
+16d. VENDOR-03 M4 (Admin Approval Queue) was found fully implemented
+on disk — `src/app/admin/hotels/pending/page.tsx`,
+`HotelRepository.getHotelsByStatus()`, and
+`getPendingHotelsAdmin`/`approveHotelAdmin`/`rejectHotelAdmin` in
+`hotel.actions.ts` — complete with its own RULE 15 audit note already
+written in the code comments, role-gated (`requireRole(['admin',
+'super_admin'])`), linked from `/admin/hotels`, and mentioned in
+`/admin`'s dashboard card description. None of this had a
+PROJECT_STATUS.md/CHANGELOG.md/SESSION_HANDOFF.md entry —
+PROJECT_STATUS.md instead claimed "M4 not started." Classic RULE 40
+gap (code shipped, docs never caught up), same pattern as CONTACT-01
+originally. No code was changed for M4 itself this session — it was
+verified against `tsc --noEmit`/`eslint` (both clean, part of this
+session's whole-project run) and backfilled into PROJECT_STATUS.md
+and CHANGELOG.md. NOT verified: no live Supabase reachable from this
+sandbox, so the approve/reject flow has not been walked through
+end-to-end against a real pending listing (RULE 21/23).
+
+Status: 16a CLOSED (filenames fixed, again). 16b CLOSED (file
+completed). 16c OPEN (needs a product scoping decision, not a code
+fix). 16d CLOSED on documentation (backfilled); the underlying M4 code
+itself remains NOT VERIFIED live per RULE 23.
+
+---
+
+17. VENDOR-BOOKING-01 (vendor-facing booking visibility) — found fully
+    implemented on disk, zero PROJECT_STATUS.md/CHANGELOG.md/
+    SESSION_HANDOFF.md entry of its own; PROJECT_STATUS.md's Pending
+    section still lists "vendor-facing booking access" as deferred
+
+What: discovered while scoping the next milestone (2026-09-17,
+continuation of the day's session, right after the item-16 audit
+above). `src/lib/auth/vendor-context.ts` (requireVendorContext() — a
+read-only counterpart to owner-context.ts's requireOwnerVendor(),
+deliberately separate per its own header comment so the write-scoped
+hotel_owner allowlist is never widened to the read-only 'vendor'
+role), `src/app/actions/vendor-booking.actions.ts`
+(getMyVendorBookings(), scoped via BookingRepository.getBookingsByVendorId()),
+`src/app/vendor/page.tsx` (redirects to /vendor/bookings — "a full
+vendor dashboard home is out of scope here" per its own comment), and
+`src/app/vendor/bookings/page.tsx` (status-filterable, paginated list)
+are all present, wired together, and role-gated
+(`requireRole(['vendor','hotel_owner','admin','super_admin'])`).
+The code's own comments explicitly say it "clos[es] the 'vendor-facing
+booking access' gap named in PROJECT_STATUS.md's Booking deferred-
+scope list" — but PROJECT_STATUS.md line 263 (Pending → Booking →
+deferred scope) still lists that exact gap as open, and CHANGELOG.md
+only mentions `src/app/vendor/bookings/page.tsx` once, in passing,
+inside PAY-04's 2026-09-17 entry (which added a nav row to an already-
+existing page, not the page itself) — the milestone that actually
+built VENDOR-BOOKING-01 has no entry of its own anywhere. Same RULE 40
+failure mode as CONTACT-01 and item 16d (VENDOR-03 M4): real,
+correctly-built feature code, shipped with no paper trail.
+
+Files: src/lib/auth/vendor-context.ts, src/app/actions/vendor-booking.actions.ts,
+src/app/vendor/page.tsx, src/app/vendor/bookings/page.tsx,
+src/lib/repositories/booking.repository.ts (getBookingsByVendorId,
+read-only, scoped to a single vendor_id).
+
+Verified this session: tsc --noEmit PASS, eslint PASS (0 errors,
+whole project, same run as item 16). Read-only (no writes) — a vendor
+cannot confirm/cancel/complete a booking from this page, by explicit
+design (see vendor-booking.actions.ts header comment — a vendor-write
+workflow is intentionally left for a future, separately-audited
+milestone). No schema change; reuses the existing bookings.vendor_id
+column populated at booking-creation time.
+
+Status: Backfilled into PROJECT_STATUS.md and CHANGELOG.md this
+session (see VENDOR-BOOKING-01 entries there) — the Pending section's
+stale "vendor-facing booking access" line removed accordingly. NOT
+verified: no live Supabase reachable in this sandbox, so no real
+vendor account has ever exercised this page end-to-end (RULE 21/23).
