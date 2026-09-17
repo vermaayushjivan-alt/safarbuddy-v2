@@ -373,6 +373,40 @@ Steps 4/5, separate future sessions per the 6-step plan in
 SESSION_HANDOFF.md. Next action: Step 3b (shared React template
 driving both the web-page view and the `@react-pdf/renderer` PDF).
 
+Step 3b (shared template — web view + PDF) CODE COMPLETE 2026-09-18
+(same day, following session). `@react-pdf/renderer` (^4.9.0) added to
+package.json — the version deferred at Step 3a. Since
+@react-pdf/renderer's Document/Page/View/Text are non-DOM primitives
+with their own layout engine, one literal JSX tree cannot serve both
+HTML and PDF output; "one shared template" is implemented instead as
+one shared data/formatting layer both renderers consume, so the two
+outputs can never drift into showing different numbers or wording for
+the same invoice. Built: src/lib/invoices/invoice-view-model.ts —
+buildInvoiceViewModel(), a pure function turning an InvoiceRecord into
+formatted display values (dates, ₹-prefixed amounts matching the
+existing site convention, a lineItems array that omits any field with
+no value rather than showing a zero row); src/components/invoices/InvoiceView.tsx
+— the customer/admin-facing web view, Tailwind-styled to match
+existing customer pages (bg-cream/text-deep/text-ink tokens from
+booking-confirmation/[id]/page.tsx); src/components/invoices/InvoiceDocument.tsx
+— the PDF equivalent, react-pdf StyleSheet restating the same palette
+by eye (react-pdf cannot consume tailwind.config directly);
+src/lib/invoices/render-invoice-pdf.ts — renderInvoicePdfBuffer(), a
+server-only helper wrapping @react-pdf/renderer's renderToBuffer for a
+future download route to call. Verified: `tsc --noEmit` and `eslint`
+both clean (project-wide, only the pre-existing untouched ProfileMenu
+`<img>` warning). Additionally ran a one-off local smoke test (not
+committed — bundled with esbuild and executed with plain node, since
+tsx's CJS-based resolver could not load @react-pdf/hyphenate's ESM
+export map) rendering InvoiceDocument with a fake InvoiceRecord end to
+end; produced a valid PDF buffer. Neither component is wired into a
+page or route yet — no download route exists to call
+renderInvoicePdfBuffer(), and InvoiceView isn't rendered by any page —
+that remains Steps 4/5 exactly as planned, not pulled forward into
+this step. Next action: Step 4 — admin UI (list + link from
+`/admin/bookings` detail, per DEVELOPMENT_BIBLE.md Section J's planned
+files list).
+
 Planned (not started) — OWNER-DASH-01 (unified owner portal),
 OFFERS-01 (owner self-service coupons), CALENDAR-01 (owner room
 availability calendar + pricing). Full RULE 15 pre-coding audit for
