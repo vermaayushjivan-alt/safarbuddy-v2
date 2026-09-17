@@ -1,9 +1,17 @@
 import { BaseRepository } from './base.repository';
 import { SupabaseClientType, DatabaseRecord } from './types';
 
-// NotificationRecord mirrors public.notifications
-// (src/db/sql/009_contact01_notifications.sql; recipient_type
-// expanded to include 'admin' by src/db/sql/016_contact03_admin_notify.sql).
+// NotificationRecord mirrors public.booking_notifications
+// (src/db/sql/009_contact01_notifications.sql originally targeted
+// public.notifications, but src/db/sql/016_contact03_admin_notify.sql
+// moved this to its own public.booking_notifications table — see that
+// migration's header comment for why: the live `public.notifications`
+// table turned out to already exist for an unrelated, generic
+// per-user notification feature (user_id/notif_type/title/message/
+// metadata jsonb schema, not referenced anywhere else in this
+// codebase), so this booking/hotel/vendor/admin delivery-tracking
+// table needed its own name instead of colliding with it).
+// recipient_type expanded to include 'admin' by the same migration.
 // One row per delivery attempt per channel — see the migration file
 // for why.
 export type NotificationChannel = 'email' | 'whatsapp' | 'dashboard';
@@ -27,7 +35,7 @@ export interface NotificationRecord extends DatabaseRecord {
 export class NotificationRepository extends BaseRepository<NotificationRecord> {
   constructor(supabase: SupabaseClientType) {
     super(supabase, {
-      tableName: 'notifications',
+      tableName: 'booking_notifications',
       softDelete: false,
     });
   }
@@ -77,7 +85,7 @@ export class NotificationRepository extends BaseRepository<NotificationRecord> {
 
   async countUnreadDashboardNotifications(): Promise<number> {
     const { count, error } = await this.supabase
-      .from('notifications')
+      .from('booking_notifications')
       .select('id', { count: 'exact', head: true })
       .eq('channel', 'dashboard')
       .is('read_at', null);
