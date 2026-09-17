@@ -36,9 +36,14 @@ Storage: Supabase Storage
   `createServiceRoleClient()` and never evaluate RLS at all, so this
   status is unaffected either way; still flag per RULE 24 before
   relying on RLS for the authenticated path.
-- notifications — added for CONTACT-01
-  (`009_contact01_notifications.sql`); RLS status: **UNVERIFIED — flag
-  per RULE 24, confirm before relying on it in production.**
+- booking_notifications — added for CONTACT-01, but under this name
+  only since CONTACT-03 (2026-09-18); originally targeted as
+  `notifications` by `009_contact01_notifications.sql`, renamed after
+  discovering that name already belongs to an unrelated, pre-existing
+  table in production (see the Migration Registry's 009 row below for
+  the full story). Created by `016_contact03_admin_notify.sql`. RLS
+  status: **UNVERIFIED — flag per RULE 24, confirm before relying on
+  it in production.**
 - vendor_payout_details — added for VENDOR-02
   (`010_vendor02_payout_kyc.sql`); one row per vendor, separate from
   `vendors` by design (see migration header). RLS: **enabled, no
@@ -152,7 +157,7 @@ production-run status, so the two can never silently drift again:
 | 006_room02_schema.sql | yes | assumed yes (ROOM-02 frozen) |
 | 007_currencies_read_policy.sql | yes | assumed yes (ROOM-03 frozen) |
 | 008_room05_booking_room_linkage.sql | **NO — missing from repo** | **NOT CONFIRMED** |
-| 009_contact01_notifications.sql | yes | **NOT CONFIRMED** |
+| 009_contact01_notifications.sql | yes | **SUPERSEDED 2026-09-18** — live `public.notifications` turned out to be a pre-existing, unrelated table (generic per-user notification feed: `user_id, channel, notif_type, title, message, metadata jsonb, is_read, ...` — confirmed via `information_schema.columns`; not referenced anywhere else in this codebase, so it belongs to something outside this project). This migration was never actually applicable in production. CONTACT-01/02/03 now use a dedicated `public.booking_notifications` table instead, created by `016_contact03_admin_notify.sql`. Do not run this file. |
 | 010_vendor02_payout_kyc.sql | yes | **CONFIRMED 2026-09-03** — public.vendor_payout_details verified live via information_schema.columns, all 12 columns match |
 | 011_vendor03_hotel_facilities.sql | yes | **CONFIRMED 2026-09-05** — public.hotel_facilities and public.hotel_facility_links verified live via information_schema.columns, all columns match |
 | 012_booking03_guest_checkout.sql | yes | **User reports run in production 2026-09-17** (INVOICE-01 Step 3a session) — not independently verified via information_schema.columns this session (no reachable Supabase instance in this sandbox, same limitation noted throughout this table). Treat as NOT CONFIRMED until checked that way. |
@@ -160,6 +165,7 @@ production-run status, so the two can never silently drift again:
 | 014_coupon01_coupons.sql | yes, but **does not match live production DDL** | **CONFIRMED 2026-09-17, via hand-applied ALTER migration, not this file verbatim** — see DOC_DEBT.md item 15 for the full incident. Summary: production already had an unrelated, differently-shaped legacy `public.coupons` table (usage_limit/per_user_limit/used_count/start_date/end_date/status columns) that this file's `CREATE TABLE IF NOT EXISTS` silently no-opped against. Reconciled live via manual `ALTER TABLE` (add new columns, backfill, drop old columns) instead of this file's DDL. This file must be rewritten to an `ALTER`-based migration matching what was actually run (RULE 32/33) — not done yet, tracked as a pending action below. Also confirmed live 2026-09-17: coupon.actions.ts's admin CRUD (`createCouponAdmin`, `updateCouponAdmin`, `setCouponActiveAdmin`, `getCouponByIdAdmin`, `getAllCouponsAdmin`) was switched from the session client to `createServiceRoleClient()` after production confirmed the session client got 0 rows on SELECT and a hard RLS-violation error on INSERT (RLS enabled, no policy, exactly as this file's own header comment already warned but the code didn't follow). |
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
 | 015_invoice01_invoices.sql | yes | **User reports run in production 2026-09-17** (same INVOICE-01 Step 3a session that added this row's update) — not independently verified via information_schema.columns this session (no reachable Supabase instance in this sandbox). Step 3a's webhook-side code (generateInvoiceForBooking) was written and type/lint-checked against this file's column list, but has NOT been exercised against the live table — verify via information_schema.columns per RULE 13/35, then a live webhook walkthrough, before trusting this as CONFIRMED. |
+| 016_contact03_admin_notify.sql | yes | **NOT YET RUN (revised 2026-09-18)** — v1 of this file tried to `alter table public.notifications` and failed live with `ERROR 42703: column "recipient_type" does not exist`, because that table name already belongs to an unrelated, pre-existing generic notification feed in production (same class of collision as 014_coupon01_coupons.sql's legacy `coupons` table, above). v2 instead creates a new `public.booking_notifications` table, and `notification.repository.ts` was updated to point at that name. Not yet run against production; verify via information_schema.columns per RULE 13/35 once it is. |
 
 Any "assumed yes" above should be spot-checked against
 `information_schema` next time that milestone's tables are touched —
