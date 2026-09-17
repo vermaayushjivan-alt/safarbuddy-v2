@@ -1,203 +1,232 @@
-import Link from "next/link";
-import { getMyVendorBookings } from "@/app/actions/vendor-booking.actions";
-import type {
-  BookingRecord,
-  BookingStatus,
-} from "@/lib/repositories/booking.repository";
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import { getCouponByIdAdmin, updateCouponAdmin, setCouponActiveAdmin } from '@/app/actions/coupon.actions';
+import { createClient } from '@/lib/supabase/server';
+import { VendorRepository } from '@/lib/repositories/vendor.repository';
 
-const STATUS_FILTERS: Array<BookingStatus | "all"> = [
-  "all",
-  "pending",
-  "confirmed",
-  "cancelled",
-  "completed",
-];
-
-function formatDate(value: string | null): string {
-  return value ?? "—";
+function toDatetimeLocal(value: string | null): string {
+  if (!value) return '';
+  return new Date(value).toISOString().slice(0, 16);
 }
 
-function bookingDates(booking: BookingRecord): string {
-  if (booking.booking_type === "hotel") {
-    return `${formatDate(booking.check_in_date)} → ${formatDate(
-      booking.check_out_date
-    )}`;
-  }
-  return formatDate(booking.travel_date);
-}
-
-function statusBadgeClass(status: string): string {
-  switch (status) {
-    case "confirmed":
-      return "bg-mist text-deep";
-    case "cancelled":
-      return "bg-red-50 text-red-600";
-    case "completed":
-      return "bg-mist text-ink/60";
-    default:
-      return "bg-orange/10 text-orange";
-  }
-}
-
-export default async function VendorBookingsPage({
+export default async function AdminEditCouponPage({
+  params,
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; status?: string }>;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
-  const params = await searchParams;
-  const page = Number(params.page ?? "1") || 1;
-  const statusParam = (params.status ?? "all") as BookingStatus | "all";
-  const status = statusParam === "all" ? undefined : statusParam;
+  const { id } = await params;
+  const { error } = await searchParams;
 
-  let bookings: BookingRecord[] = [];
-  let total = 0;
-  let totalPages = 0;
-  let hasNext = false;
-  let hasPrev = false;
-  let noVendor = false;
+  const coupon = await getCouponByIdAdmin(id);
+  if (!coupon) notFound();
 
-  try {
-    const result = await getMyVendorBookings(page, 20, status);
-    bookings = result.data;
-    total = result.total;
-    totalPages = result.totalPages;
-    hasNext = result.hasNext;
-    hasPrev = result.hasPrev;
-  } catch (error) {
-    if (error instanceof Error && error.message === "NO_VENDOR_FOR_OWNER") {
-      noVendor = true;
-    } else {
-      throw error;
+  // Captured as a plain const so the hoisted `'use server'` function
+  // declarations below don't need TypeScript to narrow `coupon` past
+  // notFound() across a closure boundary — see handleUpdate/
+  // handleToggleActive.
+  const currentIsActive = coupon.is_active;
+
+  const supabase = await createClient();
+  const vendorRepo = new VendorRepository(supabase);
+  const { data: vendors } = await vendorRepo.getAllVendors(1, 200);
+
+  async function handleUpdate(formData: FormData) {
+    'use server';
+
+    const result = await updateCouponAdmin(id, {
+      code: formData.get('code') as string,
+      description: (formData.get('description') as string) || '',
+      discount_type: formData.get('discount_type') as 'percentage' | 'flat',
+      discount_value: Number(formData.get('discount_value')),
+      max_discount_amount: Number(formData.get('max_discount_amount')) || null,
+      min_booking_amount: Number(formData.get('min_booking_amount')) || null,
+      scope: formData.get('scope') as 'global' | 'vendor',
+      vendor_id: (formData.get('vendor_id') as string) || '',
+      valid_from: (formData.get('valid_from') as string) || '',
+      valid_until: (formData.get('valid_until') as string) || '',
+      is_active: currentIsActive,
+    });
+
+    if (!result.success) {
+      redirect(`/admin/coupons/${id}?error=${encodeURIComponent(result.error)}`);
     }
+
+    redirect('/admin/coupons');
   }
 
-  if (noVendor) {
-    return (
-      <div className="mx-auto max-w-6xl px-6 py-12">
-        <h1 className="font-display text-3xl text-deep">Bookings</h1>
-        <p className="mt-4 text-[14px] text-ink/60">
-          No vendor account is linked to this login yet, so there are no
-          bookings to show here.
-        </p>
-      </div>
-    );
+  async function handleToggleActive() {
+    'use server';
+    await setCouponActiveAdmin(id, !currentIsActive);
+    redirect('/admin/coupons');
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-12">
-      <div className="mb-6 flex items-center gap-4 text-[13px]">
-        <Link href="/vendor/bookings" className="focus-ring font-semibold text-deep underline">
-          Bookings
-        </Link>
-        <Link href="/vendor/payments" className="focus-ring font-semibold text-deep hover:underline">
-          Payments Received
-        </Link>
-      </div>
+    <div className="mx-auto max-w-3xl px-6 py-12">
+      <Link href="/admin/coupons" className="focus-ring mb-6 inline-block text-[13px] font-semibold text-deep hover:underline">
+        ← All coupons
+      </Link>
 
-      <div className="mb-8 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl text-deep">Bookings</h1>
-          <p className="mt-2 text-[14px] text-ink/60">
-            {total} booking{total === 1 ? "" : "s"} across your properties
-          </p>
-        </div>
-      </div>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((filter) => (
-          <Link
-            key={filter}
-            href={`/vendor/bookings?status=${filter}`}
-            className={`focus-ring rounded-full border px-3.5 py-1.5 text-[12px] font-semibold capitalize transition ${
-              statusParam === filter
-                ? "border-deep bg-deep text-cream"
-                : "border-deep/15 text-deep hover:bg-mist"
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="font-display text-3xl text-deep">{coupon.code}</h1>
+        <form action={handleToggleActive}>
+          <button
+            type="submit"
+            className={`focus-ring rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition ${
+              coupon.is_active
+                ? 'border-red-300 text-red-700 hover:bg-red-50'
+                : 'border-green-300 text-green-700 hover:bg-green-50'
             }`}
           >
-            {filter}
-          </Link>
-        ))}
+            {coupon.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+        </form>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-deep/15 bg-white">
-        <table className="w-full text-left text-[13px]">
-          <thead className="border-b border-deep/10 bg-mist text-[11px] uppercase tracking-wide text-ink/50">
-            <tr>
-              <th className="px-4 py-3 font-heading font-semibold">Type</th>
-              <th className="px-4 py-3 font-heading font-semibold">Dates</th>
-              <th className="px-4 py-3 font-heading font-semibold">Guests</th>
-              <th className="px-4 py-3 font-heading font-semibold">Price</th>
-              <th className="px-4 py-3 font-heading font-semibold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bookings.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-ink/50">
-                  No bookings found.
-                </td>
-              </tr>
-            ) : (
-              bookings.map((booking) => (
-                <tr
-                  key={booking.id}
-                  className="border-b border-deep/10 last:border-0 align-top"
-                >
-                  <td className="px-4 py-3 font-medium text-deep capitalize">
-                    {booking.booking_type}
-                  </td>
-                  <td className="px-4 py-3 text-ink/70">
-                    {bookingDates(booking)}
-                  </td>
-                  <td className="px-4 py-3 text-ink/70">
-                    {booking.num_guests}
-                  </td>
-                  <td className="px-4 py-3 text-ink/70">
-                    {booking.currency}{" "}
-                    {Number(booking.price_snapshot).toLocaleString("en-IN")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${statusBadgeClass(
-                        booking.status
-                      )}`}
-                    >
-                      {booking.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <Link
-            href={`/vendor/bookings?page=${page - 1}&status=${statusParam}`}
-            aria-disabled={!hasPrev}
-            className={`focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep ${
-              hasPrev ? "hover:bg-mist" : "pointer-events-none opacity-40"
-            }`}
-          >
-            Previous
-          </Link>
-          <span className="text-[13px] text-ink/60">
-            Page {page} of {totalPages}
-          </span>
-          <Link
-            href={`/vendor/bookings?page=${page + 1}&status=${statusParam}`}
-            aria-disabled={!hasNext}
-            className={`focus-ring rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep ${
-              hasNext ? "hover:bg-mist" : "pointer-events-none opacity-40"
-            }`}
-          >
-            Next
-          </Link>
-        </div>
+      {error && (
+        <p className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-[13px] text-red-700">
+          {error}
+        </p>
       )}
+
+      <form
+        action={handleUpdate}
+        className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-deep/15 bg-white p-5"
+      >
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">Code</span>
+          <input
+            type="text"
+            name="code"
+            defaultValue={coupon.code}
+            required
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] uppercase text-deep outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">Description (optional)</span>
+          <input
+            type="text"
+            name="description"
+            defaultValue={coupon.description ?? ''}
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">Discount type</span>
+          <select
+            name="discount_type"
+            defaultValue={coupon.discount_type}
+            required
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          >
+            <option value="percentage">Percentage (%)</option>
+            <option value="flat">Flat amount (₹)</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">Discount value</span>
+          <input
+            type="number"
+            name="discount_value"
+            step="0.01"
+            min="0.01"
+            defaultValue={coupon.discount_value}
+            required
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">
+            Max discount cap ₹ (percentage only, optional)
+          </span>
+          <input
+            type="number"
+            name="max_discount_amount"
+            step="0.01"
+            min="0.01"
+            defaultValue={coupon.max_discount_amount ?? ''}
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">
+            Minimum booking amount ₹ (optional)
+          </span>
+          <input
+            type="number"
+            name="min_booking_amount"
+            step="0.01"
+            min="0.01"
+            defaultValue={coupon.min_booking_amount ?? ''}
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">Scope</span>
+          <select
+            name="scope"
+            defaultValue={coupon.scope}
+            required
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          >
+            <option value="global">Global — all hotels &amp; packages</option>
+            <option value="vendor">Specific vendor only</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">
+            Vendor (only if scope = specific vendor)
+          </span>
+          <select
+            name="vendor_id"
+            defaultValue={coupon.vendor_id ?? ''}
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          >
+            <option value="">— none —</option>
+            {vendors.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.vendor_name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">Valid from (optional)</span>
+          <input
+            type="datetime-local"
+            name="valid_from"
+            defaultValue={toDatetimeLocal(coupon.valid_from)}
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-[12px] font-semibold text-deep">Valid until (optional)</span>
+          <input
+            type="datetime-local"
+            name="valid_until"
+            defaultValue={toDatetimeLocal(coupon.valid_until)}
+            className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+          />
+        </label>
+
+        <button
+          type="submit"
+          className="focus-ring col-span-2 mt-2 rounded-lg bg-deep px-4 py-2 text-[13px] font-semibold text-cream transition hover:opacity-90"
+        >
+          Save Changes
+        </button>
+      </form>
     </div>
   );
-                                                                                                              }
-
+}
