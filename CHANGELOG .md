@@ -4,6 +4,114 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-17 — COUPON-01 (Discount Coupons) — new milestone
+
+Status: CODE COMPLETE, NOT VERIFIED IN PRODUCTION (migration 014 not
+yet run).
+
+Scope confirmed in chat before coding: both percentage and flat
+coupons (admin picks per coupon), admin decides per coupon whether it
+is global or scoped to one vendor, applies to both hotel and package
+bookings, no usage-count limit (simple active/inactive on-off switch
+only).
+
+RULE 15 audit performed in chat session before coding — critical
+finding: bookings.subtotal/discount/coupon_discount/grand_total already
+exist live, but (a) grand_total is a generated column with no recorded
+formula in any migration (RULE 13 — unverified schema, left untouched),
+and (b) more importantly, the amount actually charged via Cashfree is
+read from bookings.price_snapshot (see payment.actions.ts), which is
+completely disconnected from those columns. Writing a coupon amount
+into coupon_discount would have displayed a "discount" that never
+actually reduced what the customer pays — a real, pre-existing gap in
+the schema, surfaced while scoping this milestone rather than
+introduced by it. Fix: the coupon discount is subtracted directly from
+price_snapshot before a booking is created; three new columns on
+bookings (coupon_id, coupon_code, coupon_discount_amount) exist purely
+as a record of what was used, not part of the charge calculation.
+
+Files changed:
+- src/db/sql/014_coupon01_coupons.sql (new) — public.coupons (code,
+  discount_type percentage|flat, discount_value, optional
+  max_discount_amount / min_booking_amount, scope global|vendor,
+  vendor_id, valid_from/valid_until, is_active) plus coupon_id /
+  coupon_code / coupon_discount_amount on bookings. Scope keys off
+  vendor_id rather than hotel_id specifically because vendor_id is the
+  one column populated on both hotel and package bookings alike (see
+  createBooking()), so one scope column covers both booking types
+  without separate hotel-only/package-only paths. Case-insensitive
+  unique index on upper(code). RLS enabled, no policy — same pattern as
+  vendor_payout_details/vendor_settlements.
+- src/lib/coupons/coupon-discount.ts (new) — computeCouponDiscount(),
+  pure function: percentage or flat, capped by max_discount_amount,
+  and always leaves at least ₹1 payable.
+- src/lib/repositories/coupon.repository.ts (new) — CouponRepository:
+  createCoupon, updateCoupon, getCouponById, getCouponByCode
+  (case-insensitive), getAllCouponsAdmin (paginated, vendor name
+  embedded), getUsageCount (counts bookings referencing a coupon —
+  informational only, since no limit is enforced).
+- src/app/actions/coupon.actions.ts (new) — admin CRUD
+  (createCouponAdmin, updateCouponAdmin, setCouponActiveAdmin,
+  getCouponByIdAdmin, getAllCouponsAdmin) using createClient() (session
+  client, matching the existing vendor-payout.actions.ts /
+  vendor-settlement.actions.ts convention for RLS-enabled/no-policy
+  tables — see "Open question" below); and the checkout-facing path:
+  resolveCouponForBooking() (plain function, not itself a Server
+  Action — imported directly by booking.actions.ts) and
+  validateCouponPublic() (the Server Action BookingForm calls for its
+  live preview). Both always use createServiceRoleClient(), since this
+  must work identically for a guest checkout with zero session.
+- src/lib/repositories/booking.repository.ts — BookingRecord /
+  DatabaseBookingRow / mapBooking() / createBooking() all gained
+  coupon_id, coupon_code, coupon_discount_amount (informational only,
+  documented inline as NOT part of the charge).
+- src/app/actions/booking.actions.ts — createBookingBaseSchema gained
+  an optional coupon_code; createBooking() calls
+  resolveCouponForBooking() once priceSnapshot is finalized for either
+  the hotel or package branch (including the ROOM-05 room-specific
+  price override), re-deriving the discount from scratch against its
+  own server-resolved subtotal — never trusting any discount amount a
+  client-side preview may have shown — then subtracts it from
+  priceSnapshot before the booking is inserted.
+- src/app/admin/coupons/page.tsx (new) — list (code, discount, scope,
+  usage count, active/inactive) + a create form.
+- src/app/admin/coupons/[id]/page.tsx (new) — edit form +
+  activate/deactivate toggle.
+- src/app/admin/page.tsx — added a "Coupons" card to the admin
+  dashboard grid.
+- src/components/booking/BookingForm.tsx — added an "Apply Coupon"
+  input with a live preview (calls validateCouponPublic with the
+  price already shown on the page as the subtotal) showing the
+  resulting payable amount, and sends the applied code (never a
+  discount amount) as part of the booking submission.
+- src/app/hotels/[slug]/book/page.tsx,
+  src/app/packages/[id]/book/page.tsx — both now pass their
+  hotel's/package's vendor_id into BookingForm so a vendor-scoped
+  coupon's live preview resolves correctly (this has no bearing on
+  what's actually charged either way — see above).
+
+Open question (shared with PAY-04, not decided in this milestone):
+admin actions for coupons, vendor_settlements, and vendor_payout_details
+all use the session client (createClient()) against tables that have
+RLS enabled with no policy defined. Whether this actually works for an
+authenticated admin, or has been silently failing since VENDOR-02, is
+unverified — flagged here rather than silently changed, since deciding
+the real access pattern (a policy keyed on JWT admin role vs. routing
+all three through service-role) is a cross-cutting decision, not a
+per-milestone one.
+
+Not done (explicitly out of scope): usage limits (per product decision
+— on/off only), coupon stacking (only one code per booking), any UI on
+the /packages listing/detail pages to show "coupon available" — this is
+manual code-entry only for now.
+
+Verified clean: tsc --noEmit PASS, eslint PASS (0 errors) across all
+new/changed files, including BookingForm.tsx and the two booking pages.
+NOT verified: migration 014 not yet run in production, no live
+functional walkthrough (applying a real coupon at checkout, admin
+create/edit/deactivate, and the final charged amount all still need an
+end-to-end test once the migration is live).
+
 2026-09-17 — PAY-04 (Manual Settlement Tracking) — new milestone
 
 Status: CODE COMPLETE, NOT VERIFIED IN PRODUCTION (migration 013 not
