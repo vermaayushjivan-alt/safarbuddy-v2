@@ -1,179 +1,173 @@
-'use server';
-
-// PAY-04 — Manual Settlement Tracking.
-//
-// Admin logs a manual payout to a vendor (bank/UPI transfer sent
-// outside the app) as a "settlement", generating a receipt the vendor
-// can see on their own dashboard. Due amount = sum of
-// payments.vendor_payout_amount for the vendor's successful bookings,
-// minus the sum of settlements already logged for them. See RULE 15
-// audit in migration 013 / commission.ts for the full design reasoning.
-//
-// Schema defined inline here, matching vendor-payout.actions.ts's own
-// convention (this repo has no src/lib/validations/ directory — see
-// that file's header comment).
-
-import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth/session';
-import { requireVendorContext } from '@/lib/auth/vendor-context';
-import { PaymentRepository } from '@/lib/repositories/payment.repository';
-import { VendorRepository, type VendorRecord } from '@/lib/repositories/vendor.repository';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import {
-  VendorSettlementRepository,
-  type VendorSettlementRecord,
-} from '@/lib/repositories/vendor-settlement.repository';
-import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
+  getVendorDueSummaryAdmin,
+  getSettlementsByVendorAdmin,
+  markSettlementPaidAdmin,
+} from '@/app/actions/vendor-settlement.actions';
 
-export interface VendorDueSummary {
-  vendor: VendorRecord;
-  totalEarned: number;
-  totalSettled: number;
-  due: number;
+function formatMoney(value: number): string {
+  return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-async function buildDueSummary(
-  vendor: VendorRecord,
-  paymentRepo: PaymentRepository,
-  settlementRepo: VendorSettlementRepository
-): Promise<VendorDueSummary> {
-  const [totalEarned, totalSettled] = await Promise.all([
-    paymentRepo.getSuccessfulVendorPayoutTotal(vendor.id),
-    settlementRepo.getTotalSettledForVendor(vendor.id),
-  ]);
-
-  return {
-    vendor,
-    totalEarned,
-    totalSettled,
-    due: Math.round((totalEarned - totalSettled) * 100) / 100,
-  };
-}
-
-// --- Admin: due summary across all vendors ---
-// Loops per-vendor rather than a single aggregate query — fine at the
-// current/expected scale (tens of hotels, per RULE 15 note in migration
-// 013). Revisit with a real SQL view if vendor count grows a lot.
-export async function getAllVendorDueSummariesAdmin(
-  page: number = 1,
-  limit: number = 20
-): Promise<{
-  data: VendorDueSummary[];
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}> {
-  await requireRole(['admin', 'super_admin']);
-
-  const supabase = await createClient();
-  const vendorRepo = new VendorRepository(supabase);
-  const paymentRepo = new PaymentRepository(supabase);
-  const settlementRepo = new VendorSettlementRepository(supabase);
-
-  const vendorPage = await vendorRepo.getAllVendors(page, limit);
-
-  const data = await Promise.all(
-    vendorPage.data.map((vendor) => buildDueSummary(vendor, paymentRepo, settlementRepo))
-  );
-
-  return { ...vendorPage, data };
-}
-
-// --- Admin: one vendor's due summary + settlement history ---
-export async function getVendorDueSummaryAdmin(vendorId: string): Promise<VendorDueSummary> {
-  await requireRole(['admin', 'super_admin']);
-
-  const supabase = await createClient();
-  const vendorRepo = new VendorRepository(supabase);
-  const paymentRepo = new PaymentRepository(supabase);
-  const settlementRepo = new VendorSettlementRepository(supabase);
-
-  const vendor = await vendorRepo.getVendorById(vendorId);
-
-  if (!vendor) {
-    throw new Error('Vendor not found.');
-  }
-
-  return buildDueSummary(vendor, paymentRepo, settlementRepo);
-}
-
-export async function getSettlementsByVendorAdmin(
-  vendorId: string,
-  page: number = 1,
-  limit: number = 20
-) {
-  await requireRole(['admin', 'super_admin']);
-  const supabase = await createClient();
-  const repo = new VendorSettlementRepository(supabase);
-  return repo.getSettlementsByVendorId(vendorId, page, limit);
-}
-
-// --- Admin: log a manual payout ---
-const markSettlementPaidSchema = z.object({
-  vendor_id: z.string().uuid(),
-  amount: z.coerce.number().positive('Enter an amount greater than 0.'),
-  reference_note: z.preprocess(emptyToNull, z.string().max(500).nullable().optional()),
-  paid_at: z.preprocess(emptyToNull, z.string().nullable().optional()),
-});
-
-export type MarkSettlementPaidInput = z.infer<typeof markSettlementPaidSchema>;
-
-export async function markSettlementPaidAdmin(
-  input: MarkSettlementPaidInput
-): Promise<ActionResult<VendorSettlementRecord>> {
-  return runAction(async () => {
-    const current = await requireRole(['admin', 'super_admin']);
-    const parsed = markSettlementPaidSchema.parse(input);
-
-    const supabase = await createClient();
-    const vendorRepo = new VendorRepository(supabase);
-    const paymentRepo = new PaymentRepository(supabase);
-    const settlementRepo = new VendorSettlementRepository(supabase);
-
-    const vendor = await vendorRepo.getVendorById(parsed.vendor_id);
-
-    if (!vendor) {
-      throw new Error('Vendor not found.');
-    }
-
-    // Guard against logging more than is actually owed — a fixed
-    // 20%-commission due amount is the only source of truth here, so
-    // an admin cannot accidentally record a payout larger than what
-    // the vendor has actually earned.
-    const summary = await buildDueSummary(vendor, paymentRepo, settlementRepo);
-
-    if (parsed.amount > summary.due + 0.01) {
-      throw new Error(
-        `Amount exceeds what's due (₹${summary.due.toFixed(2)} pending for this vendor).`
-      );
-    }
-
-    return settlementRepo.createSettlement({
-      vendor_id: parsed.vendor_id,
-      amount: parsed.amount,
-      reference_note: parsed.reference_note ?? null,
-      paid_at: parsed.paid_at ?? new Date().toISOString(),
-      created_by: current.id,
-    });
+function formatDateTime(value: string | null): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
   });
 }
 
-// --- Vendor/hotel owner: their own receipt history ---
-export async function getMyReceivedPayments(
-  page: number = 1,
-  limit: number = 20
-): Promise<{
-  data: VendorSettlementRecord[];
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}> {
-  const { vendor } = await requireVendorContext();
-  const supabase = await createClient();
-  const repo = new VendorSettlementRepository(supabase);
-  return repo.getSettlementsByVendorId(vendor.id, page, limit);
+export default async function AdminVendorSettlementPage({
+  params,
+}: {
+  params: Promise<{ vendorId: string }>;
+}) {
+  const { vendorId } = await params;
+
+  let summary;
+  try {
+    summary = await getVendorDueSummaryAdmin(vendorId);
+  } catch {
+    notFound();
+  }
+
+  const { data: settlements, total } = await getSettlementsByVendorAdmin(vendorId, 1, 50);
+
+  async function handleMarkPaid(formData: FormData) {
+    'use server';
+
+    const amount = formData.get('amount') as string;
+    const reference_note = (formData.get('reference_note') as string) || '';
+
+    const result = await markSettlementPaidAdmin({
+      vendor_id: vendorId,
+      amount: Number(amount),
+      reference_note,
+      paid_at: null,
+    });
+
+    if (!result.success) {
+      // Server Actions inline in a page can't easily surface a toast
+      // here without a client component — matches this repo's existing
+      // pattern of admin action forms (see booking.actions.ts's
+      // handleConfirm/handleCancel, which also swallow the ActionResult
+      // shape rather than adding client-side state for a first pass).
+      console.error('[markSettlementPaidAdmin] failed:', result.error);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl px-6 py-12">
+      <Link
+        href="/admin/settlements"
+        className="focus-ring mb-6 inline-block text-[13px] font-semibold text-deep hover:underline"
+      >
+        ← All vendors
+      </Link>
+
+      <h1 className="font-display text-3xl text-deep">{summary.vendor.vendor_name}</h1>
+
+      <div className="mt-6 grid grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-deep/15 bg-white p-4">
+          <p className="text-[11px] uppercase tracking-wide text-ink/50">Total Earned</p>
+          <p className="mt-1 font-display text-xl text-deep">{formatMoney(summary.totalEarned)}</p>
+        </div>
+        <div className="rounded-2xl border border-deep/15 bg-white p-4">
+          <p className="text-[11px] uppercase tracking-wide text-ink/50">Already Paid</p>
+          <p className="mt-1 font-display text-xl text-deep">{formatMoney(summary.totalSettled)}</p>
+        </div>
+        <div className="rounded-2xl border border-orange/30 bg-orange/5 p-4">
+          <p className="text-[11px] uppercase tracking-wide text-ink/50">Due Now</p>
+          <p className="mt-1 font-display text-xl text-orange">{formatMoney(summary.due)}</p>
+        </div>
+      </div>
+
+      {summary.due > 0 && (
+        <form
+          action={handleMarkPaid}
+          className="mt-8 rounded-2xl border border-deep/15 bg-white p-5"
+        >
+          <h2 className="font-heading text-[15px] font-semibold text-deep">
+            Mark a payment as sent
+          </h2>
+          <p className="mt-1 text-[13px] text-ink/60">
+            After you&apos;ve actually transferred the money to this owner (bank/UPI), log it here to
+            generate their receipt.
+          </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-[12px] font-semibold text-deep">Amount paid (₹)</span>
+              <input
+                type="number"
+                name="amount"
+                step="0.01"
+                min="0.01"
+                max={summary.due}
+                defaultValue={summary.due.toFixed(2)}
+                required
+                className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[12px] font-semibold text-deep">
+                Reference (UPI/bank txn ID — optional)
+              </span>
+              <input
+                type="text"
+                name="reference_note"
+                placeholder="e.g. UPI Ref 123456789"
+                className="focus-ring mt-1 w-full rounded-lg border border-deep/15 px-3 py-2 text-[13px] text-deep outline-none"
+              />
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            className="focus-ring mt-4 rounded-lg bg-deep px-4 py-2 text-[13px] font-semibold text-cream transition hover:opacity-90"
+          >
+            Mark as Paid
+          </button>
+        </form>
+      )}
+
+      <div className="mt-8">
+        <h2 className="font-heading text-[15px] font-semibold text-deep">
+          Receipt history ({total})
+        </h2>
+
+        <div className="mt-3 overflow-hidden rounded-2xl border border-deep/15 bg-white">
+          <table className="w-full text-left text-[13px]">
+            <thead className="border-b border-deep/10 bg-mist text-[11px] uppercase tracking-wide text-ink/50">
+              <tr>
+                <th className="px-4 py-3 font-heading font-semibold">Receipt No.</th>
+                <th className="px-4 py-3 font-heading font-semibold">Amount</th>
+                <th className="px-4 py-3 font-heading font-semibold">Reference</th>
+                <th className="px-4 py-3 font-heading font-semibold">Paid On</th>
+              </tr>
+            </thead>
+            <tbody>
+              {settlements.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-ink/50">
+                    No settlements logged yet.
+                  </td>
+                </tr>
+              ) : (
+                settlements.map((s) => (
+                  <tr key={s.id} className="border-b border-deep/10 last:border-0">
+                    <td className="px-4 py-3 font-medium text-deep">{s.receipt_number}</td>
+                    <td className="px-4 py-3 text-ink/70">{formatMoney(Number(s.amount))}</td>
+                    <td className="px-4 py-3 text-ink/70">{s.reference_note ?? '—'}</td>
+                    <td className="px-4 py-3 text-ink/70">{formatDateTime(s.paid_at)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }
-
-
