@@ -51,9 +51,12 @@ Storage: Supabase Storage
   Your Property" flow (M2). RLS: **enabled in the migration itself**
   (not deferred) — see Row Level Security section below.
 - invoices — added for INVOICE-01 Step 2
-  (`015_invoice01_invoices.sql`), **not yet run in production**. One
-  snapshot row per booking (booking_id UNIQUE), generated inside the
-  Cashfree webhook after confirmBooking() (Step 3, not yet built).
+  (`015_invoice01_invoices.sql`), **user reports run in production
+  2026-09-17, not independently verified this session** (see Migration
+  Registry row below). One snapshot row per booking (booking_id
+  UNIQUE), generated inside the Cashfree webhook after confirmBooking()
+  (Step 3a code written and type/lint-checked 2026-09-17 — see
+  SESSION_HANDOFF.md — not yet exercised against a live webhook).
   RLS: **enabled, no policy** — same pattern as
   vendor_payout_details/vendor_settlements/coupons. See Row Level
   Security section below.
@@ -152,11 +155,11 @@ production-run status, so the two can never silently drift again:
 | 009_contact01_notifications.sql | yes | **NOT CONFIRMED** |
 | 010_vendor02_payout_kyc.sql | yes | **CONFIRMED 2026-09-03** — public.vendor_payout_details verified live via information_schema.columns, all 12 columns match |
 | 011_vendor03_hotel_facilities.sql | yes | **CONFIRMED 2026-09-05** — public.hotel_facilities and public.hotel_facility_links verified live via information_schema.columns, all columns match |
-| 012_booking03_guest_checkout.sql | yes | **NOT CONFIRMED** |
-| 013_pay04_manual_settlement.sql | yes | **PARTIALLY CONFIRMED 2026-09-17** — /admin/settlements loads without error, but this was not independently verified via information_schema.columns this session, and vendor_settlements has the identical "RLS enabled, no policy" gap discovered on coupons the same session (see row below) — vendor-settlement.actions.ts still reads via the session client (`createClient()`), not the service role client. Flagged as DOC_DEBT item 15b: the page not erroring is not proof the session client can actually see real rows; must be independently re-checked before trusting this as CONFIRMED. |
+| 012_booking03_guest_checkout.sql | yes | **User reports run in production 2026-09-17** (INVOICE-01 Step 3a session) — not independently verified via information_schema.columns this session (no reachable Supabase instance in this sandbox, same limitation noted throughout this table). Treat as NOT CONFIRMED until checked that way. |
+| 013_pay04_manual_settlement.sql | yes | **PARTIALLY CONFIRMED 2026-09-17** — /admin/settlements loads without error, but this was not independently verified via information_schema.columns this session, and vendor_settlements has the identical "RLS enabled, no policy" gap discovered on coupons the same session (see row below) — vendor-settlement.actions.ts still reads via the session client (`createClient()`), not the service role client. Flagged as DOC_DEBT item 15b: the page not erroring is not proof the session client can actually see real rows; must be independently re-checked before trusting this as CONFIRMED. **User additionally reports re-running this migration 2026-09-17 (INVOICE-01 Step 3a session)** — still not independently verified via information_schema.columns; DOC_DEBT item 15b's caution stands. |
 | 014_coupon01_coupons.sql | yes, but **does not match live production DDL** | **CONFIRMED 2026-09-17, via hand-applied ALTER migration, not this file verbatim** — see DOC_DEBT.md item 15 for the full incident. Summary: production already had an unrelated, differently-shaped legacy `public.coupons` table (usage_limit/per_user_limit/used_count/start_date/end_date/status columns) that this file's `CREATE TABLE IF NOT EXISTS` silently no-opped against. Reconciled live via manual `ALTER TABLE` (add new columns, backfill, drop old columns) instead of this file's DDL. This file must be rewritten to an `ALTER`-based migration matching what was actually run (RULE 32/33) — not done yet, tracked as a pending action below. Also confirmed live 2026-09-17: coupon.actions.ts's admin CRUD (`createCouponAdmin`, `updateCouponAdmin`, `setCouponActiveAdmin`, `getCouponByIdAdmin`, `getAllCouponsAdmin`) was switched from the session client to `createServiceRoleClient()` after production confirmed the session client got 0 rows on SELECT and a hard RLS-violation error on INSERT (RLS enabled, no policy, exactly as this file's own header comment already warned but the code didn't follow). |
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
-| 015_invoice01_invoices.sql | yes | **NOT RUN** — created 2026-09-17 (INVOICE-01 Step 2), no production run yet |
+| 015_invoice01_invoices.sql | yes | **User reports run in production 2026-09-17** (same INVOICE-01 Step 3a session that added this row's update) — not independently verified via information_schema.columns this session (no reachable Supabase instance in this sandbox). Step 3a's webhook-side code (generateInvoiceForBooking) was written and type/lint-checked against this file's column list, but has NOT been exercised against the live table — verify via information_schema.columns per RULE 13/35, then a live webhook walkthrough, before trusting this as CONFIRMED. |
 
 Any "assumed yes" above should be spot-checked against
 `information_schema` next time that milestone's tables are touched —
