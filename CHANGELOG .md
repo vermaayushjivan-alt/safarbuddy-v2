@@ -4,6 +4,86 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-17 — PAY-04 (Manual Settlement Tracking) — new milestone
+
+Status: CODE COMPLETE, NOT VERIFIED IN PRODUCTION (migration 013 not
+yet run).
+
+Context: the project owner will pay hotel owners manually (bank/UPI,
+outside the app) until enough hotels (~50) are onboarded to justify
+wiring the real Cashfree Payouts beneficiary flow (vendor_payout_details,
+migration 010 — also still not run in production, and untouched by this
+milestone). This closes the gap by (1) recording, per successful
+payment, a fixed 20% platform-commission / 80% vendor-payout split, and
+(2) letting an admin log a manual payout as a "settlement" once money
+has actually been sent, generating a receipt the vendor can see.
+
+RULE 15 audit performed in chat session before coding (Existing
+Architecture / Root Cause / Files / Why / Minimal Plan) — summary:
+payments table had no commission concept at all; commission rate is
+fixed (20%, no per-vendor override, explicit product decision) so it
+lives only in code (src/lib/payments/commission.ts), not a settings
+table or a per-vendor column.
+
+Files changed:
+- src/db/sql/013_pay04_manual_settlement.sql (new) — adds
+  platform_commission_amount / vendor_payout_amount snapshot columns to
+  payments; creates public.vendor_settlements (one row per manual
+  payout logged by an admin, receipt_number auto-generated via a
+  bigserial + generated column, e.g. SB-RCPT-00001). RLS enabled, no
+  public/authenticated policy — same access pattern as
+  vendor_payout_details (migration 010).
+- src/lib/payments/commission.ts (new) — PLATFORM_COMMISSION_RATE
+  (0.20) and computeCommissionSplit(amount), the single place the rate
+  is encoded.
+- src/lib/repositories/payment.repository.ts — PaymentRecord and
+  UpdatePaymentStatusData gained platform_commission_amount /
+  vendor_payout_amount; new getSuccessfulVendorPayoutTotal(vendorId)
+  (joins through bookings.vendor_id since payments has no vendor_id of
+  its own; fetches and sums in application code rather than a SQL
+  aggregate — acceptable at current/expected vendor-count scale, flagged
+  in the method's own comment to revisit if that assumption stops
+  holding).
+- src/app/api/public/cashfree/webhook/route.ts — on a "success"
+  transition, computes the commission split from the already-verified
+  payment amount and persists it alongside the existing status update.
+  No change to failure/pending/cancelled handling.
+- src/lib/repositories/vendor-settlement.repository.ts (new) —
+  VendorSettlementRepository: createSettlement, getSettlementsByVendorId,
+  getTotalSettledForVendor, getAllSettlementsAdmin (admin list with
+  embedded vendor name).
+- src/app/actions/vendor-settlement.actions.ts (new) — admin actions
+  (getAllVendorDueSummariesAdmin, getVendorDueSummaryAdmin,
+  getSettlementsByVendorAdmin, markSettlementPaidAdmin — rejects an
+  amount greater than what's actually due) and a vendor-facing action
+  (getMyReceivedPayments, via requireVendorContext(), same read-only
+  scoping pattern as VENDOR-BOOKING-01).
+- src/app/admin/settlements/page.tsx (new) — all vendors, total earned /
+  already paid / due, paginated.
+- src/app/admin/settlements/[vendorId]/page.tsx (new) — one vendor's due
+  summary, a "Mark as Paid" form (amount defaults to the full due
+  amount, capped at it), and their full receipt history.
+- src/app/vendor/payments/page.tsx (new) — vendor-facing "Payments
+  Received" list (receipt number, amount, date).
+- src/app/vendor/bookings/page.tsx — added a small Bookings / Payments
+  Received nav row (no shared vendor layout nav exists yet, so this is
+  duplicated inline on both pages, matching how minimal the rest of
+  /vendor currently is).
+- src/app/admin/page.tsx — added a "Settlements" card to the admin
+  dashboard grid.
+
+Not done (explicitly out of scope this milestone): any real bank
+transfer or Cashfree Payouts wiring — this only calculates the split and
+lets the admin record what they already sent manually. Editable/
+per-vendor commission rates. Voiding or editing a logged settlement
+(none built — if a mistake is made, it needs a manual DB fix for now).
+
+Verified clean: tsc --noEmit PASS, eslint PASS (0 errors) across all
+new/changed files. NOT verified: migration 013 not yet run in
+production, no live functional walkthrough (webhook success path,
+"Mark as Paid" form, and the vendor's own receipt view all still need
+a real end-to-end test once the migration is live).
+
 2026-09-11 — BOOKING-03 (Guest Checkout) — restored after regression
 
 Status: CODE COMPLETE, PARTIALLY VERIFIED.
