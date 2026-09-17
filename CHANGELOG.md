@@ -4,6 +4,128 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-17 — Audit continuation: VENDOR-BOOKING-01 backfill
+
+Status: DOCUMENTATION ONLY — no application code changed.
+
+Continuation of the same day's audit session, while scoping "what's
+the correct next milestone" per DEVELOPMENT_BIBLE.md (RULE 40 —
+undocumented code found must be logged immediately, before new scope
+is started). Found src/lib/auth/vendor-context.ts,
+src/app/actions/vendor-booking.actions.ts, src/app/vendor/page.tsx,
+src/app/vendor/bookings/page.tsx, and
+BookingRepository.getBookingsByVendorId() already fully implemented
+and wired together — a read-only vendor/hotel_owner booking-visibility
+view — with no PROJECT_STATUS.md/CHANGELOG.md/SESSION_HANDOFF.md entry
+of its own. The only prior mention was a passing one-line reference
+inside PAY-04's 2026-09-17 entry, and PROJECT_STATUS.md's Pending
+section still listed "vendor-facing booking access" as deferred scope
+despite the code's own comments explicitly claiming to close that gap.
+Full detail: DOC_DEBT.md item 17.
+
+Backfilled: PROJECT_STATUS.md gained a VENDOR-BOOKING-01 entry (Next
+Development Phase section) and had the stale "vendor-facing booking
+access" line removed from Pending → Booking → deferred scope.
+
+Verified this session: tsc --noEmit PASS, eslint PASS (0 errors,
+whole project — same run as the item-16 audit above; node_modules had
+to be reinstalled first, since the previous turn's zip export deleted
+it before packaging).
+
+NOT verified: no live Supabase reachable in this sandbox — the vendor
+bookings page has never been walked through with a real vendor
+account (RULE 21/23).
+
+Decision on "what's next": with this backfilled, invoices/vouchers is
+now the only item left in the Booking deferred-scope list with no
+code, no audit, and no documentation gap sitting in front of it — see
+whether a following session picks that up next.
+
+2026-09-17 — Audit session + CONTACT-02 (Payment-Triggered Notifications)
+
+Status: AUDIT + CODE COMPLETE. New sandbox capability this session:
+`npm install` succeeded (registry.npmjs.org reachable), so `tsc --noEmit`
+and `eslint` were run for real against the whole project — not carried
+forward from a prior session's claim, as almost every earlier entry in
+this file had to do.
+
+Audit findings (see DOC_DEBT.md item 16 for full detail):
+- 16a: mangled filenames recurred a fifth time — `CHANGELOG .md`
+  (trailing space), stray `next.config (2).ts`. Confirmed
+  `next.config (2).ts` was the stale duplicate (missing the Supabase
+  image remotePattern, the SVG/CSP config, and the documented
+  bodySizeLimit fix) before removing it — not a newer version that
+  needed merging. Renamed CHANGELOG.md back to canonical.
+- 16b: PROJECT_STATUS.md was truncated mid-sentence at end of file,
+  cutting off VENDOR-03 M2's delivered-file list and omitting M3/M4
+  entirely despite the file's own summary line claiming "M3 partially
+  covered, M4 not started." Completed the M2 entry and added real
+  M3/M4 entries.
+- 16c: VENDOR-03 M3 has never actually been scoped anywhere in the
+  docs — the "M3 partially covered" claim was dangling (same class of
+  issue as item 5). Logged, not resolved — needs a product scoping
+  decision, not a code fix.
+- 16d: VENDOR-03 M4 (Admin Approval Queue) was found fully
+  implemented on disk (src/app/admin/hotels/pending/page.tsx,
+  getPendingHotelsAdmin/approveHotelAdmin/rejectHotelAdmin in
+  hotel.actions.ts, HotelRepository.getHotelsByStatus()) — complete
+  with its own in-code RULE 15 audit note, role-gated, and wired into
+  /admin/hotels — but with zero PROJECT_STATUS/CHANGELOG/SESSION_HANDOFF
+  entry. Backfilled per RULE 40. No code changed for M4 itself.
+
+CONTACT-02 — Payment-Triggered Notifications:
+
+RULE 15 pre-coding audit (per PROJECT_STATUS.md's standing "do not
+code CONTACT-02 without one" note):
+- Existing Architecture: notifyBookingCreated() (CONTACT-01, wired up
+  by NOTIFY-01) fires from createBooking() in booking.actions.ts,
+  immediately after the `bookings` row insert — i.e. at
+  status='pending', before Cashfree has been contacted at all. It
+  sends a dashboard alert + email to the hotel/vendor's contact.
+- Root Cause: the trigger condition was "a bookings row exists," not
+  "a booking is actually going to happen." Every checkout attempt —
+  including ones a guest abandons at the Cashfree payment page and
+  never completes — alerted the hotel/vendor exactly the same as a
+  real, paid booking.
+- Files: src/app/actions/booking.actions.ts (removed the
+  notifyBookingCreated() call and its now-unused import from
+  createBooking() — no code left calling it from the creation path);
+  src/app/api/public/cashfree/webhook/route.ts (added the call inside
+  the existing `if (booking.status === "pending")` block, immediately
+  after bookingRepo.confirmBooking() succeeds — this block only runs
+  once per payment, guarded by the webhook's existing terminal-status
+  idempotency check above it, so this fires exactly once per booking).
+- Why: aligns the notification with a verified, successful payment
+  instead of a checkout attempt, without changing dispatch.ts's
+  contract (RULE 9 — reused the exact same NotifyBookingCreatedInput
+  shape CONTACT-01 already defined) and without moving trigger logic
+  into the repository layer (RULE 3 — confirmBooking() itself stays a
+  pure data-layer write; the caller decides what happens after).
+- Minimal Plan: in the webhook, after confirmBooking() succeeds,
+  fetch the hotel or package row (whichever booking.booking_type
+  points to) for its name/phone/email/vendor_id, then call
+  notifyBookingCreated() with the same webhook's existing
+  service-role Supabase client. Wrapped in its own try/catch so a
+  notification failure (or a missing hotel/package row) can never
+  turn an already-successful payment+booking-confirmation into a
+  failed webhook response that Cashfree would retry.
+
+Verified this session: tsc --noEmit PASS (whole project). eslint PASS,
+0 errors (whole project) — one pre-existing unrelated warning in
+components/layout/ProfileMenu.tsx (<img> vs next/image), unchanged,
+not touched this session.
+
+NOT verified (RULE 21/23): no live Cashfree webhook has been
+triggered against this code — needs a real test payment (sandbox or
+live) walked through end-to-end, confirming the hotel/vendor
+notification now arrives only after payment success and no longer at
+checkout-attempt time, before this is marked Frozen.
+
+Out of scope, not silently dropped: WhatsApp channel behavior
+unchanged (still gated on AISENSY_API_KEY per CONTACT-01's original
+design) — CONTACT-02 only changes *when* dispatch.ts is called, not
+*what* it does once called.
+
 2026-09-17 — Admin panel + coupons production incident (chat session, hotfix)
 
 Status: CLOSED functionally, documentation follow-ups pending (see
