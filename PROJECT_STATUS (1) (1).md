@@ -331,8 +331,24 @@ outside the app, auto-generating a receipt number; /admin/settlements
 (list + per-vendor detail with a "Mark as Paid" form capped at the
 actual due amount) and /vendor/payments (the owner's own receipt
 history) are the two new UI surfaces. Remaining scope after this:
-coupons, invoices/vouchers — commissions is now done (as manual
-tracking, not automated payouts).
+invoices/vouchers — coupons and commissions are both done now (coupons
+as COUPON-01 below, commissions as manual tracking, not automated
+payouts).
+
+COUPON-01 — Discount Coupons. CODE COMPLETE 2026-09-17, NOT VERIFIED
+(migration 014 not yet run in production, no live functional
+walkthrough). Full file list and RULE 15 audit summary in CHANGELOG.md's
+2026-09-17 entry. Headline finding from that audit: bookings.
+price_snapshot — not subtotal/coupon_discount/grand_total — is what
+Cashfree actually charges, so the discount is applied there directly;
+the new coupon_id/coupon_code/coupon_discount_amount columns on
+bookings are record-keeping only. Percentage or flat, admin chooses
+global or single-vendor scope per coupon, works for both hotel and
+package bookings, no usage-count limit (on/off only) — all per explicit
+product decision. /admin/coupons (list + create/edit + activate/
+deactivate) and an "Apply Coupon" control on the public BookingForm are
+the two new UI surfaces. Remaining booking-setup scope after this:
+invoices/vouchers, then SEO.
 
 VENDOR-03 — Self-Service "List Your Property" (4-milestone plan, requested by project owner for international launch: a hotel owner should submit their property — details, facilities, payout, contact — in one form, without an admin manually creating records).
 
