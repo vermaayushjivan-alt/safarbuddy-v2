@@ -6,6 +6,44 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
+INVOICE-01 Step 2 — schema + PDF-library decision (2026-09-17, new
+chat session, continuation of the Step 1 audit below). PDF library
+confirmed: `@react-pdf/renderer` (the Step 1 front-runner) — pure JS,
+runs in a normal Vercel serverless function, renders from React
+components so one template can drive both the web page and the PDF
+per Step 1's product decision. The npm dependency itself was NOT
+added to package.json this session — that belongs to Step 3, which
+actually uses it. Created src/db/sql/015_invoice01_invoices.sql: new
+public.invoices table, one snapshot row per booking (booking_id
+UNIQUE, relying on the webhook's existing PAY-02 idempotency rather
+than a second guard), human-facing invoice_number (SB-INV-000001) via
+the same generated-column-over-bigserial pattern as
+vendor_settlements.receipt_number (migration 013), amount_paid
+sourced from bookings.price_snapshot (COUPON-01 finding — the field
+that actually matches what Cashfree charged, not subtotal/
+grand_total), RLS enabled with no policy (same pattern as migrations
+010/013/014 — Server Actions in Step 3 must use
+createServiceRoleClient(), scoped explicitly, not an RLS policy). No
+other code written this session (no repository, no Server Action, no
+webhook change, no UI) — per the 6-step plan below, those are Step 3+
+in separate future sessions. DATABASE_BIBLE.md Migration Registry and
+"Known tables"/RLS sections updated for the new table; PROJECT_STATUS.md's
+INVOICE-01 entry updated to "Step 2 COMPLETE."
+
+Not verified this session: migration 015 has not been run in
+production (no reachable Supabase instance in this sandbox) — run
+manually and confirm via information_schema.columns (RULE 13/35)
+before Step 3 starts.
+
+Next action: Step 3 — repository + Server Actions to create an
+invoice row (called from the Cashfree webhook right after
+confirmBooking(), same call site CONTACT-02 uses) and fetch one by
+booking/id. Add the `@react-pdf/renderer` dependency as part of this
+step, not before. Do not start the admin/customer UI steps in the
+same session as the backend step.
+
+Previous milestone
+
 INVOICE-01 Step 1 — scope audit (2026-09-17, new chat session,
 continuation of the planning session below). User answered the three
 scoping questions RULE 15 required before any code: one combined
@@ -16,11 +54,6 @@ confirmBooking()). Full audit recorded in DEVELOPMENT_BIBLE.md Section
 J; PROJECT_STATUS.md's INVOICE-01 entry updated to "Step 1 COMPLETE."
 No code written this session — per the 6-step plan below, Step 2
 (schema + PDF-library decision) is a separate future session.
-
-Next action: Step 2 — decide the PDF-generation library (front-runner:
-`@react-pdf/renderer`, not yet confirmed) and write the
-`public.invoices` migration only. Do not start the backend/UI steps in
-the same session as the schema step.
 
 Previous milestone
 
