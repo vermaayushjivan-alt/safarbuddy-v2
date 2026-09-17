@@ -89,6 +89,14 @@ export interface BookingRecord extends DatabaseRecord {
   cancellation_status: string;
   notes: string | null;
 
+  // COUPON-01: informational record of which coupon (if any) was used
+  // and how much it discounted. NOT part of the charge calculation —
+  // see 014_coupon01_coupons.sql header for why the actual discount is
+  // applied to price_snapshot instead, before this booking is created.
+  coupon_id: string | null;
+  coupon_code: string | null;
+  coupon_discount_amount: number | null;
+
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -131,6 +139,11 @@ type DatabaseBookingRow = {
   cancellation_status: string;
   cancellation_reason: string | null;
   notes: string | null;
+
+  // COUPON-01: see BookingRecord.coupon_id above.
+  coupon_id: string | null;
+  coupon_code: string | null;
+  coupon_discount_amount: number | string | null;
 
   created_at: string;
   updated_at: string;
@@ -349,6 +362,17 @@ function mapBooking(
     notes:
       row.notes,
 
+    coupon_id:
+      row.coupon_id ?? null,
+
+    coupon_code:
+      row.coupon_code ?? null,
+
+    coupon_discount_amount:
+      row.coupon_discount_amount == null
+        ? null
+        : toNumber(row.coupon_discount_amount),
+
     created_at:
       row.created_at,
 
@@ -405,6 +429,14 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
 
       num_guests: number;
       price_snapshot: number;
+
+      // COUPON-01: purely informational — see BookingRecord.coupon_id.
+      // price_snapshot above is expected to already be net of the
+      // discount by the time this is called (booking.actions.ts
+      // applies it before calling createBooking()).
+      coupon_id?: string | null;
+      coupon_code?: string | null;
+      coupon_discount_amount?: number | null;
 
       currency_id: string;
       status?: BookingStatus;
@@ -531,6 +563,15 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
           data.cancellation_reason ?? null,
 
         notes,
+
+        coupon_id:
+          data.coupon_id ?? null,
+
+        coupon_code:
+          data.coupon_code ?? null,
+
+        coupon_discount_amount:
+          data.coupon_discount_amount ?? null,
 
         created_by:
           data.created_by ?? null,
