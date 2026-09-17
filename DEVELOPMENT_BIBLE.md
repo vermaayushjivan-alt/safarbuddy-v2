@@ -422,3 +422,95 @@ calendar grid, 3) wire into "Rooms & Pricing", one calendar per room,
 blocks/unblocks dates and changes a price, and a test booking respects
 both (RULE 21/22, this touches booking-affecting inventory) — before
 Frozen.
+
+---
+
+## K. CONTACT-03 — Booking Contact Capture + Admin Payment Notification (RULE 15 audit, 2026-09-18)
+
+**Root cause:** Two gaps found on inspection, both in the confirmed-payment
+path. (1) `BookingForm.tsx` only collected `guest_name`/`guest_email`/
+`guest_phone` when `!isAuthenticated`; a signed-in booking sent all three
+as `null` and the notification/invoice paths fell back to the (possibly
+stale, possibly a different person's) `public.users` profile instead of a
+booking-time-confirmed contact. (2) `notifyBookingCreated()` (CONTACT-02)
+only ever notified the hotel/vendor; there was no admin email channel at
+all — only a silent `'dashboard'` row, and `notifications.recipient_type`'s
+CHECK constraint didn't even allow `'admin'` as a value. A latent bug
+compounded this: the function `return`ed early when no hotel/vendor
+contact resolved, which — before this fix — would also have skipped any
+future admin-alert code placed after it.
+
+**Existing Architecture:** `bookings.guest_name/guest_email/guest_phone`
+(BOOKING-03, migration 012) already exist and are nullable regardless of
+`customer_id` — the `bookings_customer_or_guest_check` constraint only
+requires them when `customer_id` is null, it never forbids populating
+them otherwise. `ADMIN_NOTIFICATION_EMAIL` already exists in
+`.env.example` and is already used by
+`property-listing.actions.ts` for its own admin alert — same pattern
+reused here (RULE 9), no new env var.
+
+**Files changed:**
+- `src/app/actions/booking.actions.ts` — `guest_name`/`guest_phone` now
+  required and stored for every booking, not gated on `authUser`. Email
+  stays guest-only (a signed-in user already has one on `public.users`).
+- `src/components/booking/BookingForm.tsx` — Full name + Phone fields
+  now always rendered/required; Email field stays guest-only.
+- `src/lib/notifications/dispatch.ts` — `buildEmailHtml()` now includes
+  the guest's phone/email when present; new `buildAdminEmailHtml()` +
+  an admin alert block (`ADMIN_NOTIFICATION_EMAIL`, dashboard row +
+  email) that runs unconditionally, fixing the early-`return`-skips-admin
+  bug described above.
+- `src/lib/repositories/notification.repository.ts` —
+  `NotificationRecipientType` widened to `'hotel' | 'vendor' | 'admin'`.
+- `src/app/api/public/cashfree/webhook/route.ts` —
+  `notifyBookingCreated()` call now also passes `guestEmail`/`guestPhone`.
+- `src/db/sql/016_contact03_admin_notify.sql` (new) —
+  `notifications.recipient_type` CHECK widened to include `'admin'`;
+  comment-only update on `bookings.guest_name/guest_email/guest_phone`
+  to reflect they're now captured for every booking.
+
+**Why:** Same call site and same "fire once, never throw" contract
+CONTACT-02 already established — no new trigger point, no change to
+`dispatch.ts`'s never-throw guarantee. No new env var (RULE 9). No
+invoice-recipient-resolution change (`generate-invoice.ts`'s
+`resolveRecipient()` untouched) — that still prioritizes `customer_id` →
+`public.users`, which is a separate, not-yet-asked-for product decision
+about what an invoice should show, left alone per RULE 11 (one milestone
+at a time).
+
+**Not verified:** This session's sandbox has network disabled — `npm
+install`/`tsc --noEmit`/`eslint` could not be run for real (unlike prior
+sessions, where SESSION_HANDOFF.md records them running clean). Every
+changed file was manually re-read end to end instead, including
+cross-checking `NotificationRecipientType`'s literal union against the
+new `'admin'` value written by `dispatch.ts` (this is exactly the kind
+of mismatch `tsc` would normally catch — caught by inspection here, but
+still flagged as NOT INDEPENDENTLY VERIFIED by the toolchain). Run
+`tsc --noEmit` and `eslint` for real before calling this Frozen, then a
+live walkthrough — a real booking (signed-in) followed by a real
+Cashfree payment — confirming both the hotel and the admin actually
+receive the email (RULE 21/22, this touches the payment-confirmation
+notification path). Migration 016 has not been run in production
+either — same "user reports run, confirm via information_schema" caution
+as every other migration in this project (RULE 35).
+
+**Addendum (same day, live failure + correction):** Running migration
+016 v1 against production failed with
+`ERROR 42703: column "recipient_type" does not exist`. Inspecting the
+live table via `information_schema.columns` (user ran it) showed
+`public.notifications` already exists for a completely unrelated,
+pre-existing feature — a generic per-user notification feed
+(`user_id, channel, notif_type, title, message, metadata jsonb,
+is_read, ...`), not referenced anywhere else in this codebase
+(confirmed by grep). Migration 009 was therefore never actually
+applicable in production — this is the same class of naming collision
+DOC_DEBT.md item 15 already documented for
+`014_coupon01_coupons.sql`'s legacy `coupons` table. Corrected: 016 v2
+creates a dedicated `public.booking_notifications` table instead of
+touching `public.notifications`, and `notification.repository.ts`'s
+`tableName` (plus its one raw `.from('notifications')` call in
+`countUnreadDashboardNotifications()`) now points at
+`booking_notifications`. `009_contact01_notifications.sql` and
+`DATABASE_BIBLE.md`'s Migration Registry were both annotated to flag
+009 as superseded/do-not-run. Not yet run/confirmed in production
+after this correction.
