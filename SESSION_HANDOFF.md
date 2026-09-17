@@ -6,6 +6,88 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
+CONTACT-03 — Booking Contact Capture + Admin Payment Notification
+(2026-09-18, same day, new chat session). User asked (in Hindi/Hinglish)
+for booking-time name+contact capture regardless of login state, plus
+an automatic admin + hotel-owner notification right after payment
+confirmation, before resuming INVOICE-01 Step 4.
+
+Root cause found on inspection: (1) BookingForm.tsx only showed/
+required guest_name/guest_email/guest_phone for `!isAuthenticated` —
+a signed-in booking stored all three as null and relied only on the
+(possibly stale) public.users profile; (2) CONTACT-02's
+notifyBookingCreated() only ever emailed the hotel/vendor —
+notifications.recipient_type's CHECK constraint didn't even allow
+'admin', so there was no admin email path at all, only a silent
+'dashboard' row nothing currently reads (no admin/hotel-owner page
+queries listDashboardNotifications() anywhere in src/app — confirmed
+by grep this session, a pre-existing gap, not something this session
+introduced or was asked to fix).
+
+Built this session: booking.actions.ts + BookingForm.tsx now capture
+name+phone for every booking regardless of login state (email stays
+guest-only, since a signed-in user already has one on file).
+dispatch.ts gained buildAdminEmailHtml() and a new unconditional
+admin-alert block (email to ADMIN_NOTIFICATION_EMAIL — reusing the
+exact env var property-listing.actions.ts already uses, RULE 9 — plus
+a 'dashboard' row), and buildEmailHtml() (the hotel/vendor email) now
+includes the guest's phone/email when present. Fixed a latent bug in
+the same function: it `return`ed early when no hotel/vendor contact
+resolved, which would have skipped the new admin block too — moved
+the admin block outside that early-return path so it always runs.
+notification.repository.ts's NotificationRecipientType widened to
+'hotel' | 'vendor' | 'admin' (caught by manual review, not by tsc —
+see below). cashfree/webhook/route.ts's notifyBookingCreated() call
+now also passes guestEmail/guestPhone (previously only guestName).
+src/db/sql/016_contact03_admin_notify.sql (new) widens the
+notifications.recipient_type CHECK to allow 'admin', plus a
+comment-only update on bookings.guest_name/guest_email/guest_phone.
+Full RULE 15 audit recorded in DEVELOPMENT_BIBLE.md Section K.
+
+Deliberately not done: no admin UI to actually view the 'dashboard'
+notification rows (pre-existing gap, not part of what was asked this
+session — flagged, not built). No change to generate-invoice.ts's
+resolveRecipient() (still prioritizes customer_id -> public.users over
+the booking-time contact for what an invoice shows) — a separate,
+not-yet-asked-for product decision, left alone per RULE 11.
+
+NOT verified this session: this sandbox has network disabled (`npm
+install` returned E403), so npm install/tsc --noEmit/eslint could NOT
+be run for real — unlike every prior session recorded below, which did
+run them. Every changed file was instead manually re-read end to end;
+this is how the NotificationRecipientType mismatch above was caught,
+but it is explicitly a substitute for the toolchain, not equivalent to
+it. Before trusting this: run `npm install && npx tsc --noEmit && npx
+eslint .` for real, then a live walkthrough (a real signed-in booking,
+a real Cashfree payment) confirming both the hotel and
+ADMIN_NOTIFICATION_EMAIL actually receive the email. Migration 016 has
+not been run in production.
+
+Correction (same day, user ran it): v1 of migration 016 failed live
+with `ERROR 42703: column "recipient_type" does not exist`. Root
+cause, found via `information_schema.columns`: `public.notifications`
+already existed in production for an entirely unrelated, pre-existing
+feature (generic per-user notification feed — user_id/notif_type/
+title/message/metadata jsonb/is_read/soft-delete columns — not
+referenced anywhere else in this codebase). Migration 009 had in fact
+never been applicable in production; DATABASE_BIBLE.md's Migration
+Registry already flagged it NOT CONFIRMED, now corrected to
+SUPERSEDED. Same class of collision DOC_DEBT.md item 15 already
+documented for 014_coupon01_coupons.sql's legacy `coupons` table. Fix:
+v2 of 016_contact03_admin_notify.sql creates a dedicated
+`public.booking_notifications` table instead of touching
+`public.notifications`; notification.repository.ts's `tableName`
+updated to match (`booking_notifications`, both the config and the one
+raw `.from('notifications')` call in countUnreadDashboardNotifications()).
+Not yet run/confirmed in production after this fix.
+
+Next action: run the verification above; once clean, resume INVOICE-01
+Step 4 (admin UI — list + link from `/admin/bookings` detail, per
+DEVELOPMENT_BIBLE.md Section J's planned files list) — unchanged from
+before this session, do not blend the two milestones.
+
+Previous milestone
+
 INVOICE-01 Step 3b — shared template (web view + PDF) (2026-09-18,
 same day, new chat session, continuation of Step 3a below). Added
 `@react-pdf/renderer` (^4.9.0) to package.json — deferred from Step
