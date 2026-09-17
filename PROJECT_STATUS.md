@@ -332,19 +332,46 @@ generated on payment success inside the existing Cashfree webhook
 (same call site CONTACT-02 uses, right after confirmBooking()) — not
 at booking-creation, not admin-manual. PDF library: `@react-pdf/renderer`,
 confirmed (pure JS, no headless Chromium, renders from React
-components so one template drives both the web page and the PDF) —
-not yet added to package.json (that's Step 3). Schema: created
-src/db/sql/015_invoice01_invoices.sql — new public.invoices table,
-one snapshot row per booking (booking_id UNIQUE), human-facing
-invoice_number (SB-INV-000001) via the same generated-column pattern
-as vendor_settlements.receipt_number, amount_paid sourced from
-bookings.price_snapshot per the COUPON-01 finding, RLS enabled/no
-policy matching vendor_payout_details/vendor_settlements/coupons. NOT
-yet run in production (RULE 13/35 — run manually, confirm via
-information_schema.columns, before Step 3 starts). 6-step plan
-(scope → schema → backend → admin UI → customer UI → verification)
-recorded in SESSION_HANDOFF.md; Step 3 (repository + Server Actions +
-webhook wiring) is next.
+components so one template drives both the web page and the PDF).
+Schema: created src/db/sql/015_invoice01_invoices.sql — new
+public.invoices table, one snapshot row per booking (booking_id
+UNIQUE), human-facing invoice_number (SB-INV-000001) via the same
+generated-column pattern as vendor_settlements.receipt_number,
+amount_paid sourced from bookings.price_snapshot per the COUPON-01
+finding, RLS enabled/no policy matching
+vendor_payout_details/vendor_settlements/coupons.
+
+Step 3a (repository + Server Actions + webhook wiring) CODE COMPLETE
+2026-09-18 — split off from the original Step 3 plan (repo + template
+rendering together) because that combined scope was judged too big for
+one session; template/PDF rendering deferred to a new Step 3b. Built:
+InvoiceRepository (src/lib/repositories/invoice.repository.ts —
+createInvoice/getInvoiceById/getInvoiceByBookingId), UserRepository
+gained getUserById() (needed to resolve a signed-in customer's
+name/email/phone for the snapshot), generate-invoice.ts
+(src/lib/invoices/ — the business-logic layer RULE 3 requires outside
+the repository: resolves customer-vs-guest recipient, vendor name, and
+builds the snapshot row; never throws, same resilience contract as
+CONTACT-02's notifyBookingCreated), and two fetch-only Server Actions
+in invoice.actions.ts (getInvoiceByBookingIdAdmin,
+getMyInvoiceByBookingId — ownership-checked the same way
+getMyBookingById is). Webhook route.ts now calls
+generateInvoiceForBooking() right after the CONTACT-02 notification
+block, in its own try/catch so a snapshot failure can never turn an
+already-successful payment into a failed webhook response.
+`@react-pdf/renderer` was deliberately NOT added to package.json this
+step — nothing in Step 3a renders anything, so the dependency is
+deferred to Step 3b (matches the "add it when the code that uses it is
+written" caution already in migration 015's header). Verified:
+`tsc --noEmit` and `eslint` both clean (project-wide) against this
+session's changes. NOT verified: no live webhook walkthrough yet —
+this sandbox cannot reach production Supabase/Cashfree — and migration
+015 itself is user-reported-run, not independently confirmed via
+information_schema.columns this session (see DATABASE_BIBLE.md
+Migration Registry). No admin/customer UI built yet — that remains
+Steps 4/5, separate future sessions per the 6-step plan in
+SESSION_HANDOFF.md. Next action: Step 3b (shared React template
+driving both the web-page view and the `@react-pdf/renderer` PDF).
 
 Planned (not started) — OWNER-DASH-01 (unified owner portal),
 OFFERS-01 (owner self-service coupons), CALENDAR-01 (owner room
