@@ -475,6 +475,9 @@ export async function POST(
         if (bookedItem) {
           await notifyBookingCreated(supabase, {
             bookingId: booking.id,
+            // BOOKING-NUM-01: human-facing reference shown in the
+            // email/subject line instead of the raw UUID above.
+            bookingNumber: booking.booking_number,
             bookingType: booking.booking_type,
             itemName: bookedHotel
               ? bookedHotel.hotel_name
