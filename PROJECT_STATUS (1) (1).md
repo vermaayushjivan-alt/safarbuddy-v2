@@ -318,7 +318,21 @@ Google OAuth unexpected_failure, likely Supabase/Google dashboard configuration.
 
 Next Development Phase
 
-ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 partially covered, M4 not started. PAY-04/CONTACT-02 have no RULE 15 pre-coding audit recorded yet — SESSION_HANDOFF.md's original claim that one exists for each was false (see DOC_DEBT.md item 5 — that citation is itself dangling, logged as its own open item). Do not start coding either until that audit is actually performed and recorded here.
+ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 partially covered, M4 not started. PAY-04 — CODE COMPLETE 2026-09-17 (RULE 15 audit performed in chat session, see CHANGELOG.md same date) — this turned out to be manual settlement tracking (fixed 20% commission split + admin-logged payout receipts), not the originally-scoped Cashfree Payouts split-settlement automation; that automation is still not started and remains blocked on migration 010 (not yet run in production) and the unwired Cashfree Payouts client. Migration 013 (PAY-04's own schema) is also not yet run in production — see DATABASE_BIBLE.md Migration Registry. CONTACT-02 still has no RULE 15 pre-coding audit recorded — SESSION_HANDOFF.md's original claim that one exists was false (see DOC_DEBT.md item 5 — that citation is itself dangling, logged as its own open item). Do not start coding CONTACT-02 until that audit is actually performed and recorded here.
+
+PAY-04 — Manual Settlement Tracking. CODE COMPLETE 2026-09-17, NOT
+VERIFIED (migration 013 not yet run in production, no live functional
+walkthrough). Full file list and design reasoning in CHANGELOG.md's
+2026-09-17 entry. Summary: payments.platform_commission_amount /
+vendor_payout_amount computed once at webhook-success time (fixed 20%
+rate, single source of truth in src/lib/payments/commission.ts); new
+public.vendor_settlements table logs each manual payout an admin sends
+outside the app, auto-generating a receipt number; /admin/settlements
+(list + per-vendor detail with a "Mark as Paid" form capped at the
+actual due amount) and /vendor/payments (the owner's own receipt
+history) are the two new UI surfaces. Remaining scope after this:
+coupons, invoices/vouchers — commissions is now done (as manual
+tracking, not automated payouts).
 
 VENDOR-03 — Self-Service "List Your Property" (4-milestone plan, requested by project owner for international launch: a hotel owner should submit their property — details, facilities, payout, contact — in one form, without an admin manually creating records).
 
