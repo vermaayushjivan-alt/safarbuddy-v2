@@ -24,7 +24,6 @@ import { HotelRepository } from "@/lib/repositories/hotel.repository";
 import { PackageRepository } from "@/lib/repositories/package.repository";
 import { RoomTypeRepository } from "@/lib/repositories/room-type.repository";
 import { RoomPriceRepository } from "@/lib/repositories/room-price.repository";
-import { notifyBookingCreated } from "@/lib/notifications/dispatch";
 import { resolveCouponForBooking } from "@/app/actions/coupon.actions";
 
 // -----------------------------------------------------------------------------
@@ -683,45 +682,15 @@ export async function createBooking(
       }
     );
 
-  // NOTIFY-01 (this session): wire up CONTACT-01's notification
-  // dispatch, which was fully built (dashboard alert + email to the
-  // hotel/vendor contact captured at listing time) but was never
-  // actually called from createBooking() — so no booking, hotel or
-  // package, has ever triggered a notification. Deliberately uses its
-  // own service-role client rather than the `supabase` client above:
-  // this is an internal system side-effect, not a customer-facing
-  // read/write, so it must work identically for a guest checkout (no
-  // session at all) and a logged-in customer, without depending on
-  // RLS state on the vendors/notifications tables either way.
-  // notifyBookingCreated() never throws (see dispatch.ts) — a
-  // notification failure must never fail a booking that already
-  // succeeded.
-  await notifyBookingCreated(
-    createServiceRoleClient(),
-    {
-      bookingId: created.id,
-      bookingType: parsed.booking_type as BookingType,
-      itemName:
-        parsed.booking_type === "hotel"
-          ? (hotel?.hotel_name as string)
-          : (pkg?.package_name as string),
-      vendorId: vendorId,
-      itemContact:
-        parsed.booking_type === "hotel"
-          ? { phone: hotel?.phone ?? null, email: hotel?.email ?? null }
-          : null,
-      guestName:
-        !authUser && parsed.guest_name
-          ? parsed.guest_name
-          : "Registered customer",
-      checkInDate:
-        parsed.booking_type === "hotel" ? (parsed.check_in_date ?? null) : null,
-      checkOutDate:
-        parsed.booking_type === "hotel" ? (parsed.check_out_date ?? null) : null,
-      travelDate:
-        parsed.booking_type === "package" ? (parsed.travel_date ?? null) : null,
-    }
-  );
+  // CONTACT-02 (this session): notifyBookingCreated() used to fire
+  // right here, at booking-creation time — before any payment exists.
+  // Every hotel/vendor contact was alerted for every checkout attempt,
+  // including ones the guest abandoned at the Cashfree page and never
+  // paid for. Moved to fire only on a confirmed Cashfree payment
+  // instead — see src/app/api/public/cashfree/webhook/route.ts, right
+  // after bookingRepo.confirmBooking(). createBooking() itself no
+  // longer calls notifyBookingCreated() at all (RULE 11 — full move,
+  // not a duplicate trigger at both points).
 
   return created;
 }
