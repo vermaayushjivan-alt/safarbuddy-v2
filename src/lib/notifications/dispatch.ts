@@ -27,6 +27,12 @@ export interface NotifyBookingCreatedInput {
     email: string | null;
   } | null;
   guestName: string;
+  // CONTACT-03: the booking-time contact (see BOOKING-03/CONTACT-03
+  // comments on bookings.guest_email/guest_phone) — now populated for
+  // every booking, not just guest checkout. Optional/nullable purely
+  // for defensiveness against older rows created before this fix.
+  guestEmail?: string | null;
+  guestPhone?: string | null;
   checkInDate: string | null;
   checkOutDate: string | null;
   travelDate: string | null;
@@ -87,9 +93,39 @@ function buildEmailHtml(input: NotifyBookingCreatedInput): string {
   return `
     <p>New booking received for <strong>${input.itemName}</strong>.</p>
     <p>Guest: ${input.guestName}</p>
+    ${input.guestPhone ? `<p>Guest phone: ${input.guestPhone}</p>` : ''}
+    ${input.guestEmail ? `<p>Guest email: ${input.guestEmail}</p>` : ''}
     <p>${input.bookingType === 'hotel' ? 'Dates' : 'Travel date'}: ${dates}</p>
     <p>Booking ID: ${input.bookingId}</p>
     <p>View it in the admin panel for full details.</p>
+  `;
+}
+
+// CONTACT-03: admin alert, separate template from buildEmailHtml()
+// above — the admin email is a monitoring/oversight alert (needs the
+// vendor/hotel name so the admin knows who was notified), whereas
+// buildEmailHtml() is addressed to the hotel/vendor itself.
+function buildAdminEmailHtml(
+  input: NotifyBookingCreatedInput,
+  contact: ResolvedContact | null
+): string {
+  const dates =
+    input.bookingType === 'hotel'
+      ? input.checkInDate && input.checkOutDate
+        ? `${input.checkInDate} to ${input.checkOutDate}`
+        : 'Dates not specified'
+      : (input.travelDate ?? 'Travel date not specified');
+
+  return `
+    <p>Payment confirmed for a new booking on <strong>${input.itemName}</strong>.</p>
+    <p>Guest: ${input.guestName}</p>
+    ${input.guestPhone ? `<p>Guest phone: ${input.guestPhone}</p>` : ''}
+    ${input.guestEmail ? `<p>Guest email: ${input.guestEmail}</p>` : ''}
+    <p>${input.bookingType === 'hotel' ? 'Dates' : 'Travel date'}: ${dates}</p>
+    <p>Booking ID: ${input.bookingId}</p>
+    <p>
+      ${contact ? `${contact.type === 'hotel' ? 'Hotel' : 'Vendor'} notified: ${contact.name}${contact.email ? ` (${contact.email})` : ''}` : 'No hotel/vendor contact was configured — they were NOT notified.'}
+    </p>
   `;
 }
 
@@ -119,11 +155,13 @@ export async function notifyBookingCreated(
       sent_at: new Date().toISOString(),
     });
 
-    if (!contact) {
-      return;
-    }
-
-    if (contact.email) {
+    // CONTACT-03: hotel/vendor email + WhatsApp only make sense when a
+    // contact was actually resolved. This used to `return` early here
+    // when there was no contact — which also skipped the admin alert
+    // below. Admin must always be notified regardless of whether the
+    // hotel/vendor has a contact on file, so that block moved outside
+    // this `if` (see below, after this hotel/vendor section).
+    if (contact?.email) {
       const emailNotification = await notificationRepo.createNotification({
         booking_id: input.bookingId,
         recipient_type: contact.type,
@@ -157,7 +195,7 @@ export async function notifyBookingCreated(
     // (no key configured) — noise with no value. Whichever provider
     // is picked later, set its key and this starts working; no other
     // code needs to change.
-    if (contact.phone && process.env.AISENSY_API_KEY) {
+    if (contact?.phone && process.env.AISENSY_API_KEY) {
       const whatsappNotification = await notificationRepo.createNotification(
         {
           booking_id: input.bookingId,
@@ -193,6 +231,60 @@ export async function notifyBookingCreated(
           result.error
         );
       }
+    }
+
+    // CONTACT-03: admin alert. Runs unconditionally — regardless of
+    // whether a hotel/vendor contact was resolved above — so the
+    // admin always knows a payment just came in, same as the
+    // always-created 'dashboard' row above but for the admin
+    // specifically. Reuses ADMIN_NOTIFICATION_EMAIL, the exact same
+    // env var property-listing.actions.ts already uses for its own
+    // admin alert (RULE 9 — no new env var invented).
+    const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
+
+    await notificationRepo.createNotification({
+      booking_id: input.bookingId,
+      recipient_type: 'admin',
+      recipient_email: adminEmail ?? null,
+      recipient_phone: null,
+      channel: 'dashboard',
+      status: 'sent',
+      error_message: adminEmail
+        ? null
+        : 'ADMIN_NOTIFICATION_EMAIL not configured — admin email alert skipped.',
+      read_at: null,
+      sent_at: new Date().toISOString(),
+    });
+
+    if (adminEmail) {
+      const adminEmailNotification = await notificationRepo.createNotification({
+        booking_id: input.bookingId,
+        recipient_type: 'admin',
+        recipient_email: adminEmail,
+        recipient_phone: null,
+        channel: 'email',
+        status: 'pending',
+        error_message: null,
+        read_at: null,
+        sent_at: null,
+      });
+
+      const result = await sendEmail({
+        to: adminEmail,
+        subject: `Payment confirmed — ${input.itemName} (${input.bookingId})`,
+        html: buildAdminEmailHtml(input, contact),
+      });
+
+      if (result.success) {
+        await notificationRepo.markSent(adminEmailNotification.id);
+      } else {
+        await notificationRepo.markFailed(adminEmailNotification.id, result.error);
+      }
+    } else {
+      console.error(
+        '[notifications] ADMIN_NOTIFICATION_EMAIL not configured — skipped admin alert for booking',
+        input.bookingId
+      );
     }
   } catch (error) {
     // Absolute last line of defense — dispatch must never throw into
