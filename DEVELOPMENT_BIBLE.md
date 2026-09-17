@@ -212,6 +212,51 @@ never silently skipped.
 
 ---
 
+## J. INVOICE-01 — Invoices/Vouchers (RULE 15 audit, 2026-09-17)
+
+**Product scope decision (from user, this session):** Invoice and
+voucher are ONE document, not two — no separate payment-proof vs
+check-in-slip split. Delivery: both a downloadable PDF and a web page
+(the web page is the source of truth the PDF renders from). Trigger:
+generated on payment success, i.e. inside the same Cashfree webhook
+handler CONTACT-02 already uses (`src/app/api/public/cashfree/webhook/route.ts`,
+after `bookingRepo.confirmBooking()`), not at booking-creation and not
+admin-manual.
+
+**Existing Architecture:** `bookings` already has `price_snapshot`
+(the actual charged amount — see COUPON-01 finding, discount is baked
+in there already), guest/customer contact fields (BOOKING-03),
+`room_id`/hotel/vendor linkage. `payments` (PAY-01) has the Cashfree
+transaction record. CONTACT-02 already fires a notification from the
+webhook post-confirmation — the invoice generation point is the same
+call site. No PDF-generation library exists in package.json yet.
+
+**Root cause / Gap:** No invoice/voucher record exists anywhere;
+nothing to view or download after a booking is paid for.
+
+**Files (planned, for Step 2/3 — not created yet):**
+- `src/db/sql/0XX_invoice01_invoices.sql` — new `public.invoices` table
+  (booking_id FK, invoice_number, snapshot of amounts/guest/hotel
+  fields at generation time — don't join-compute on every view, since
+  hotel/room data can change later), RLS enabled + policy.
+- PDF library decision needed at Step 2: `@react-pdf/renderer` (pure
+  JS, works in Vercel serverless, no headless Chromium) is the
+  front-runner — to be confirmed, not assumed, when Step 2 starts.
+- Repository + Server Action to create the invoice row + render both
+  the web page and the PDF from one shared template.
+- Webhook route (`cashfree/webhook/route.ts`) modified to call invoice
+  creation right after `confirmBooking()`.
+- Customer-facing route (e.g. `/booking-confirmation/[id]/invoice` or
+  a link from My Bookings) for the web view + PDF download.
+- Admin view: list + link from `/admin/bookings` detail (no separate
+  admin generation UI needed, since it's always auto-generated).
+
+**Minimal Plan:** Step 2 (next session) starts with confirming the PDF
+library choice and writing the migration only — no other code — per
+this project's usual one-step-at-a-time pattern.
+
+---
+
 ## I. Planned Milestones — Owner Self-Service Expansion (added 2026-09-17)
 
 Three-part plan, recorded here per RULE 15 (pre-coding audit) BEFORE any
