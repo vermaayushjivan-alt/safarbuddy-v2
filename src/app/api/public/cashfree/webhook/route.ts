@@ -10,6 +10,7 @@ import { computeCommissionSplit } from "@/lib/payments/commission";
 import { HotelRepository } from "@/lib/repositories/hotel.repository";
 import { PackageRepository } from "@/lib/repositories/package.repository";
 import { notifyBookingCreated } from "@/lib/notifications/dispatch";
+import { generateInvoiceForBooking } from "@/lib/invoices/generate-invoice";
 
 export const runtime = "nodejs";
 
@@ -502,6 +503,64 @@ export async function POST(
         // succeeded.
         console.error(
           "[Cashfree Webhook] notifyBookingCreated dispatch failed",
+          error
+        );
+      }
+
+      // INVOICE-01 Step 3a — invoice/voucher snapshot generation.
+      //
+      // Same call site and same "fire once, on confirmed payment"
+      // guarantee as CONTACT-02 above (this whole block only runs when
+      // the booking was still 'pending', and the terminal-status
+      // idempotency check earlier in this handler already prevents a
+      // duplicate payment from reaching here at all). See
+      // DEVELOPMENT_BIBLE.md Section J for the RULE 15 audit that
+      // scoped this trigger point.
+      //
+      // generateInvoiceForBooking() never throws (see its own header
+      // comment) — this try/catch is belt-and-suspenders, matching the
+      // notifyBookingCreated block above, not a sign that it can.
+      //
+      // bookedHotel/bookedPackage are re-fetched here rather than
+      // reused from the notifyBookingCreated block above — those are
+      // scoped to that block's own try {}, and this block must survive
+      // independently of whether that one threw.
+      try {
+        const bookedHotel =
+          booking.booking_type === "hotel"
+            ? await new HotelRepository(supabase).getHotelById(
+                booking.hotel_id as string
+              )
+            : null;
+
+        const bookedPackage =
+          booking.booking_type === "package"
+            ? await new PackageRepository(supabase).getPackageById(
+                booking.package_id as string
+              )
+            : null;
+
+        const bookedItem = bookedHotel ?? bookedPackage;
+
+        if (bookedItem) {
+          await generateInvoiceForBooking(supabase, {
+            booking,
+            paymentId: payment.id,
+            itemName: bookedHotel
+              ? bookedHotel.hotel_name
+              : (bookedPackage as { package_name: string }).package_name,
+            itemLocation: bookedItem.city,
+            vendorId: bookedItem.vendor_id,
+          });
+        } else {
+          console.error(
+            `[Cashfree Webhook] generateInvoiceForBooking skipped — ${booking.booking_type} ` +
+              `${booking.booking_type === "hotel" ? booking.hotel_id : booking.package_id} not found`
+          );
+        }
+      } catch (error) {
+        console.error(
+          "[Cashfree Webhook] generateInvoiceForBooking dispatch failed",
           error
         );
       }
