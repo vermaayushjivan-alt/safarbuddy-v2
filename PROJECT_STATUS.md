@@ -323,6 +323,12 @@ Next Development Phase
 
 ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 not scoped (dangling claim corrected 2026-09-17, see DOC_DEBT.md item 16c); M4 CODE COMPLETE, backfilled 2026-09-17, NOT VERIFIED live (see below). CONTACT-02 — CODE COMPLETE 2026-09-17, NOT VERIFIED live (see below). PAY-04 — CODE COMPLETE 2026-09-17 (RULE 15 audit performed in chat session, see CHANGELOG.md same date) — this turned out to be manual settlement tracking (fixed 20% commission split + admin-logged payout receipts), not the originally-scoped Cashfree Payouts split-settlement automation; that automation is still not started and remains blocked on migration 010 (not yet run in production) and the unwired Cashfree Payouts client. Migration 013 (PAY-04's own schema) is also not yet run in production — see DATABASE_BIBLE.md Migration Registry. CONTACT-02's RULE 15 audit was performed and recorded 2026-09-17 (see CONTACT-02 entry above and CHANGELOG.md same date) — DOC_DEBT.md item 5's original dangling-audit claim remains open only as a historical record of the earlier false claim, not as a live blocker anymore.
 
+Planned (not started) — OWNER-DASH-01 (unified owner portal),
+OFFERS-01 (owner self-service coupons), CALENDAR-01 (owner room
+availability calendar + pricing). Full RULE 15 pre-coding audit for
+all three recorded in DEVELOPMENT_BIBLE.md Section I
+(2026-09-17) — read that section before starting any of them.
+
 VENDOR-BOOKING-01 — Vendor-Facing Booking Visibility (read-only).
 CODE COMPLETE, backfilled into this file 2026-09-17 (previously
 undocumented — DOC_DEBT.md item 17). Discovered already fully
