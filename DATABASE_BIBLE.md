@@ -105,6 +105,7 @@ production-run status, so the two can never silently drift again:
 | 011_vendor03_hotel_facilities.sql | yes | **CONFIRMED 2026-09-05** — public.hotel_facilities and public.hotel_facility_links verified live via information_schema.columns, all columns match |
 | 012_booking03_guest_checkout.sql | yes | **NOT CONFIRMED** |
 | 013_pay04_manual_settlement.sql | yes | **NOT CONFIRMED — new 2026-09-17**, adds payments.platform_commission_amount / vendor_payout_amount and public.vendor_settlements |
+| 014_coupon01_coupons.sql | yes | **NOT CONFIRMED — new 2026-09-17**, adds public.coupons and bookings.coupon_id / coupon_code / coupon_discount_amount |
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
 
 Any "assumed yes" above should be spot-checked against
