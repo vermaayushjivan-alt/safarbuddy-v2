@@ -1,5 +1,18 @@
 -- CONTACT-01 (Part 2): Booking notifications.
 --
+-- ⚠️ SUPERSEDED IN PRODUCTION (2026-09-18, CONTACT-03 session) — DO
+-- NOT RUN THIS FILE AS-IS. This project's live database already has
+-- an unrelated, pre-existing public.notifications table (a generic
+-- per-user notification feed — user_id/notif_type/title/message/
+-- metadata jsonb — created by something outside this codebase, not
+-- referenced by any code here). Running this file would collide with
+-- that table. The actual table this codebase uses now is
+-- public.booking_notifications, created by
+-- src/db/sql/016_contact03_admin_notify.sql instead — see that file's
+-- REVISION HISTORY comment for the full story. This file is kept only
+-- as a historical record of the originally-intended (never
+-- successfully applied) schema.
+--
 -- One row per notification attempt (not per booking) so an email
 -- failure and a WhatsApp failure on the same booking are tracked and
 -- retried independently, and the admin dashboard can list unread
