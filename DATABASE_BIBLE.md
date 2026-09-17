@@ -70,6 +70,32 @@ Storage: Supabase Storage
   service-role key bypass RLS by design — this is fine, but must be
   noted here per table so it's not mistaken for "protected by RLS."
 
+### coupons (COUPON-01)
+- RLS enabled, **no policy** (matches vendor_payout_details /
+  vendor_settlements pattern) — confirmed live 2026-09-17 the hard
+  way: the session client (`createClient()`) returned 0 rows on
+  SELECT and a hard "new row violates row-level security policy"
+  error on INSERT, even for a caller that had already passed
+  `requireRole(['admin','super_admin'])`. Fixed by switching every
+  admin CRUD function in coupon.actions.ts to
+  `createServiceRoleClient()` (which bypasses RLS) — requireRole()
+  remains the actual authorization gate, called before the service
+  role client is ever used. The checkout-facing functions
+  (`resolveCouponForBooking`, `validateCouponPublic`) already used the
+  service role client correctly from the start.
+- Live production schema does NOT match `014_coupon01_coupons.sql`'s
+  DDL verbatim — see Migration Registry row for 014 and DOC_DEBT.md
+  item 15 for the full incident (a pre-existing, differently-shaped
+  legacy `coupons` table was discovered live and reconciled via a
+  hand-written `ALTER TABLE` migration instead).
+- **Open question, not yet checked**: `vendor_payout_details` and
+  `vendor_settlements` both document the identical "RLS enabled, no
+  policy" state but their Server Actions still read via the plain
+  session client, not the service role client. Whether they have the
+  same "admin sees 0 rows" bug coupons had is UNVERIFIED — flagged in
+  DOC_DEBT.md item 15b. Check before trusting settlement/payout admin
+  screens show real data, not just that they load without error.
+
 ### hotel_facilities / hotel_facility_links (VENDOR-03, M1)
 - `hotel_facilities` (master catalog): RLS enabled. Policy
   `hotel_facilities_public_read` — `SELECT` for `anon, authenticated`
@@ -104,8 +130,8 @@ production-run status, so the two can never silently drift again:
 | 010_vendor02_payout_kyc.sql | yes | **CONFIRMED 2026-09-03** — public.vendor_payout_details verified live via information_schema.columns, all 12 columns match |
 | 011_vendor03_hotel_facilities.sql | yes | **CONFIRMED 2026-09-05** — public.hotel_facilities and public.hotel_facility_links verified live via information_schema.columns, all columns match |
 | 012_booking03_guest_checkout.sql | yes | **NOT CONFIRMED** |
-| 013_pay04_manual_settlement.sql | yes | **NOT CONFIRMED — new 2026-09-17**, adds payments.platform_commission_amount / vendor_payout_amount and public.vendor_settlements |
-| 014_coupon01_coupons.sql | yes | **NOT CONFIRMED — new 2026-09-17**, adds public.coupons and bookings.coupon_id / coupon_code / coupon_discount_amount |
+| 013_pay04_manual_settlement.sql | yes | **PARTIALLY CONFIRMED 2026-09-17** — /admin/settlements loads without error, but this was not independently verified via information_schema.columns this session, and vendor_settlements has the identical "RLS enabled, no policy" gap discovered on coupons the same session (see row below) — vendor-settlement.actions.ts still reads via the session client (`createClient()`), not the service role client. Flagged as DOC_DEBT item 15b: the page not erroring is not proof the session client can actually see real rows; must be independently re-checked before trusting this as CONFIRMED. |
+| 014_coupon01_coupons.sql | yes, but **does not match live production DDL** | **CONFIRMED 2026-09-17, via hand-applied ALTER migration, not this file verbatim** — see DOC_DEBT.md item 15 for the full incident. Summary: production already had an unrelated, differently-shaped legacy `public.coupons` table (usage_limit/per_user_limit/used_count/start_date/end_date/status columns) that this file's `CREATE TABLE IF NOT EXISTS` silently no-opped against. Reconciled live via manual `ALTER TABLE` (add new columns, backfill, drop old columns) instead of this file's DDL. This file must be rewritten to an `ALTER`-based migration matching what was actually run (RULE 32/33) — not done yet, tracked as a pending action below. Also confirmed live 2026-09-17: coupon.actions.ts's admin CRUD (`createCouponAdmin`, `updateCouponAdmin`, `setCouponActiveAdmin`, `getCouponByIdAdmin`, `getAllCouponsAdmin`) was switched from the session client to `createServiceRoleClient()` after production confirmed the session client got 0 rows on SELECT and a hard RLS-violation error on INSERT (RLS enabled, no policy, exactly as this file's own header comment already warned but the code didn't follow). |
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
 
 Any "assumed yes" above should be spot-checked against
