@@ -6,6 +6,58 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
+INVOICE-01 Step 3a — repository + Server Actions + webhook wiring
+(2026-09-18, new chat session, continuation of Step 2 below). User
+asked "is Step 3 big" before any code was written; Step 3 as originally
+scoped in DEVELOPMENT_BIBLE.md Section J bundled the data layer
+together with "render both the web page and the PDF from one shared
+template" — judged too much for one session, so it was split (with
+user confirmation) into Step 3a (this session) and a new Step 3b.
+
+Built this session: InvoiceRepository
+(src/lib/repositories/invoice.repository.ts — createInvoice/
+getInvoiceById/getInvoiceByBookingId; invoice_seq/invoice_number
+excluded from CreateInvoiceInput since Postgres generates them).
+UserRepository gained getUserById(). generate-invoice.ts
+(src/lib/invoices/ — the RULE-3 business-logic layer: resolves
+customer-vs-guest recipient and vendor name, builds the snapshot row,
+never throws, handles both the up-front idempotency check and a
+caught ConflictError race). invoice.actions.ts
+(src/app/actions/ — getInvoiceByBookingIdAdmin,
+getMyInvoiceByBookingId; fetch-only, no create action, neither wired
+into a page yet). cashfree/webhook/route.ts now calls
+generateInvoiceForBooking() right after the CONTACT-02 notification
+block, in its own try/catch, re-fetching bookedHotel/bookedPackage
+independently rather than reusing that block's locals (different
+try{} scope).
+
+Deliberately not done: `@react-pdf/renderer` NOT added to
+package.json (nothing in Step 3a renders anything — deferred to Step
+3b). No shared template, no web-page view, no PDF, no admin/customer
+UI (Steps 4/5, unchanged, still separate future sessions).
+
+Verified: `npm install`, `tsc --noEmit`, `eslint` all run for real in
+this sandbox — clean (one pre-existing untouched `<img>` lint warning
+in ProfileMenu.tsx, same as every prior session).
+
+Not verified this session: no live Cashfree webhook walkthrough (no
+reachable Supabase/Cashfree from this sandbox). User reported running
+migration 015 in production this session (also re-running 012 and
+013), but none of the three were independently confirmed via
+information_schema.columns here — DATABASE_BIBLE.md's Migration
+Registry rows for all three now say "user reports run, not
+independently confirmed," not CONFIRMED. Do that confirmation before
+trusting writes against `invoices` in production.
+
+Next action: Step 3b — build the shared React template
+(`@react-pdf/renderer`, added as a dependency in that step, not
+before) that drives both the customer-facing web-page view and the
+downloadable PDF, per the Step 1 product-scope decision (one document,
+two renderings from one template). Still no admin/customer UI in the
+same session as this — that stays Steps 4/5.
+
+Previous milestone
+
 INVOICE-01 Step 2 — schema + PDF-library decision (2026-09-17, new
 chat session, continuation of the Step 1 audit below). PDF library
 confirmed: `@react-pdf/renderer` (the Step 1 front-runner) — pure JS,
