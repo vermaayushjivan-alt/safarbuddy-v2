@@ -324,14 +324,27 @@ Next Development Phase
 ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 not scoped (dangling claim corrected 2026-09-17, see DOC_DEBT.md item 16c); M4 CODE COMPLETE, backfilled 2026-09-17, NOT VERIFIED live (see below). CONTACT-02 — CODE COMPLETE 2026-09-17, NOT VERIFIED live (see below). PAY-04 — CODE COMPLETE 2026-09-17 (RULE 15 audit performed in chat session, see CHANGELOG.md same date) — this turned out to be manual settlement tracking (fixed 20% commission split + admin-logged payout receipts), not the originally-scoped Cashfree Payouts split-settlement automation; that automation is still not started and remains blocked on migration 010 (not yet run in production) and the unwired Cashfree Payouts client. Migration 013 (PAY-04's own schema) is also not yet run in production — see DATABASE_BIBLE.md Migration Registry. CONTACT-02's RULE 15 audit was performed and recorded 2026-09-17 (see CONTACT-02 entry above and CHANGELOG.md same date) — DOC_DEBT.md item 5's original dangling-audit claim remains open only as a historical record of the earlier false claim, not as a live blocker anymore.
 
 INVOICE-01 — Invoices/Vouchers. Step 1 (product scope audit) COMPLETE
-2026-09-17 — no code written yet. Decisions (full RULE 15 audit in
+2026-09-17. Step 2 (schema + PDF-library decision) COMPLETE 2026-09-17
+(same day, following session). Decisions (full RULE 15 audit in
 DEVELOPMENT_BIBLE.md Section J): invoice and voucher are one document
 (not two), delivered as both a web page and a downloadable PDF,
 generated on payment success inside the existing Cashfree webhook
 (same call site CONTACT-02 uses, right after confirmBooking()) — not
-at booking-creation, not admin-manual. 6-step plan (scope → schema →
-backend → admin UI → customer UI → verification) recorded in
-SESSION_HANDOFF.md; Step 2 (schema + PDF-library decision) is next.
+at booking-creation, not admin-manual. PDF library: `@react-pdf/renderer`,
+confirmed (pure JS, no headless Chromium, renders from React
+components so one template drives both the web page and the PDF) —
+not yet added to package.json (that's Step 3). Schema: created
+src/db/sql/015_invoice01_invoices.sql — new public.invoices table,
+one snapshot row per booking (booking_id UNIQUE), human-facing
+invoice_number (SB-INV-000001) via the same generated-column pattern
+as vendor_settlements.receipt_number, amount_paid sourced from
+bookings.price_snapshot per the COUPON-01 finding, RLS enabled/no
+policy matching vendor_payout_details/vendor_settlements/coupons. NOT
+yet run in production (RULE 13/35 — run manually, confirm via
+information_schema.columns, before Step 3 starts). 6-step plan
+(scope → schema → backend → admin UI → customer UI → verification)
+recorded in SESSION_HANDOFF.md; Step 3 (repository + Server Actions +
+webhook wiring) is next.
 
 Planned (not started) — OWNER-DASH-01 (unified owner portal),
 OFFERS-01 (owner self-service coupons), CALENDAR-01 (owner room
