@@ -9,6 +9,7 @@ import {
   createBooking,
   type CreateBookingInput,
 } from '@/app/actions/booking.actions';
+import { validateCouponPublic } from '@/app/actions/coupon.actions';
 import type { BookableRoom } from '@/app/actions/room-type.actions';
 
 interface BookingFormProps {
@@ -30,6 +31,14 @@ interface BookingFormProps {
   // and required, and a successful booking redirects to the public
   // confirmation page instead of the (session-only) dashboard.
   isAuthenticated: boolean;
+  // COUPON-01: needed to preview a vendor-scoped coupon correctly.
+  // Optional — when the caller doesn't pass it, a vendor-scoped coupon
+  // will simply fail its live preview here (shows "not valid for this
+  // hotel or package"); this never affects what's actually charged,
+  // since createBooking() always re-resolves the real vendor id
+  // server-side and re-validates from scratch regardless of what this
+  // preview showed. See coupon.actions.ts's resolveCouponForBooking.
+  vendorId?: string | null;
 }
 
 function formatPrice(price: number | null): string {
@@ -59,10 +68,20 @@ export default function BookingForm({
   initialCheckOutDate = '',
   initialNumGuests = 1,
   isAuthenticated,
+  vendorId = null,
 }: BookingFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // COUPON-01
+  const [couponInput, setCouponInput] = useState('');
+  const [couponApplied, setCouponApplied] = useState<{
+    code: string;
+    discountAmount: number;
+  } | null>(null);
+  const [couponMessage, setCouponMessage] = useState<string | null>(null);
+  const [isCheckingCoupon, startCouponTransition] = useTransition();
 
   const [checkInDate, setCheckInDate] = useState(initialCheckInDate);
   const [checkOutDate, setCheckOutDate] = useState(initialCheckOutDate);
@@ -82,6 +101,43 @@ export default function BookingForm({
 
   const selectedRoom = rooms.find((r) => r.id === roomId) ?? null;
   const displayPrice = selectedRoom ? selectedRoom.price : startingPrice;
+
+  const payableAfterCoupon =
+    couponApplied && displayPrice != null
+      ? Math.max(0, displayPrice - couponApplied.discountAmount)
+      : null;
+
+  function handleApplyCoupon() {
+    setCouponMessage(null);
+
+    if (!couponInput.trim()) {
+      setCouponMessage('Enter a coupon code.');
+      return;
+    }
+
+    startCouponTransition(async () => {
+      const result = await validateCouponPublic({
+        code: couponInput,
+        vendorId,
+        subtotal: displayPrice ?? 0,
+      });
+
+      if (!result.valid) {
+        setCouponApplied(null);
+        setCouponMessage(result.reason);
+        return;
+      }
+
+      setCouponApplied({ code: result.code, discountAmount: result.discountAmount });
+      setCouponMessage(`Coupon applied — you save ₹${formatPrice(result.discountAmount)}.`);
+    });
+  }
+
+  function handleRemoveCoupon() {
+    setCouponApplied(null);
+    setCouponInput('');
+    setCouponMessage(null);
+  }
 
   const today = getTodayDateString();
   const minimumCheckOutDate = getNextDateString(checkInDate);
@@ -157,6 +213,10 @@ export default function BookingForm({
       guest_name: isAuthenticated ? null : guestName.trim(),
       guest_email: isAuthenticated ? null : guestEmail.trim(),
       guest_phone: isAuthenticated ? null : guestPhone.trim(),
+      // COUPON-01: only the code is sent — createBooking() re-validates
+      // and re-computes the discount itself, ignoring any amount shown
+      // here in the preview.
+      coupon_code: couponApplied ? couponApplied.code : null,
     };
 
     startTransition(async () => {
@@ -211,6 +271,57 @@ export default function BookingForm({
         <p className="mt-1 text-[13px] text-ink/60">
           {targetName}
         </p>
+
+        {payableAfterCoupon != null && (
+          <p className="mt-1 text-[13px] font-semibold text-green-700">
+            Payable after coupon: ₹{formatPrice(payableAfterCoupon)}
+          </p>
+        )}
+      </div>
+
+      <div>
+        {couponApplied ? (
+          <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-3.5 py-2.5">
+            <p className="text-[13px] font-semibold text-green-700">
+              {couponApplied.code} applied
+            </p>
+            <button
+              type="button"
+              onClick={handleRemoveCoupon}
+              className="focus-ring text-[12px] font-semibold text-green-700 underline"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={couponInput}
+              onChange={(e) => setCouponInput(e.target.value)}
+              placeholder="Coupon code"
+              className={`${inputClass} uppercase`}
+            />
+            <button
+              type="button"
+              onClick={handleApplyCoupon}
+              disabled={isCheckingCoupon}
+              className="focus-ring shrink-0 rounded-xl border border-deep/15 px-4 text-[13px] font-semibold text-deep transition hover:bg-mist disabled:opacity-50"
+            >
+              {isCheckingCoupon ? 'Checking...' : 'Apply'}
+            </button>
+          </div>
+        )}
+
+        {couponMessage && (
+          <p
+            className={`mt-1.5 text-[12px] ${
+              couponApplied ? 'text-green-700' : 'text-red-600'
+            }`}
+          >
+            {couponMessage}
+          </p>
+        )}
       </div>
 
       {mode === 'hotel' && rooms.length > 0 && (
