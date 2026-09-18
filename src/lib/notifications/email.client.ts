@@ -30,6 +30,15 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  // CUSTOMER-NOTIFY-01 (this session): lets a caller attach the
+  // invoice PDF directly to the customer's confirmation email. Needed
+  // specifically because a guest-checkout customer (no account) has
+  // no way to log in and view/download the invoice from the
+  // dashboard — the only invoice access they get is whatever this
+  // email carries. A logged-in customer gets the same attachment too,
+  // for the same "email is a complete receipt, no extra click
+  // required" reason, not just as a guest-only workaround.
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }
 
 export type SendEmailResult =
@@ -64,6 +73,7 @@ export async function sendEmail(
       to: input.to,
       subject: input.subject,
       html: input.html,
+      attachments: input.attachments,
     });
 
     return { success: true };
