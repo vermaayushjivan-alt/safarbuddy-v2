@@ -76,6 +76,18 @@ const emptyRoom: RoomEntry = {
   totalRooms: 1,
 };
 
+// PROPERTY-META-01: must match PROPERTY_TYPE_VALUES in
+// property-listing.actions.ts.
+const PROPERTY_TYPE_OPTIONS = [
+  "hotel",
+  "resort",
+  "guest_house",
+  "homestay",
+  "villa",
+  "apartment",
+  "hostel",
+] as const;
+
 const ROOM_IMAGE_ACCEPT = "image/jpeg,image/jpg,image/png,image/webp";
 const ROOM_MAX_IMAGES_PER_ROOM = 6;
 
@@ -91,8 +103,14 @@ const emptyForm: PropertyListingInput = {
   propertyState: "",
   propertyCountry: "",
   propertyAddress: "",
+  googleMapsUrl: "",
   starRating: undefined,
   startingPrice: undefined,
+  propertyType: "hotel",
+  checkInTime: "14:00",
+  checkOutTime: "11:00",
+  cancellationPolicy: "",
+  houseRules: "",
   roomTypes: [{ ...emptyRoom }],
   facilityIds: [],
   bankAccountNumber: "",
@@ -474,6 +492,13 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
               onChange={(e) => handleChange("propertyAddress", e.target.value)}
             />
             <TextField
+              id="googleMapsUrl"
+              label="Google Maps location link (optional)"
+              placeholder="Paste your Google Maps share link here"
+              value={form.googleMapsUrl ?? ""}
+              onChange={(e) => handleChange("googleMapsUrl", e.target.value)}
+            />
+            <TextField
               id="starRating"
               label="Star rating (0–5)"
               type="number"
@@ -499,6 +524,67 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
                   e.target.value === "" ? undefined : Number(e.target.value)
                 )
               }
+            />
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+                Property type
+              </label>
+              <select
+                value={form.propertyType}
+                onChange={(e) =>
+                  handleChange("propertyType", e.target.value as PropertyListingInput["propertyType"])
+                }
+                className="w-full rounded-xl border border-[var(--color-mist)] px-3.5 py-2.5 text-[14px] outline-none focus:border-[var(--color-sky)]"
+              >
+                {PROPERTY_TYPE_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ")}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <TextField
+              id="checkInTime"
+              label="Check-in time"
+              type="time"
+              required
+              value={form.checkInTime}
+              onChange={(e) => handleChange("checkInTime", e.target.value)}
+            />
+            <TextField
+              id="checkOutTime"
+              label="Check-out time"
+              type="time"
+              required
+              value={form.checkOutTime}
+              onChange={(e) => handleChange("checkOutTime", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="cancellationPolicy" className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+              Cancellation policy
+            </label>
+            <textarea
+              id="cancellationPolicy"
+              rows={3}
+              placeholder="e.g. Free cancellation up to 24 hours before check-in."
+              value={form.cancellationPolicy ?? ""}
+              onChange={(e) => handleChange("cancellationPolicy", e.target.value)}
+              className="w-full rounded-xl border border-[var(--color-mist)] px-3.5 py-2.5 text-[14px] outline-none focus:border-[var(--color-sky)]"
+            />
+          </div>
+          <div>
+            <label htmlFor="houseRules" className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+              House rules
+            </label>
+            <textarea
+              id="houseRules"
+              rows={3}
+              placeholder="e.g. No smoking. Pets not allowed. Valid ID required at check-in."
+              value={form.houseRules ?? ""}
+              onChange={(e) => handleChange("houseRules", e.target.value)}
+              className="w-full rounded-xl border border-[var(--color-mist)] px-3.5 py-2.5 text-[14px] outline-none focus:border-[var(--color-sky)]"
             />
           </div>
         </div>
