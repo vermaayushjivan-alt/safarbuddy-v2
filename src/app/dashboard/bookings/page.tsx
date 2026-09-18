@@ -135,6 +135,18 @@ export default async function MyBookingsPage({
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
 
+                      {/* INVOICE — confirmed/completed bookings only,
+                          mirrors the admin equivalent
+                          (src/app/admin/bookings/page.tsx) */}
+                      {(booking.status === 'confirmed' || booking.status === 'completed') && (
+                        <Link
+                          href={`/dashboard/bookings/${booking.id}/invoice`}
+                          className="focus-ring rounded-lg border border-deep/15 px-3 py-1.5 text-[12px] font-semibold text-deep transition hover:bg-mist"
+                        >
+                          Invoice
+                        </Link>
+                      )}
+
                       {/* PAY NOW — pending bookings only */}
                       {booking.status === 'pending' && (
                         <Link
@@ -205,6 +217,19 @@ export default async function MyBookingsPage({
               </div>
 
               <div className="mt-4 flex items-center justify-end gap-2 border-t border-deep/10 pt-3">
+                {/* INVOICE — confirmed/completed bookings only,
+                    mirrors the desktop table above 1:1 (see
+                    MOBILE-PAYMENT-BUG-01 note at the top of this
+                    file for why this section must stay in sync). */}
+                {(booking.status === 'confirmed' || booking.status === 'completed') && (
+                  <Link
+                    href={`/dashboard/bookings/${booking.id}/invoice`}
+                    className="focus-ring w-full rounded-lg border border-deep/15 px-3 py-2 text-center text-[13px] font-semibold text-deep transition hover:bg-mist"
+                  >
+                    Invoice
+                  </Link>
+                )}
+
                 {/* PAY NOW — pending bookings only. This is the button
                     that was unreachable on mobile before this hotfix. */}
                 {booking.status === 'pending' && (
