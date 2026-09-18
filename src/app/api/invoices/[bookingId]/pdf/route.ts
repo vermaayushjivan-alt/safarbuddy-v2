@@ -69,7 +69,12 @@ export async function GET(
     );
   }
 
-  return new NextResponse(pdfBuffer, {
+  // Buffer<ArrayBufferLike> is not directly assignable to
+  // BodyInit's typing (confirmed at build time: Next.js 16 / this
+  // TS lib set rejects it — "missing properties from type
+  // URLSearchParams" is TS trying the union's other branches).
+  // Blob is unambiguously valid BodyInit and works the same way.
+  return new NextResponse(new Blob([pdfBuffer], { type: 'application/pdf' }), {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
