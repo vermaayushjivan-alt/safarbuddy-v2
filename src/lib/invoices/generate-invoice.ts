@@ -42,7 +42,7 @@ export interface GenerateInvoiceInput {
 // resolved values on the invoice row (not a live join) means the
 // invoice never needs to re-derive which path was used — see migration
 // 015's header comment.
-async function resolveRecipient(
+export async function resolveRecipient(
   supabase: SupabaseClientType,
   booking: BookingRecord
 ): Promise<{ name: string; email: string | null; phone: string | null }> {
