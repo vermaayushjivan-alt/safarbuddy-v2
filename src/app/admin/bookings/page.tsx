@@ -130,6 +130,14 @@ export default async function AdminBookingsListPage({
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col items-end gap-2">
+                      {(booking.status === 'confirmed' || booking.status === 'completed') && (
+                        <Link
+                          href={`/admin/bookings/${booking.id}/invoice`}
+                          className="focus-ring rounded-lg border border-deep/15 px-2.5 py-1.5 text-[12px] font-semibold text-deep transition hover:bg-mist"
+                        >
+                          Invoice
+                        </Link>
+                      )}
                       {booking.status === 'pending' && (
                         <form action={handleConfirm}>
                           <input type="hidden" name="id" value={booking.id} />
