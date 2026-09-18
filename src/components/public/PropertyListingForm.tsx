@@ -32,6 +32,22 @@ type InitialAuth =
   | { isAuthenticated: true; email: string; fullName: string }
   | { isAuthenticated: false };
 
+// KYC-01: kept as separate component state, never inside `form`
+// (PropertyListingInput) — File objects don't belong in a
+// Zod-validated plain object (see property-listing.actions.ts's
+// PropertyListingKycFiles comment), and this state must survive
+// independently of any future field-by-field form reset logic.
+type KycFileState = {
+  aadhar: File | null;
+  pan: File | null;
+  passbook: File | null;
+};
+
+const emptyKycFiles: KycFileState = { aadhar: null, pan: null, passbook: null };
+
+const KYC_ACCEPT = "image/jpeg,image/jpg,image/png,image/webp,application/pdf";
+const KYC_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+
 const emptyForm: PropertyListingInput = {
   ownerFullName: "",
   ownerEmail: "",
@@ -76,6 +92,27 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
   const [success, setSuccess] = useState(false);
   const [accountWasCreated, setAccountWasCreated] = useState(false);
   const [sameAsOwnerContact, setSameAsOwnerContact] = useState(true);
+  const [kycFiles, setKycFiles] = useState<KycFileState>(emptyKycFiles);
+  const [kycUploadResult, setKycUploadResult] = useState<{
+    aadhar: boolean;
+    pan: boolean;
+    passbook: boolean;
+  } | null>(null);
+
+  // KYC-01: rejects an over-size/wrong-type file at selection time
+  // with an inline message, rather than silently sending it and only
+  // finding out from kycUploaded after the whole submission succeeds.
+  // Still not the only check — the server re-validates independently
+  // (never trust client-side validation alone) via uploadKycDocument()
+  // in property-listing.actions.ts.
+  function handleKycFileChange(field: keyof KycFileState, file: File | null) {
+    if (file && file.size > KYC_MAX_SIZE_BYTES) {
+      setError(`${kycFieldLabel(field)} must be 5MB or smaller.`);
+      return;
+    }
+    setError(null);
+    setKycFiles((prev) => ({ ...prev, [field]: file }));
+  }
 
   useEffect(() => {
     let active = true;
@@ -150,7 +187,11 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
     setError(null);
 
     startTransition(async () => {
-      const result = await submitPropertyListing(form);
+      const result = await submitPropertyListing(form, {
+        aadharFile: kycFiles.aadhar,
+        panFile: kycFiles.pan,
+        passbookFile: kycFiles.passbook,
+      });
 
       if (!result.success) {
         setError(result.error);
@@ -158,6 +199,7 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
       }
 
       setAccountWasCreated(result.data.accountCreated);
+      setKycUploadResult(result.data.kycUploaded);
       setSuccess(true);
     });
   }
@@ -183,6 +225,16 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
   }, [success, accountWasCreated, router]);
 
   if (success) {
+    // KYC-01: a document the person attached can still fail to upload
+    // (wrong type slipped past the client check, a transient Storage
+    // error) without failing the whole submission — see
+    // uploadKycDocument()'s header in property-listing.actions.ts.
+    // Surfaced here by name so it's never a silent gap the owner only
+    // discovers when an admin asks for a document "you already sent".
+    const attemptedButFailed = (
+      ["aadhar", "pan", "passbook"] as const
+    ).filter((field) => kycFiles[field] && !kycUploadResult?.[field]);
+
     return (
       <Alert variant="success">
         {accountWasCreated ? (
@@ -203,6 +255,14 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
             Your property has been submitted for review. Taking you to your
             dashboard…
           </>
+        )}
+        {attemptedButFailed.length > 0 && (
+          <p className="mt-3 text-[13px] text-[var(--color-ink)]/70">
+            Note: {attemptedButFailed.map(kycFieldLabel).join(", ")} could not
+            be uploaded — please add{" "}
+            {attemptedButFailed.length > 1 ? "them" : "it"} again from your
+            dashboard once you're in.
+          </p>
         )}
       </Alert>
     );
@@ -467,6 +527,33 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
         </div>
       </Section>
 
+      {/* Section 5: KYC documents */}
+      <Section
+        title="KYC documents"
+        subtitle="Photos or scans are fine (JPG, PNG, or PDF, up to 5MB each). Admin verifies these before your property goes live — you can add or replace any of them later from your dashboard if you don't have all three ready now."
+      >
+        <div className="grid gap-5 sm:grid-cols-3">
+          <FileUploadField
+            id="kycAadhar"
+            label="Aadhar card"
+            file={kycFiles.aadhar}
+            onChange={(file) => handleKycFileChange("aadhar", file)}
+          />
+          <FileUploadField
+            id="kycPan"
+            label="PAN card"
+            file={kycFiles.pan}
+            onChange={(file) => handleKycFileChange("pan", file)}
+          />
+          <FileUploadField
+            id="kycPassbook"
+            label="Bank passbook / cancelled cheque"
+            file={kycFiles.passbook}
+            onChange={(file) => handleKycFileChange("passbook", file)}
+          />
+        </div>
+      </Section>
+
       <button
         type="submit"
         disabled={isPending}
@@ -475,6 +562,65 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
         {isPending ? "Submitting…" : "Submit property for review"}
       </button>
     </form>
+  );
+}
+
+function kycFieldLabel(field: "aadhar" | "pan" | "passbook"): string {
+  switch (field) {
+    case "aadhar":
+      return "Aadhar card";
+    case "pan":
+      return "PAN card";
+    case "passbook":
+      return "Bank passbook";
+  }
+}
+
+function FileUploadField({
+  id,
+  label,
+  file,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  file: File | null;
+  onChange: (file: File | null) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+        {label}
+      </label>
+      <label
+        htmlFor={id}
+        className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-mist)] px-3 py-5 text-center text-[13px] text-[var(--color-ink)]/60 hover:border-[var(--color-sky)]"
+      >
+        {file ? (
+          <span className="truncate px-2 font-medium text-[var(--color-ink)]">
+            {file.name}
+          </span>
+        ) : (
+          <span>Tap to upload</span>
+        )}
+        <input
+          id={id}
+          type="file"
+          accept={KYC_ACCEPT}
+          className="hidden"
+          onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+        />
+      </label>
+      {file && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="mt-1 text-[12px] text-[var(--color-ink)]/40 underline"
+        >
+          Remove
+        </button>
+      )}
+    </div>
   );
 }
 
