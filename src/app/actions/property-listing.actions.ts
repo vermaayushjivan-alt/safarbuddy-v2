@@ -52,6 +52,23 @@ import { slugify } from '@/lib/utils/format';
 // ultimately feeds the same numeric(10,2) column.
 const MAX_STARTING_PRICE = 99_999_999.99;
 
+// PROPERTY-META-01: hotels.property_type is a confirmed-live `text`
+// column with no documented CHECK constraint anywhere in this
+// codebase (grepped — see this session's notes). These values are a
+// reasonable product-chosen set, NOT a confirmed DB constraint —
+// unlike ROOM_TYPE_VALUES, which mirrors an actual live CHECK. If a
+// real constraint is ever confirmed via information_schema, reconcile
+// this list against it before relying on it further (RULE 7/13).
+const PROPERTY_TYPE_VALUES = [
+  'hotel',
+  'resort',
+  'guest_house',
+  'homestay',
+  'villa',
+  'apartment',
+  'hostel',
+] as const;
+
 const propertyListingSchema = z
   .object({
     // --- Section 1: owner account ---
@@ -77,6 +94,15 @@ const propertyListingSchema = z
     propertyState: z.preprocess(emptyToNull, z.string().nullable().optional()),
     propertyCountry: z.string().min(1, 'Country is required.'),
     propertyAddress: z.string().min(1, 'Address is required.'),
+    // LOCATION-01: the owner's pasted Google Maps share link (any
+    // format — full URL or a shortened maps.app.goo.gl link both
+    // work, since this is stored and linked out verbatim, never
+    // parsed — see migration 021's header). Optional: a listing
+    // without a map link is still usable via the plain address.
+    googleMapsUrl: z.preprocess(
+      emptyToNull,
+      z.string().trim().url('Enter a valid map link, e.g. https://maps.google.com/...').nullable().optional()
+    ),
     starRating: z.preprocess(
       emptyToNull,
       z.number().min(0).max(5).nullable().optional()
@@ -90,6 +116,31 @@ const propertyListingSchema = z
         .nullable()
         .optional()
     ),
+    // PROPERTY-META-01 (this session): hotels.property_type,
+    // check_in_time, check_out_time are confirmed-live columns
+    // (HotelRecord in hotel.repository.ts) that NO existing caller —
+    // not this action before today, not the admin HotelForm either —
+    // has ever set. Every hotel in the system has been relying on
+    // whatever the DB column default is. Adding them here so an owner
+    // can state them explicitly; not touching the admin form in this
+    // pass (separate surface, flagged not silently assumed done).
+    propertyType: z.enum(PROPERTY_TYPE_VALUES, {
+      message: `Property type must be one of: ${PROPERTY_TYPE_VALUES.join(', ')}.`,
+    }),
+    checkInTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use 24-hour HH:MM, e.g. 14:00'),
+    checkOutTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use 24-hour HH:MM, e.g. 11:00'),
+    // POLICY-01 (this session): new columns — see migration
+    // 020_vendor03_hotel_policies.sql. Both optional: a property
+    // without a stated policy yet is not blocked from submitting, but
+    // is strongly encouraged in the form (guests booking with no
+    // visible cancellation policy is a real trust/dispute risk, just
+    // not one severe enough to hard-block a first submission).
+    cancellationPolicy: z.preprocess(emptyToNull, z.string().nullable().optional()),
+    houseRules: z.preprocess(emptyToNull, z.string().nullable().optional()),
 
     // --- Section 2b: rooms (ROOMS-01, this session) ---
     // At least one room type is required — a property with zero rooms
@@ -564,6 +615,12 @@ export async function submitPropertyListing(
       email: parsed.contactEmail,
       website: parsed.website ?? null,
       is_featured: false,
+      property_type: parsed.propertyType,
+      check_in_time: parsed.checkInTime,
+      check_out_time: parsed.checkOutTime,
+      cancellation_policy: parsed.cancellationPolicy ?? null,
+      house_rules: parsed.houseRules ?? null,
+      google_maps_url: parsed.googleMapsUrl ?? null,
     });
 
     if (parsed.facilityIds.length > 0) {
