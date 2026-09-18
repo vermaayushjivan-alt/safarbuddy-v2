@@ -625,9 +625,83 @@ class of naming collision DOC_DEBT.md item 15 already documented for
 never actually applicable in production. Fix: CONTACT-01/02/03 now use
 a dedicated `public.booking_notifications` table instead (created by
 the revised 016_contact03_admin_notify.sql v2), and
-notification.repository.ts's `tableName` was updated to match. Not yet
-run/confirmed in production after this fix.
+notification.repository.ts's `tableName` was updated to match. User
+re-ran v2 and confirmed via `information_schema.columns` that
+`public.booking_notifications` now exists with exactly the expected 11
+columns — CONFIRMED. A live booking + payment walkthrough is still the
+real end-to-end test (RULE 21/22), not yet done.
 
 Next action: run tsc/eslint for real and do the live walkthrough
 above; then resume INVOICE-01 Step 4 (admin UI — list + link from
 /admin/bookings detail), unchanged from before this session.
+
+INVOICE-01 Step 4 — admin UI (invoice view + list link). CODE COMPLETE
+2026-09-18 (chat session, following CONTACT-03 above). RULE 15 audit
+found the written plan assumed an `/admin/bookings/[id]` detail page
+that doesn't exist (list is flat) — see DEVELOPMENT_BIBLE.md Section J
+"Step 4 audit finding" for the full note. Shipped instead: a dedicated
+`src/app/admin/bookings/[id]/invoice/page.tsx` route (reuses the
+already-built `getInvoiceByBookingIdAdmin()`, `buildInvoiceViewModel()`,
+`<InvoiceView>` from Step 3a/3b — no new backend code) plus an
+"Invoice" link added to `/admin/bookings`'s Actions column, shown only
+for confirmed/completed bookings. PDF download deliberately not
+included — separate scope (Step 5 / a new route wrapping
+renderInvoicePdfBuffer()).
+
+NOT verified: sandbox network still disabled this session — tsc/eslint
+not run for real. Manually re-read both changed/new files end to end.
+Live check needed: open `/admin/bookings/<a confirmed booking id>/invoice`
+as an admin and confirm it renders (and that a pending booking's
+invoice link is correctly absent, and its /invoice route shows the
+"no invoice yet" message rather than erroring).
+
+Next action: run tsc/eslint + the live check above. Step 5 (customer-
+facing invoice view + PDF download) not started — separate future
+session.
+
+INVOICE-01 Step 5a+5b — customer invoice view + PDF download. CODE
+COMPLETE 2026-09-18 (chat session, same day, following Step 4 above).
+Step 5a: src/app/dashboard/bookings/[id]/invoice/page.tsx — mirrors
+Step 4's admin page, but auth/ownership follows the customer pattern
+already used by dashboard/bookings/[id]/pay/page.tsx (getAuthUser() ->
+redirect /login, then getMyBookingById() for ownership-scoped "not
+found"). src/app/dashboard/bookings/page.tsx got an "Invoice" link
+(confirmed/completed only) added to BOTH its desktop table and mobile
+card markup (kept in sync per that file's own MOBILE-PAYMENT-BUG-01
+note). Step 5b: src/app/api/invoices/[bookingId]/pdf/route.ts — first
+route to call renderInvoicePdfBuffer() (Step 3b built it, unused until
+now); same getMyInvoiceByBookingId() auth; returns the PDF with
+Content-Disposition: attachment. Admin PDF download intentionally out
+of scope (customer ownership path only).
+
+NOT verified: sandbox network still disabled — tsc/eslint not run for
+real. Manually re-read all three changed/new files end to end. Live
+checks needed: (1) as a signed-in customer, open a confirmed booking's
+invoice from My Bookings on both desktop and mobile; (2) click
+Download PDF and confirm a valid PDF downloads; (3) confirm a pending
+booking shows no Invoice link and its /invoice route's "not found"
+messaging is correct; (4) hit the PDF route unauthenticated and confirm
+401, and for someone else's booking id and confirm 404 (not leaking
+existence).
+
+Next action: run tsc/eslint + the live checks above. INVOICE-01's
+originally planned scope (Steps 1-5) is now code-complete end to end,
+pending verification.
+
+Correction: user's real Vercel build caught a real `tsc` error in
+src/app/api/invoices/[bookingId]/pdf/route.ts — `Buffer` isn't
+assignable to `BodyInit` under this project's Next.js 16 typings.
+Fixed by wrapping the PDF buffer in `new Blob([pdfBuffer], { type:
+'application/pdf' })`. See SESSION_HANDOFF.md's correction note for
+the full detail — this is the first real (non-sandbox) toolchain
+confirmation this session, everything else is still only manually
+reviewed.
+
+Correction #2: the Blob fix above was wrong — re-run failed at the
+same line with a different error (Buffer's `.buffer` typed
+ArrayBufferLike, incompatible with BlobPart's required plain
+ArrayBuffer). Fixed properly: `new NextResponse(new
+Uint8Array(pdfBuffer), ...)` — no Blob wrapper. Two wrong type-error
+guesses in a row on this one line; see SESSION_HANDOFF.md's
+Correction #2 for the full reasoning. Do not assume this is the last
+type error until a build actually passes end to end.
