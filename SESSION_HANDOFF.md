@@ -6,6 +6,143 @@ Single source of truth for the current session boundary. Read this first if pick
 
 Current milestone
 
+INVOICE-01 Step 5a+5b — customer invoice view + PDF download
+(2026-09-18, same day, continuation of Step 4 below, same chat
+session). User said "Ok karo" to the proposed 5a/5b split.
+
+Built this session: src/app/dashboard/bookings/[id]/invoice/page.tsx
+(Step 5a) — same shape as Step 4's admin invoice page, but auth/
+ownership follows dashboard/bookings/[id]/pay/page.tsx's existing
+customer pattern instead of requireRole(): getAuthUser() -> redirect
+/login if unauthenticated, then getMyBookingById() (same
+ownership-scoped fetch the Pay Now page already uses) for a generic
+"booking not found" message that doesn't distinguish "doesn't exist"
+from "not yours". getMyInvoiceByBookingId() (Step 3a) still re-checks
+ownership itself too — kept as defense in depth, not removed.
+src/app/dashboard/bookings/page.tsx (My Bookings) — added an "Invoice"
+link (confirmed/completed only) to BOTH the desktop table AND the
+mobile card list — this page has two parallel markup blocks since the
+MOBILE-PAYMENT-BUG-01 hotfix, and that fix's own comment says they must
+stay in sync, so both were edited, not just one.
+
+src/app/api/invoices/[bookingId]/pdf/route.ts (Step 5b) — new route,
+the first thing to actually call renderInvoicePdfBuffer() (Step 3b
+built it, nothing used it until now).
+Same getMyInvoiceByBookingId() auth as the page; UNAUTHENTICATED ->
+401, null invoice (not found / not yours / not paid yet — all three
+collapse to one response, same non-leaking reasoning as Step 5a) ->
+404, success -> PDF bytes with Content-Disposition: attachment.
+Admin download deliberately NOT added (would need its own route or an
+auth branch on this one) — out of scope, not asked for.
+
+NOT verified this session: sandbox network still disabled — npm
+install/tsc --noEmit/eslint could not be run for real (same as every
+INVOICE-01/CONTACT-03 session in this sandbox). All three
+changed/new files manually re-read end to end instead. Live checks
+still needed: open a confirmed booking's invoice from My Bookings
+(desktop AND mobile), click Download PDF and confirm a real PDF comes
+back, confirm a pending booking shows no Invoice link and its
+/invoice route's message is correct, and hit the PDF route both
+unauthenticated (expect 401) and for a booking that isn't the caller's
+(expect 404, not a leak).
+
+Next action: run tsc/eslint + all the live checks above (Steps 1-5
+together now — this is the first point INVOICE-01 is code-complete
+end to end and worth a single full walkthrough rather than checking
+each step in isolation). No further INVOICE-01 steps are planned in
+DEVELOPMENT_BIBLE.md Section J beyond this.
+
+Correction (same day, user's real Vercel build): `npx tsc` finally ran
+for real (via the Vercel build's "Running TypeScript" step, not this
+sandbox) and caught a real error —
+`src/app/api/invoices/[bookingId]/pdf/route.ts:72`:
+`Buffer<ArrayBufferLike>` is not assignable to `BodyInit` in this
+project's Next.js 16 / TS lib set (`new NextResponse(pdfBuffer, ...)`
+failed to type-check even though Buffer is a Uint8Array subtype at
+runtime). Fixed by wrapping it: `new NextResponse(new Blob([pdfBuffer],
+{ type: 'application/pdf' }), ...)` — Blob is unambiguously valid
+BodyInit. This is the first real toolchain confirmation of anything in
+today's session (CONTACT-03 and Steps 4/5a were all manually reviewed
+only, this sandbox's network being disabled throughout) — everything
+else in those diffs should be treated with correspondingly less
+confidence until the same real build gets further than this line.
+
+Next action (revised): re-run the Vercel build. If it passes
+TypeScript this time, continue to the live walkthrough checks listed
+above — treat every one of them as still fully unverified, this build
+only fixed a compile error, it did not exercise any runtime path.
+
+Correction #2 (same day, re-run): the Blob fix above was WRONG — the
+next Vercel build failed at the same line with a different error:
+`Buffer<ArrayBufferLike>` is not assignable to `BlobPart` either
+(`Types of property 'buffer' are incompatible... SharedArrayBuffer is
+missing properties from ArrayBuffer`). Root cause, now actually
+understood: Buffer's `.buffer` property is typed `ArrayBufferLike`
+(a union that includes `SharedArrayBuffer`), while this TS lib set's
+`BodyInit`/`BlobPart` both require an `ArrayBufferView` parameterized
+specifically over plain `ArrayBuffer` — Blob didn't sidestep the
+problem, it hit the same generic mismatch from a different angle.
+Fixed properly this time: `new NextResponse(new Uint8Array(pdfBuffer),
+...)` — the `Uint8Array(array: ArrayLike<number>)` constructor
+overload (constructing from an array-like, not wrapping an existing
+buffer) is typed to return `Uint8Array<ArrayBuffer>` specifically,
+never `ArrayBufferLike`, which is why this form satisfies both typings
+where wrapping in Blob did not. No Blob wrapper needed at all — a
+Uint8Array is valid BodyInit directly.
+
+Next action (revised again): re-run the Vercel build once more. Given
+two wrong guesses in a row on this exact line, do not assume this is
+the last type error in this file (or others) without the build
+actually passing — re-check the full build log, not just this line,
+next time it runs.
+
+Previous milestone
+
+INVOICE-01 Step 4 — admin UI (invoice view + list link) (2026-09-18,
+same day, continuation of CONTACT-03 below, same chat session).
+
+RULE 15 audit before coding: DEVELOPMENT_BIBLE.md Section J's Step 4
+plan said "list + link from /admin/bookings detail" — but
+/admin/bookings (src/app/admin/bookings/page.tsx) is a flat list, no
+[id] detail route exists at all. Backend was already fully ready
+though: getInvoiceByBookingIdAdmin() (invoice.actions.ts, Step 3a,
+already role-checked via requireRole(['admin','super_admin'])),
+buildInvoiceViewModel() and <InvoiceView> (Step 3b) — none of it wired
+into any page yet.
+
+Built this session: src/app/admin/bookings/[id]/invoice/page.tsx — new
+route, admin-only via getInvoiceByBookingIdAdmin()'s own role check
+(UNAUTHENTICATED/FORBIDDEN caught -> notFound(), same pattern as
+/admin/settlements/[vendorId]/page.tsx); renders <InvoiceView> when an
+invoice exists, a plain "no invoice yet" message when it doesn't (a
+booking not yet confirmed/paid, not a 404). src/app/admin/bookings/page.tsx
+— added an "Invoice" link in the Actions column, shown only for
+confirmed/completed bookings, pointing at the new route. No new
+backend logic at all — pure wiring of already-built Step 3a/3b pieces.
+
+Deliberately not done: no PDF download button on the new page — that
+needs its own route/handler wrapping renderInvoicePdfBuffer() (Step
+3b's server-only PDF wrapper), left for Step 5 (customer UI) or its
+own step, not blended in here (RULE 11). No booking-detail page built
+either (would have been separate, unasked-for scope) — the invoice
+route stands alone instead.
+
+NOT verified this session: sandbox network still disabled (same as
+CONTACT-03 below) — npm install/tsc --noEmit/eslint could not be run
+for real. Both changed files manually re-read end to end instead. Live
+check still needed: sign in as admin, open a confirmed booking's
+`/admin/bookings/<id>/invoice` and confirm it actually renders (and
+that a pending booking correctly shows no Invoice link, and its
+/invoice route shows the "no invoice yet" message rather than
+erroring) — none of this has been exercised against a real Supabase
+instance.
+
+Next action: run tsc/eslint + the live check above. Then Step 5
+(customer-facing invoice view + PDF download) — separate future
+session, do not blend with Step 4's admin scope.
+
+Previous milestone
+
 CONTACT-03 — Booking Contact Capture + Admin Payment Notification
 (2026-09-18, same day, new chat session). User asked (in Hindi/Hinglish)
 for booking-time name+contact capture regardless of login state, plus
@@ -79,7 +216,10 @@ v2 of 016_contact03_admin_notify.sql creates a dedicated
 `public.notifications`; notification.repository.ts's `tableName`
 updated to match (`booking_notifications`, both the config and the one
 raw `.from('notifications')` call in countUnreadDashboardNotifications()).
-Not yet run/confirmed in production after this fix.
+User re-ran v2 and confirmed via `information_schema.columns` that
+`public.booking_notifications` now has exactly the expected 11 columns.
+Table structure CONFIRMED — a live booking + payment walkthrough is
+still the real end-to-end test (RULE 21/22), not yet done.
 
 Next action: run the verification above; once clean, resume INVOICE-01
 Step 4 (admin UI — list + link from `/admin/bookings` detail, per
