@@ -84,8 +84,19 @@ const propertyListingSchema = z
     // branch in submitPropertyListing below) skips account creation
     // entirely, so these are validated conditionally in the action,
     // not here — a shared object-level refine can't see the session.
-    password: z.string().min(6, 'Password must be at least 6 characters.').optional(),
-    confirmPassword: z.string().optional(),
+    // .or(z.literal('')) is required alongside .optional(): the form's
+    // initial state is password: "" (empty string, not undefined), and
+    // that empty string is still submitted for an already-authenticated
+    // user since the password fields aren't rendered for them. Without
+    // this, min(6) rejected the empty string and blocked signed-in
+    // hosts with "Password must be at least 6 characters." even though
+    // they never saw a password field.
+    password: z
+      .string()
+      .min(6, 'Password must be at least 6 characters.')
+      .optional()
+      .or(z.literal('')),
+    confirmPassword: z.string().optional().or(z.literal('')),
 
     // --- Section 2: property details ---
     hotelName: z.string().min(2, 'Property name is required.'),
