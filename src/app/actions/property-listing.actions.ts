@@ -32,6 +32,10 @@ import { HotelRepository } from '@/lib/repositories/hotel.repository';
 import { VendorRepository } from '@/lib/repositories/vendor.repository';
 import { VendorPayoutRepository } from '@/lib/repositories/vendor-payout.repository';
 import {
+  VendorKycRepository,
+  VENDOR_KYC_BUCKET,
+} from '@/lib/repositories/vendor-kyc.repository';
+import {
   HotelFacilityRepository,
   HotelFacilityLinkRepository,
 } from '@/lib/repositories/hotel-facility.repository';
@@ -111,6 +115,31 @@ const propertyListingSchema = z
 
 export type PropertyListingInput = z.infer<typeof propertyListingSchema>;
 
+// KYC-01: the three identity documents, kept as a separate parameter
+// (not part of the Zod-validated object above) — a File is not a
+// value Zod's .parse() output should be carrying around, same reason
+// uploadRoomImageAdmin() keeps its `file: File` parameter outside its
+// own Zod schema. All three are optional at the type level so a
+// submitter can send only the ones they have ready; this action never
+// blocks a listing on missing documents — an owner can finish KYC
+// later (dashboard upload flow not yet built — flagged, not silently
+// assumed).
+export interface PropertyListingKycFiles {
+  aadharFile?: File | null;
+  panFile?: File | null;
+  passbookFile?: File | null;
+}
+
+const KYC_ALLOWED_FILE_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+];
+
+const KYC_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
 export type PropertyListingResult = {
   hotelId: string;
   vendorId: string;
@@ -120,6 +149,16 @@ export type PropertyListingResult = {
   // form uses this to decide whether to show the "check your email
   // to confirm" message (only relevant when a new account was made).
   accountCreated: boolean;
+  // KYC-01: which of the three documents actually got uploaded and
+  // saved. A failed individual upload does not fail the whole
+  // submission (see uploadKycDocument below) — the form uses this to
+  // tell the owner exactly which document(s) to retry, instead of a
+  // vague "something went wrong" after the listing already succeeded.
+  kycUploaded: {
+    aadhar: boolean;
+    pan: boolean;
+    passbook: boolean;
+  };
 };
 
 /* -------------------------------------------------------------------------- */
@@ -130,6 +169,88 @@ export async function getFacilityCatalog() {
   const supabase = await createClient();
   const repo = new HotelFacilityRepository(supabase);
   return repo.getActiveFacilities();
+}
+
+/* -------------------------------------------------------------------------- */
+/* KYC document upload helper                                                */
+/* -------------------------------------------------------------------------- */
+
+function kycExtensionFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    case 'application/pdf':
+      return 'pdf';
+    default:
+      throw new Error(`Unsupported KYC document type: ${mimeType}`);
+  }
+}
+
+// Uploads one document to the private vendor-kyc-documents bucket
+// (must already exist, created manually via the Supabase dashboard
+// with "Public bucket" OFF — see migration 018's header). Returns the
+// storage path on success, or null on any failure — this function
+// never throws, so one bad file (wrong type, too large, a transient
+// Storage error) never fails the entire property listing submission
+// that's already succeeded by the time KYC upload runs. Every failure
+// is logged with context (RULE 38) so it is at least visible server-
+// side, and reported back to the caller via PropertyListingResult.
+// kycUploaded above so the form can tell the owner what to retry.
+async function uploadKycDocument(
+  admin: ReturnType<typeof createServiceRoleClient>,
+  vendorId: string,
+  label: 'aadhar' | 'pan' | 'passbook',
+  file: File
+): Promise<string | null> {
+  if (!KYC_ALLOWED_FILE_TYPES.includes(file.type)) {
+    console.error(
+      `[submitPropertyListing] KYC ${label} rejected — unsupported type`,
+      file.type
+    );
+    return null;
+  }
+
+  if (file.size > KYC_MAX_FILE_SIZE_BYTES) {
+    console.error(
+      `[submitPropertyListing] KYC ${label} rejected — file too large`,
+      file.size
+    );
+    return null;
+  }
+
+  try {
+    const ext = kycExtensionFromMimeType(file.type);
+    const objectKey = `${vendorId}/${label}.${ext}`;
+
+    const { error: uploadError } = await admin.storage
+      .from(VENDOR_KYC_BUCKET)
+      .upload(objectKey, file, {
+        contentType: file.type,
+        // A resubmission (e.g. after an admin rejection) replaces the
+        // same document rather than accumulating orphaned old files —
+        // unlike room images, there is only ever one current Aadhar/
+        // PAN/passbook per vendor.
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error(
+        `[submitPropertyListing] KYC ${label} upload failed`,
+        uploadError.message
+      );
+      return null;
+    }
+
+    return objectKey;
+  } catch (error) {
+    console.error(`[submitPropertyListing] KYC ${label} upload threw`, error);
+    return null;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -145,7 +266,8 @@ function getSiteUrl(): string {
 }
 
 export async function submitPropertyListing(
-  input: PropertyListingInput
+  input: PropertyListingInput,
+  kycFiles?: PropertyListingKycFiles
 ): Promise<ActionResult<PropertyListingResult>> {
   return runAction(async () => {
     const parsed = propertyListingSchema.parse(input);
@@ -237,6 +359,7 @@ export async function submitPropertyListing(
     const vendorRepo = new VendorRepository(admin);
     const hotelRepo = new HotelRepository(admin);
     const payoutRepo = new VendorPayoutRepository(admin);
+    const kycRepo = new VendorKycRepository(admin);
     const facilityLinkRepo = new HotelFacilityLinkRepository(admin);
 
     // ALREADY-AUTH-01: an existing customer's account can only ever
@@ -291,6 +414,39 @@ export async function submitPropertyListing(
       upi_id: parsed.upiId ?? null,
     });
 
+    // KYC-01: upload whichever documents were provided. Each upload is
+    // independent and best-effort (see uploadKycDocument's header) —
+    // a failure here must never undo the hotel/vendor rows already
+    // created above, same "never invalidate the primary record"
+    // caution as the admin alert email below.
+    const kycUploaded = { aadhar: false, pan: false, passbook: false };
+
+    if (kycFiles?.aadharFile || kycFiles?.panFile || kycFiles?.passbookFile) {
+      const [aadharPath, panPath, passbookPath] = await Promise.all([
+        kycFiles.aadharFile
+          ? uploadKycDocument(admin, vendor.id, 'aadhar', kycFiles.aadharFile)
+          : Promise.resolve(null),
+        kycFiles.panFile
+          ? uploadKycDocument(admin, vendor.id, 'pan', kycFiles.panFile)
+          : Promise.resolve(null),
+        kycFiles.passbookFile
+          ? uploadKycDocument(admin, vendor.id, 'passbook', kycFiles.passbookFile)
+          : Promise.resolve(null),
+      ]);
+
+      if (aadharPath || panPath || passbookPath) {
+        await kycRepo.upsertDocumentPaths(vendor.id, {
+          ...(aadharPath ? { aadhar_storage_path: aadharPath } : {}),
+          ...(panPath ? { pan_storage_path: panPath } : {}),
+          ...(passbookPath ? { passbook_storage_path: passbookPath } : {}),
+        });
+      }
+
+      kycUploaded.aadhar = Boolean(aadharPath);
+      kycUploaded.pan = Boolean(panPath);
+      kycUploaded.passbook = Boolean(passbookPath);
+    }
+
     // Grant hotel_owner so the new user can reach /hotel-owner once
     // they confirm their email and log in. Allowlist-restricted — see
     // src/lib/auth/roles.ts header for why this call is safe here.
@@ -317,6 +473,15 @@ export async function submitPropertyListing(
             <li><strong>City:</strong> ${escapeHtml(parsed.propertyCity)}</li>
             <li><strong>Hotel ID:</strong> ${hotel.id}</li>
             <li><strong>Vendor ID:</strong> ${vendor.id}</li>
+            <li><strong>KYC documents uploaded:</strong> ${
+              [
+                kycUploaded.aadhar && 'Aadhar',
+                kycUploaded.pan && 'PAN',
+                kycUploaded.passbook && 'Bank passbook',
+              ]
+                .filter(Boolean)
+                .join(', ') || 'None yet'
+            }</li>
           </ul>
           <p>Review it in the admin dashboard under Hotels (status: pending).</p>
         `,
@@ -338,6 +503,7 @@ export async function submitPropertyListing(
       vendorId: vendor.id,
       status: 'pending' as const,
       accountCreated,
+      kycUploaded,
     };
   });
 }
