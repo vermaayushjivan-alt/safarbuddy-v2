@@ -48,6 +48,37 @@ const emptyKycFiles: KycFileState = { aadhar: null, pan: null, passbook: null };
 const KYC_ACCEPT = "image/jpeg,image/jpg,image/png,image/webp,application/pdf";
 const KYC_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
+// ROOMS-01: must match ROOM_TYPE_VALUES in room-type.repository.ts —
+// the live hotel_rooms.room_type CHECK constraint. Not imported
+// directly since that repository file is server-only; kept in sync by
+// hand (both derive from the same live DB constraint).
+const ROOM_TYPE_OPTIONS = [
+  "single",
+  "double",
+  "twin",
+  "suite",
+  "deluxe",
+  "executive",
+  "family",
+] as const;
+
+type RoomEntry = PropertyListingInput["roomTypes"][number];
+
+const emptyRoom: RoomEntry = {
+  roomName: "",
+  roomType: "double",
+  basePrice: 0,
+  capacityAdults: 2,
+  capacityChildren: 0,
+  maxOccupancy: 2,
+  bedType: "",
+  roomSizeSqft: undefined,
+  totalRooms: 1,
+};
+
+const ROOM_IMAGE_ACCEPT = "image/jpeg,image/jpg,image/png,image/webp";
+const ROOM_MAX_IMAGES_PER_ROOM = 6;
+
 const emptyForm: PropertyListingInput = {
   ownerFullName: "",
   ownerEmail: "",
@@ -62,6 +93,7 @@ const emptyForm: PropertyListingInput = {
   propertyAddress: "",
   starRating: undefined,
   startingPrice: undefined,
+  roomTypes: [{ ...emptyRoom }],
   facilityIds: [],
   bankAccountNumber: "",
   bankIfsc: "",
@@ -98,6 +130,48 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
     pan: boolean;
     passbook: boolean;
   } | null>(null);
+  // ROOMS-01: images per room, aligned by index to form.roomTypes —
+  // roomImages[0] holds the files for form.roomTypes[0], etc. Kept
+  // separate from `form` for the same reason kycFiles is (File
+  // objects don't belong in the Zod-validated object).
+  const [roomImages, setRoomImages] = useState<File[][]>([[]]);
+  const [roomImagesResult, setRoomImagesResult] = useState<
+    { attempted: number; saved: number }[] | null
+  >(null);
+
+  function addRoom() {
+    setForm((prev) => ({ ...prev, roomTypes: [...prev.roomTypes, { ...emptyRoom }] }));
+    setRoomImages((prev) => [...prev, []]);
+  }
+
+  function removeRoom(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      roomTypes: prev.roomTypes.filter((_, i) => i !== index),
+    }));
+    setRoomImages((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateRoom<K extends keyof RoomEntry>(index: number, key: K, value: RoomEntry[K]) {
+    setForm((prev) => ({
+      ...prev,
+      roomTypes: prev.roomTypes.map((room, i) =>
+        i === index ? { ...room, [key]: value } : room
+      ),
+    }));
+  }
+
+  function handleRoomImagesChange(index: number, files: FileList | null) {
+    if (!files) return;
+    const selected = Array.from(files).slice(0, ROOM_MAX_IMAGES_PER_ROOM);
+    const tooLarge = selected.find((f) => f.size > KYC_MAX_SIZE_BYTES);
+    if (tooLarge) {
+      setError(`${tooLarge.name} is too large — each photo must be 5MB or smaller.`);
+      return;
+    }
+    setError(null);
+    setRoomImages((prev) => prev.map((imgs, i) => (i === index ? selected : imgs)));
+  }
 
   // KYC-01: rejects an over-size/wrong-type file at selection time
   // with an inline message, rather than silently sending it and only
@@ -187,11 +261,15 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
     setError(null);
 
     startTransition(async () => {
-      const result = await submitPropertyListing(form, {
-        aadharFile: kycFiles.aadhar,
-        panFile: kycFiles.pan,
-        passbookFile: kycFiles.passbook,
-      });
+      const result = await submitPropertyListing(
+        form,
+        {
+          aadharFile: kycFiles.aadhar,
+          panFile: kycFiles.pan,
+          passbookFile: kycFiles.passbook,
+        },
+        roomImages
+      );
 
       if (!result.success) {
         setError(result.error);
@@ -200,6 +278,7 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
 
       setAccountWasCreated(result.data.accountCreated);
       setKycUploadResult(result.data.kycUploaded);
+      setRoomImagesResult(result.data.roomImagesUploaded);
       setSuccess(true);
     });
   }
@@ -262,6 +341,12 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
             be uploaded — please add{" "}
             {attemptedButFailed.length > 1 ? "them" : "it"} again from your
             dashboard once you're in.
+          </p>
+        )}
+        {roomImagesResult?.some((r) => r.saved < r.attempted) && (
+          <p className="mt-2 text-[13px] text-[var(--color-ink)]/70">
+            Note: some room photos didn&apos;t upload successfully — you can
+            add them again from your dashboard.
           </p>
         )}
       </Alert>
@@ -416,6 +501,156 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
               }
             />
           </div>
+        </div>
+      </Section>
+
+      {/* Section 2b: Rooms */}
+      <Section
+        title="Rooms"
+        subtitle="Add every room type you offer, with its own price, capacity, and photos. This is what guests actually book — add as many as you need."
+      >
+        <div className="space-y-6">
+          {form.roomTypes.map((room, index) => (
+            <div key={index} className="rounded-xl border border-[var(--color-mist)] p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-[var(--color-ink)]">
+                  Room {index + 1}
+                </p>
+                {form.roomTypes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeRoom(index)}
+                    className="text-[12px] text-[var(--color-ink)]/40 underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField
+                  id={`room-${index}-name`}
+                  label="Room name"
+                  required
+                  value={room.roomName}
+                  onChange={(e) => updateRoom(index, "roomName", e.target.value)}
+                />
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+                    Room type
+                  </label>
+                  <select
+                    value={room.roomType}
+                    onChange={(e) => updateRoom(index, "roomType", e.target.value as RoomEntry["roomType"])}
+                    className="w-full rounded-xl border border-[var(--color-mist)] px-3.5 py-2.5 text-[14px] outline-none focus:border-[var(--color-sky)]"
+                  >
+                    {ROOM_TYPE_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <TextField
+                  id={`room-${index}-price`}
+                  label="Price per night (₹)"
+                  type="number"
+                  min={0}
+                  required
+                  value={room.basePrice}
+                  onChange={(e) => updateRoom(index, "basePrice", Number(e.target.value))}
+                />
+                <TextField
+                  id={`room-${index}-total`}
+                  label="How many rooms of this type?"
+                  type="number"
+                  min={1}
+                  required
+                  value={room.totalRooms}
+                  onChange={(e) => updateRoom(index, "totalRooms", Number(e.target.value))}
+                />
+                <TextField
+                  id={`room-${index}-adults`}
+                  label="Max adults"
+                  type="number"
+                  min={1}
+                  required
+                  value={room.capacityAdults}
+                  onChange={(e) => updateRoom(index, "capacityAdults", Number(e.target.value))}
+                />
+                <TextField
+                  id={`room-${index}-children`}
+                  label="Max children"
+                  type="number"
+                  min={0}
+                  value={room.capacityChildren}
+                  onChange={(e) => updateRoom(index, "capacityChildren", Number(e.target.value))}
+                />
+                <TextField
+                  id={`room-${index}-occupancy`}
+                  label="Max total guests"
+                  type="number"
+                  min={1}
+                  required
+                  value={room.maxOccupancy}
+                  onChange={(e) => updateRoom(index, "maxOccupancy", Number(e.target.value))}
+                />
+                <TextField
+                  id={`room-${index}-bed`}
+                  label="Bed type (optional)"
+                  placeholder="e.g. 1 King Bed"
+                  value={room.bedType ?? ""}
+                  onChange={(e) => updateRoom(index, "bedType", e.target.value)}
+                />
+                <TextField
+                  id={`room-${index}-size`}
+                  label="Room size in sqft (optional)"
+                  type="number"
+                  min={0}
+                  value={room.roomSizeSqft ?? ""}
+                  onChange={(e) =>
+                    updateRoom(
+                      index,
+                      "roomSizeSqft",
+                      e.target.value === "" ? undefined : Number(e.target.value)
+                    )
+                  }
+                />
+              </div>
+
+              <div className="mt-4">
+                <label className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
+                  Room photos (up to {ROOM_MAX_IMAGES_PER_ROOM})
+                </label>
+                <label
+                  htmlFor={`room-${index}-images`}
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-mist)] px-3 py-5 text-center text-[13px] text-[var(--color-ink)]/60 hover:border-[var(--color-sky)]"
+                >
+                  {roomImages[index]?.length > 0 ? (
+                    <span>{roomImages[index].length} photo(s) selected</span>
+                  ) : (
+                    <span>Tap to upload photos</span>
+                  )}
+                  <input
+                    id={`room-${index}-images`}
+                    type="file"
+                    accept={ROOM_IMAGE_ACCEPT}
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleRoomImagesChange(index, e.target.files)}
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addRoom}
+            className="w-full rounded-xl border border-dashed border-[var(--color-sky)] py-2.5 text-sm font-medium text-[var(--color-sky)] hover:bg-[var(--color-sky)]/5"
+          >
+            + Add another room
+          </button>
         </div>
       </Section>
 
