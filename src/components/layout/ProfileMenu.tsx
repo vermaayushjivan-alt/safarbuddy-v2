@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  getMyNavAccess,
+  type MyNavAccess,
+} from "@/app/actions/my-nav-access.actions";
 
 function getInitials(name: string | null | undefined, email: string | null | undefined): string {
   if (name && name.trim().length > 0) {
@@ -19,6 +23,34 @@ export default function ProfileMenu() {
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Nav discoverability fix (2026-09-19): role-aware links (My Property
+  // for a hotel_owner, etc.) — see my-nav-access.actions.ts for why this
+  // is a separate fetch rather than a prop threaded through every page
+  // that renders <Navbar>.
+  const [navAccess, setNavAccess] = useState<MyNavAccess | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setNavAccess(null);
+      return;
+    }
+
+    let active = true;
+
+    getMyNavAccess()
+      .then((access) => {
+        if (active) setNavAccess(access);
+      })
+      .catch(() => {
+        // Non-fatal: nav simply shows no role-specific links if this
+        // fails, same as a signed-out user — never block the menu.
+        if (active) setNavAccess(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -72,6 +104,21 @@ export default function ProfileMenu() {
           <a href="/dashboard/bookings" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
             My Bookings
           </a>
+          {navAccess?.isHotelOwner && (
+            <a href="/hotel-owner" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
+              My Property
+            </a>
+          )}
+          {navAccess?.isVendor && (
+            <a href="/vendor" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
+              Vendor Dashboard
+            </a>
+          )}
+          {navAccess?.isAdmin && (
+            <a href="/admin" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
+              Admin Panel
+            </a>
+          )}
           <button type="button" role="menuitem" onClick={() => { setOpen(false); signOut(); }} className="focus-ring block w-full px-4 py-2.5 text-left font-heading text-[14px] font-medium text-orange hover:bg-mist">
             Logout
           </button>
