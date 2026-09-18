@@ -4,6 +4,54 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-18 — INVOICE-01 Step 5a+5b (customer invoice view + PDF download)
+
+Status: CODE COMPLETE, NOT VERIFIED (sandbox network disabled — same
+as every session today). Same day, continuation of Step 4.
+
+Step 5a: `src/app/dashboard/bookings/[id]/invoice/page.tsx` — customer
+invoice view, mirrors Step 4's admin page but with the customer auth/
+ownership pattern already used by `dashboard/bookings/[id]/pay/page.tsx`
+(`getAuthUser()` -> redirect, then `getMyBookingById()`). An "Invoice"
+link was added to `/dashboard/bookings`'s Actions column, on both the
+desktop table and the mobile card list (this page has two markup
+blocks since MOBILE-PAYMENT-BUG-01 — both were updated). Step 5b:
+`src/app/api/invoices/[bookingId]/pdf/route.ts` — the first route to
+call `renderInvoicePdfBuffer()` (built in Step 3b, unused until now);
+same auth as 5a, returns the PDF as an attachment. Admin PDF download
+intentionally not included.
+
+With this, INVOICE-01's originally planned scope (Steps 1 through 5,
+DEVELOPMENT_BIBLE.md Section J) is code-complete end to end, pending
+a real toolchain run and a live walkthrough.
+
+Correction, same day: user's Vercel build caught a real `tsc` failure
+— `Buffer` is not assignable to `BodyInit` in this project's Next.js
+16 typings, in the Step 5b PDF route. Fixed: wrap the buffer in
+`new Blob([pdfBuffer], { type: 'application/pdf' })` before passing it
+to `NextResponse`.
+
+Correction #2, same day: the Blob fix was wrong — the next build
+failed at the same line with a different type error (Buffer's
+`.buffer` property is `ArrayBufferLike`, incompatible with BlobPart's
+required plain `ArrayBuffer`). Fixed properly: pass `new
+Uint8Array(pdfBuffer)` to `NextResponse` directly, no Blob wrapper.
+
+2026-09-18 — INVOICE-01 Step 4 (admin UI — invoice view + list link)
+
+Status: CODE COMPLETE, NOT VERIFIED (sandbox network disabled — same
+as CONTACT-03 below). Same day, continuation of CONTACT-03.
+
+RULE 15 audit found the written plan assumed an `/admin/bookings/[id]`
+detail page that doesn't exist (the list is flat). Shipped instead: a
+dedicated `src/app/admin/bookings/[id]/invoice/page.tsx` route — admin
+-only via the already-built `getInvoiceByBookingIdAdmin()`, rendering
+the already-built `<InvoiceView>`/`buildInvoiceViewModel()` from Step
+3a/3b — plus an "Invoice" link on `/admin/bookings`'s Actions column,
+shown only for confirmed/completed bookings. No new backend code; pure
+wiring. PDF download intentionally not included — separate scope for
+Step 5 or its own step.
+
 2026-09-18 — CONTACT-03 (booking contact capture + admin payment
 notification)
 
