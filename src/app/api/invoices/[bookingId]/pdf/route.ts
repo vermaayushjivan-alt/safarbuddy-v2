@@ -69,12 +69,18 @@ export async function GET(
     );
   }
 
-  // Buffer<ArrayBufferLike> is not directly assignable to
-  // BodyInit's typing (confirmed at build time: Next.js 16 / this
-  // TS lib set rejects it — "missing properties from type
-  // URLSearchParams" is TS trying the union's other branches).
-  // Blob is unambiguously valid BodyInit and works the same way.
-  return new NextResponse(new Blob([pdfBuffer], { type: 'application/pdf' }), {
+  // Buffer<ArrayBufferLike> is not directly assignable to BodyInit
+  // (attempt 1) nor to BlobPart (attempt 2, via Blob) under this
+  // project's Next.js 16 / TS lib set — both confirmed by real `tsc`
+  // errors on Vercel. Buffer's `.buffer` property is typed
+  // ArrayBufferLike (which could technically be a SharedArrayBuffer),
+  // while both BodyInit and BlobPart's ArrayBufferView require a
+  // plain ArrayBuffer specifically. `new Uint8Array(pdfBuffer)` copies
+  // the bytes into a brand-new Uint8Array backed by a fresh, plain
+  // ArrayBuffer (never a SharedArrayBuffer) — that satisfies both
+  // typings, and NextResponse accepts a Uint8Array body directly, no
+  // Blob wrapper needed.
+  return new NextResponse(new Uint8Array(pdfBuffer), {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
