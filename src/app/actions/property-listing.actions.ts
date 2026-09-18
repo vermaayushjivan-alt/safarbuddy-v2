@@ -29,6 +29,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { grantSelfServiceRole } from '@/lib/auth/roles';
 import { resolvePublicUserId } from '@/lib/auth/session';
 import { HotelRepository } from '@/lib/repositories/hotel.repository';
+import { RoomTypeRepository, ROOM_TYPE_VALUES } from '@/lib/repositories/room-type.repository';
 import { VendorRepository } from '@/lib/repositories/vendor.repository';
 import { VendorPayoutRepository } from '@/lib/repositories/vendor-payout.repository';
 import {
@@ -90,6 +91,47 @@ const propertyListingSchema = z
         .optional()
     ),
 
+    // --- Section 2b: rooms (ROOMS-01, this session) ---
+    // At least one room type is required — a property with zero rooms
+    // has nothing bookable once approved, defeating the entire point
+    // of "reduce admin's job to just verification". Rate (base_price)
+    // lives on each room, not as a single hotel-level number, because
+    // real properties price differently per room type — startingPrice
+    // above is kept as a separate, optional "from ₹X" display figure
+    // for the hotel card, not derived from these (no auto-sync, so it
+    // can drift — acceptable for M2, flagged here rather than silently
+    // assumed correct).
+    roomTypes: z
+      .array(
+        z.object({
+          roomName: z.string().min(1, 'Room name is required.'),
+          roomType: z.enum(ROOM_TYPE_VALUES, {
+            message: `Room type must be one of: ${ROOM_TYPE_VALUES.join(', ')}.`,
+          }),
+          basePrice: z
+            .number()
+            .min(0, 'Base price cannot be negative.')
+            .max(MAX_STARTING_PRICE, 'The amount is too large.'),
+          capacityAdults: z.number().int().min(1, 'At least 1 adult is required.'),
+          capacityChildren: z.number().int().min(0, 'Cannot be negative.'),
+          maxOccupancy: z.number().int().min(1, 'At least 1 guest is required.'),
+          bedType: z.preprocess(emptyToNull, z.string().nullable().optional()),
+          roomSizeSqft: z.preprocess(
+            emptyToNull,
+            z.number().int().positive().nullable().optional()
+          ),
+          // CALENDAR-01: how many physical rooms of this type exist.
+          // Used only to seed room_inventory rows below (never written
+          // to hotel_rooms itself, which has no such column) — this is
+          // what makes the room actually bookable for the next 180
+          // days immediately on approval, instead of showing zero
+          // availability until someone visits the admin calendar page
+          // by hand.
+          totalRooms: z.number().int().min(1, 'At least 1 room is required.'),
+        })
+      )
+      .min(1, 'Add at least one room type so guests have something to book.'),
+
     // --- Section 3: facilities (ids from hotel_facilities catalog) ---
     facilityIds: z.array(z.string().uuid()).default([]),
 
@@ -130,6 +172,15 @@ export interface PropertyListingKycFiles {
   passbookFile?: File | null;
 }
 
+// ROOMS-01: images for each room, aligned by array index to
+// `input.roomTypes` (roomImageFiles[0] are the photos for
+// roomTypes[0], etc.) — kept as a sibling parameter for the same
+// reason kycFiles is: File objects don't belong in the Zod-validated
+// object. An index-aligned array (not a map keyed by room id) because
+// rooms don't have an id yet at submission time — they're created in
+// the same request.
+export type PropertyListingRoomImageFiles = (File[] | null | undefined)[];
+
 const KYC_ALLOWED_FILE_TYPES = [
   'image/jpeg',
   'image/jpg',
@@ -139,6 +190,28 @@ const KYC_ALLOWED_FILE_TYPES = [
 ];
 
 const KYC_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
+// ROOMS-01: same bucket/limits as uploadRoomImageAdmin() in
+// room-type.actions.ts. Duplicated rather than imported because that
+// file's constants are module-private (not exported) — if either list
+// changes, keep the other in sync (both derive from the same
+// `room-images` Storage bucket's actual constraints).
+const ROOM_IMAGE_BUCKET = 'room-images';
+const ROOM_ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const ROOM_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const ROOM_MAX_IMAGES_PER_ROOM = 6;
+
+// CALENDAR-01: how many days of room_inventory to seed at listing
+// time, per room. 180 (6 months), not a full year — a deliberate
+// scope call, not an oversight: it makes every newly-approved room
+// bookable immediately without an owner ever touching a calendar, and
+// an owner/admin can always extend further out later from the
+// existing admin availability page
+// (/admin/hotels/[id]/rooms/[roomId]/availability). There is currently
+// NO equivalent page on the hotel_owner side — an owner cannot yet
+// self-manage their own calendar past this initial window. That is a
+// real, known gap, not something this action works around.
+const CALENDAR_SEED_DAYS = 180;
 
 export type PropertyListingResult = {
   hotelId: string;
@@ -159,6 +232,11 @@ export type PropertyListingResult = {
     pan: boolean;
     passbook: boolean;
   };
+  // ROOMS-01: per-room outcome — how many images actually saved out of
+  // how many were attempted, mirrored by array index against
+  // input.roomTypes. Same "tell them exactly what to retry" reasoning
+  // as kycUploaded.
+  roomImagesUploaded: { attempted: number; saved: number }[];
 };
 
 /* -------------------------------------------------------------------------- */
@@ -254,6 +332,88 @@ async function uploadKycDocument(
 }
 
 /* -------------------------------------------------------------------------- */
+/* Room image upload helper                                                  */
+/* -------------------------------------------------------------------------- */
+
+// Mirrors uploadRoomImageAdmin()'s logic in room-type.actions.ts
+// (same bucket, same orphan-cleanup-on-DB-failure safety), but
+// best-effort like uploadKycDocument() above — one bad room photo
+// must never fail the whole property submission after the hotel and
+// every room row already exist. Failures are reported back via
+// roomImagesUploaded so the form can tell the owner exactly which
+// room needs a retry.
+async function uploadRoomImage(
+  admin: ReturnType<typeof createServiceRoleClient>,
+  roomTypeRepo: RoomTypeRepository,
+  roomId: string,
+  file: File,
+  isPrimary: boolean,
+  sortOrder: number
+): Promise<boolean> {
+  if (!ROOM_ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    console.error('[submitPropertyListing] room image rejected — unsupported type', file.type);
+    return false;
+  }
+
+  if (file.size > ROOM_MAX_IMAGE_SIZE_BYTES) {
+    console.error('[submitPropertyListing] room image rejected — file too large', file.size);
+    return false;
+  }
+
+  const objectKey = `${roomId}/${crypto.randomUUID()}.${roomExtensionFromMimeType(file.type)}`;
+
+  try {
+    const { error: uploadError } = await admin.storage
+      .from(ROOM_IMAGE_BUCKET)
+      .upload(objectKey, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      console.error('[submitPropertyListing] room image upload failed', uploadError.message);
+      return false;
+    }
+
+    try {
+      await roomTypeRepo.insertRoomImageRow(
+        roomId,
+        `${ROOM_IMAGE_BUCKET}/${objectKey}`,
+        isPrimary,
+        sortOrder
+      );
+      return true;
+    } catch (dbError) {
+      const { error: cleanupError } = await admin.storage
+        .from(ROOM_IMAGE_BUCKET)
+        .remove([objectKey]);
+      if (cleanupError) {
+        console.error(
+          '[submitPropertyListing] failed to clean up orphaned room image after DB failure',
+          objectKey,
+          cleanupError.message
+        );
+      }
+      console.error('[submitPropertyListing] room image DB row failed', dbError);
+      return false;
+    }
+  } catch (error) {
+    console.error('[submitPropertyListing] room image upload threw', error);
+    return false;
+  }
+}
+
+function roomExtensionFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+    default:
+      return 'webp';
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Submission                                                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -267,7 +427,8 @@ function getSiteUrl(): string {
 
 export async function submitPropertyListing(
   input: PropertyListingInput,
-  kycFiles?: PropertyListingKycFiles
+  kycFiles?: PropertyListingKycFiles,
+  roomImageFiles?: PropertyListingRoomImageFiles
 ): Promise<ActionResult<PropertyListingResult>> {
   return runAction(async () => {
     const parsed = propertyListingSchema.parse(input);
@@ -360,6 +521,7 @@ export async function submitPropertyListing(
     const hotelRepo = new HotelRepository(admin);
     const payoutRepo = new VendorPayoutRepository(admin);
     const kycRepo = new VendorKycRepository(admin);
+    const roomTypeRepo = new RoomTypeRepository(admin);
     const facilityLinkRepo = new HotelFacilityLinkRepository(admin);
 
     // ALREADY-AUTH-01: an existing customer's account can only ever
@@ -406,6 +568,87 @@ export async function submitPropertyListing(
 
     if (parsed.facilityIds.length > 0) {
       await facilityLinkRepo.setFacilitiesForHotel(hotel.id, parsed.facilityIds);
+    }
+
+    // ROOMS-01 + CALENDAR-01: create every room type the owner
+    // entered, upload its photos, and seed its booking calendar — all
+    // in this same submission, so a newly-approved hotel is fully
+    // bookable immediately instead of sitting with zero rooms/zero
+    // availability until someone manually adds them via the admin
+    // panel afterwards. This is the whole point of this session's
+    // change (project-owner request, 2026-09-18).
+    const roomImagesUploaded: { attempted: number; saved: number }[] = [];
+
+    for (let i = 0; i < parsed.roomTypes.length; i++) {
+      const roomInput = parsed.roomTypes[i];
+
+      const room = await roomTypeRepo.createRoomType({
+        hotel_id: hotel.id,
+        room_name: roomInput.roomName,
+        room_type: roomInput.roomType,
+        base_price: roomInput.basePrice,
+        capacity_adults: roomInput.capacityAdults,
+        capacity_children: roomInput.capacityChildren,
+        max_occupancy: roomInput.maxOccupancy,
+        bed_type: roomInput.bedType ?? null,
+        room_size_sqft: roomInput.roomSizeSqft ?? null,
+        status: 'active',
+      });
+
+      // Photos — best-effort per file, same reasoning as KYC uploads
+      // above. The first successfully-saved photo becomes primary.
+      const files = roomImageFiles?.[i] ?? [];
+      let saved = 0;
+      for (let j = 0; j < files.length && j < ROOM_MAX_IMAGES_PER_ROOM; j++) {
+        const ok = await uploadRoomImage(
+          admin,
+          roomTypeRepo,
+          room.id,
+          files[j],
+          saved === 0, // first one saved so far is primary
+          saved
+        );
+        if (ok) saved++;
+      }
+      roomImagesUploaded.push({ attempted: Math.min(files.length, ROOM_MAX_IMAGES_PER_ROOM), saved });
+
+      // CALENDAR-01: bulk-insert CALENDAR_SEED_DAYS of availability in
+      // one call rather than CALENDAR_SEED_DAYS sequential awaits
+      // through RoomInventoryRepository.setInventoryForDate() — this
+      // is a brand-new room with no existing rows to conflict with or
+      // booked_rooms to protect, so the per-date safety checks that
+      // method exists for (never shrink below booked_rooms) do not
+      // apply here; a plain bulk insert is both correct and far
+      // faster for 180 rows.
+      const today = new Date();
+      const inventoryRows = Array.from({ length: CALENDAR_SEED_DAYS }, (_, dayOffset) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() + dayOffset);
+        return {
+          room_id: room.id,
+          inventory_date: date.toISOString().slice(0, 10),
+          total_rooms: roomInput.totalRooms,
+          available_rooms: roomInput.totalRooms,
+          blocked_rooms: 0,
+          booked_rooms: 0,
+        };
+      });
+
+      const { error: inventoryError } = await admin
+        .from('room_inventory')
+        .insert(inventoryRows);
+
+      if (inventoryError) {
+        // Best-effort — same reasoning throughout this action: a
+        // calendar-seed failure must never undo the room itself. An
+        // admin (or, once built, the owner) can always set
+        // availability by hand from the existing availability page.
+        console.error(
+          '[submitPropertyListing] calendar seed failed for room',
+          room.id,
+          inventoryError.message
+        );
+      }
     }
 
     await payoutRepo.upsertForVendor(vendor.id, {
@@ -471,6 +714,7 @@ export async function submitPropertyListing(
             <li><strong>Property:</strong> ${escapeHtml(parsed.hotelName)}</li>
             <li><strong>Owner:</strong> ${escapeHtml(parsed.ownerFullName)} (${escapeHtml(parsed.ownerEmail)})</li>
             <li><strong>City:</strong> ${escapeHtml(parsed.propertyCity)}</li>
+            <li><strong>Rooms listed:</strong> ${parsed.roomTypes.length}</li>
             <li><strong>Hotel ID:</strong> ${hotel.id}</li>
             <li><strong>Vendor ID:</strong> ${vendor.id}</li>
             <li><strong>KYC documents uploaded:</strong> ${
@@ -504,6 +748,7 @@ export async function submitPropertyListing(
       status: 'pending' as const,
       accountCreated,
       kycUploaded,
+      roomImagesUploaded,
     };
   });
 }
