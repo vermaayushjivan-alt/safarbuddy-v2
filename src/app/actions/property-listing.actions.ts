@@ -599,16 +599,14 @@ export async function submitPropertyListing(
 
     const vendor = await vendorRepo.createVendor({
       vendor_name: parsed.hotelName,
-      // Was hardcoded to 'hotel_owner_self_service' — an invented value
-      // from an earlier undocumented session, never verified against the
-      // live vendors_vendor_type_check constraint, and never read
-      // anywhere else in the codebase. Sending null instead: vendor_type
-      // is nullable at the schema level and no admin UI sets it either,
-      // so null can't violate an unknown CHECK the way a guessed string
-      // can. If a real "self-service" vendor_type value is wanted later,
-      // confirm the constraint's allowed values live first (per this
-      // project's own RULE 13/35) before hardcoding one again.
-      vendor_type: null,
+      // Confirmed live via pg_get_constraintdef(vendors_vendor_type_check):
+      // CHECK (vendor_type = ANY ('hotel','travel_agency','tour_operator',
+      // 'bus_operator','airline','cab')) — also NOT NULL, so null failed
+      // too. This form only ever lists hotel properties, so 'hotel' is
+      // the correct value (previously 'hotel_owner_self_service', an
+      // unverified guess that violated the CHECK; then null, which
+      // violated NOT NULL).
+      vendor_type: 'hotel',
       owner_user_id: ownerUserId,
       business_email: parsed.contactEmail,
       business_phone: parsed.contactPhone,
@@ -840,5 +838,8 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
   }
+
+      
+
 
       
