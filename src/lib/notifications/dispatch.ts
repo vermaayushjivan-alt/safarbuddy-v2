@@ -306,3 +306,97 @@ export async function notifyBookingCreated(
   }
 }
 
+// CUSTOMER-NOTIFY-01 (this session, project-owner request): the
+// customer who actually paid has never received any confirmation
+// email at all — only the hotel/vendor and admin did (see
+// notifyBookingCreated above). This closes that gap.
+//
+// Deliberately NOT logged via NotificationRepository like every send
+// above — booking_notifications.recipient_type has a live CHECK
+// constraint of ('hotel', 'vendor', 'admin') only (see the migration
+// that created it); 'customer' would violate it and throw. Extending
+// that constraint to include 'customer' is a one-line migration but a
+// real, separate DB change — not silently worked around here by
+// mislabeling this as 'admin' or similar. Delivery is still fully
+// logged to the server console either way, just not to that table
+// yet.
+//
+// invoicePdf is optional and best-effort on purpose: invoice
+// generation (generate-invoice.ts) can fail independently of payment
+// confirmation succeeding (that's the whole bug this feature was
+// built alongside) — a customer must still get SOME confirmation
+// email even when the invoice attachment isn't ready yet. When
+// omitted, the email says the invoice will follow separately instead
+// of promising an attachment that isn't there.
+export interface NotifyCustomerBookingConfirmedInput {
+  bookingId: string;
+  bookingNumber: string;
+  bookingType: 'hotel' | 'package';
+  itemName: string;
+  itemLocation: string | null;
+  customerName: string;
+  customerEmail: string;
+  checkInDate?: string | null;
+  checkOutDate?: string | null;
+  travelDate?: string | null;
+  amountPaidLabel: string;
+  invoicePdf?: { buffer: Buffer; invoiceNumber: string } | null;
+}
+
+export async function notifyCustomerBookingConfirmed(
+  input: NotifyCustomerBookingConfirmedInput
+): Promise<void> {
+  try {
+    const dates =
+      input.bookingType === 'hotel'
+        ? [input.checkInDate, input.checkOutDate].filter(Boolean).join(' → ') || 'Dates not specified'
+        : (input.travelDate ?? 'Travel date not specified');
+
+    const html = `
+      <p>Hi ${input.customerName},</p>
+      <p>Your payment for <strong>${input.itemName}</strong>${input.itemLocation ? ` (${input.itemLocation})` : ''} is confirmed.</p>
+      <p>${input.bookingType === 'hotel' ? 'Dates' : 'Travel date'}: ${dates}</p>
+      <p>Booking ID: ${input.bookingNumber}</p>
+      <p>Amount paid: ${input.amountPaidLabel}</p>
+      ${
+        input.invoicePdf
+          ? `<p>Your invoice (${input.invoicePdf.invoiceNumber}) is attached to this email.</p>`
+          : `<p>Your invoice will be emailed separately shortly.</p>`
+      }
+      <p>Thank you for booking with SafarBuddy.</p>
+    `;
+
+    const result = await sendEmail({
+      to: input.customerEmail,
+      subject: `Booking confirmed — ${input.itemName} (${input.bookingNumber})`,
+      html,
+      attachments: input.invoicePdf
+        ? [
+            {
+              filename: `${input.invoicePdf.invoiceNumber}.pdf`,
+              content: input.invoicePdf.buffer,
+              contentType: 'application/pdf',
+            },
+          ]
+        : undefined,
+    });
+
+    if (result.success) {
+      console.info(
+        '[notifications] customer confirmation email sent for booking',
+        input.bookingId
+      );
+    } else {
+      console.error(
+        '[notifications] customer confirmation email failed for booking',
+        input.bookingId,
+        result.error
+      );
+    }
+  } catch (error) {
+    // Same last-line-of-defense reasoning as notifyBookingCreated
+    // above — must never throw into the webhook.
+    console.error('[notifications] notifyCustomerBookingConfirmed failed', error);
+  }
+}
+
