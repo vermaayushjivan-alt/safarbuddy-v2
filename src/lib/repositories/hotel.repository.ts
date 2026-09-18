@@ -47,6 +47,18 @@ export interface HotelRecord extends DatabaseRecord {
   check_out_time: string;
   property_type: string;
 
+  // POLICY-01 (this session) — see migration
+  // 020_vendor03_hotel_policies.sql. Nullable plain text, no catalog,
+  // no separate table — see that migration's header for why.
+  cancellation_policy: string | null;
+  house_rules: string | null;
+
+  // LOCATION-01 (this session) — see migration
+  // 021_vendor03_location_link.sql. The raw pasted Google Maps share
+  // link, shown as a "View on map" link — NOT parsed into
+  // latitude/longitude (see that migration's header for why).
+  google_maps_url: string | null;
+
   phone: string | null;
   email: string | null;
   website: string | null;
