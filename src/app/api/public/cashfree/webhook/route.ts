@@ -9,8 +9,10 @@ import { BookingRepository } from "@/lib/repositories/booking.repository";
 import { computeCommissionSplit } from "@/lib/payments/commission";
 import { HotelRepository } from "@/lib/repositories/hotel.repository";
 import { PackageRepository } from "@/lib/repositories/package.repository";
-import { notifyBookingCreated } from "@/lib/notifications/dispatch";
-import { generateInvoiceForBooking } from "@/lib/invoices/generate-invoice";
+import { notifyBookingCreated, notifyCustomerBookingConfirmed } from "@/lib/notifications/dispatch";
+import { generateInvoiceForBooking, resolveRecipient } from "@/lib/invoices/generate-invoice";
+import { renderInvoicePdfBuffer } from "@/lib/invoices/render-invoice-pdf";
+import { buildInvoiceViewModel } from "@/lib/invoices/invoice-view-model";
 
 export const runtime = "nodejs";
 
@@ -553,7 +555,7 @@ export async function POST(
         const bookedItem = bookedHotel ?? bookedPackage;
 
         if (bookedItem) {
-          await generateInvoiceForBooking(supabase, {
+          const invoice = await generateInvoiceForBooking(supabase, {
             booking,
             paymentId: payment.id,
             itemName: bookedHotel
@@ -562,6 +564,63 @@ export async function POST(
             itemLocation: bookedItem.city,
             vendorId: bookedItem.vendor_id,
           });
+
+          // CUSTOMER-NOTIFY-01 — fires regardless of whether `invoice`
+          // above is null (invoice generation can fail independently,
+          // see that function's own error handling) — a paying
+          // customer must always get a confirmation email, with or
+          // without the PDF attached. Wrapped in its own try/catch,
+          // separate from the outer one below, so a failure here can
+          // never be blamed on/confused with an invoice failure in
+          // the logs.
+          try {
+            const recipient = await resolveRecipient(supabase, booking);
+
+            if (recipient.email) {
+              let invoicePdf: { buffer: Buffer; invoiceNumber: string } | null = null;
+
+              if (invoice) {
+                try {
+                  const buffer = await renderInvoicePdfBuffer(
+                    buildInvoiceViewModel(invoice)
+                  );
+                  invoicePdf = { buffer, invoiceNumber: invoice.invoice_number };
+                } catch (pdfError) {
+                  console.error(
+                    "[Cashfree Webhook] invoice PDF render failed for customer email",
+                    pdfError
+                  );
+                }
+              }
+
+              await notifyCustomerBookingConfirmed({
+                bookingId: booking.id,
+                bookingNumber: booking.booking_number,
+                bookingType: booking.booking_type,
+                itemName: bookedHotel
+                  ? bookedHotel.hotel_name
+                  : (bookedPackage as { package_name: string }).package_name,
+                itemLocation: bookedItem.city,
+                customerName: recipient.name,
+                customerEmail: recipient.email,
+                checkInDate: booking.check_in_date,
+                checkOutDate: booking.check_out_date,
+                travelDate: booking.travel_date,
+                amountPaidLabel: `${booking.currency} ${booking.price_snapshot}`,
+                invoicePdf,
+              });
+            } else {
+              console.error(
+                "[Cashfree Webhook] customer confirmation skipped — no resolvable email for booking",
+                booking.id
+              );
+            }
+          } catch (customerEmailError) {
+            console.error(
+              "[Cashfree Webhook] notifyCustomerBookingConfirmed dispatch failed",
+              customerEmailError
+            );
+          }
         } else {
           console.error(
             `[Cashfree Webhook] generateInvoiceForBooking skipped — ${booking.booking_type} ` +
