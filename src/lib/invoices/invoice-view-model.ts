@@ -18,9 +18,7 @@
 // Pure function, no I/O — safe to call from a Server Component (web view)
 // or a route handler (PDF generation).
 
-import type { InvoiceRecord } from '@/lib/repositories/invoice.repository';
-
-export interface InvoiceLineItem {
+import type { InvoiceRecord } from '@/lib/repositories/invoice.repository';export interface InvoiceLineItem {
   label: string;
   value: string;
 }
@@ -53,6 +51,17 @@ export interface InvoiceViewModel {
   // value (e.g. no coupon applied) rather than showing a zero row.
   lineItems: InvoiceLineItem[];
   amountPaidLabel: string;
+}
+
+// Trims a stored time value like "14:00:00" down to "14:00" for
+// display — hotels.check_in_time/check_out_time (and this invoice's
+// own snapshot copy of them) turned out to serialize with seconds
+// from Postgres even though they were typed as plain text, not
+// confirmed before this was first wired up. Passes through anything
+// that doesn't match the expected shape unchanged, rather than
+// guessing further.
+function trimSeconds(value: string): string {
+  return /^\d{2}:\d{2}:\d{2}$/.test(value) ? value.slice(0, 5) : value;
 }
 
 function formatDate(value: string | null): string | null {
@@ -101,10 +110,10 @@ export function buildInvoiceViewModel(invoice: InvoiceRecord): InvoiceViewModel 
   const stayOrTravelValueWithTimes = isHotel
     ? [
         invoice.check_in_date && invoice.check_in_time
-          ? `${formatDate(invoice.check_in_date)} (from ${invoice.check_in_time})`
+          ? `${formatDate(invoice.check_in_date)} (from ${trimSeconds(invoice.check_in_time)})`
           : formatDate(invoice.check_in_date),
         invoice.check_out_date && invoice.check_out_time
-          ? `${formatDate(invoice.check_out_date)} (until ${invoice.check_out_time})`
+          ? `${formatDate(invoice.check_out_date)} (until ${trimSeconds(invoice.check_out_time)})`
           : formatDate(invoice.check_out_date),
       ]
         .filter(Boolean)
