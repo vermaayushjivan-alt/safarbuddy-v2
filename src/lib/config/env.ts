@@ -64,6 +64,12 @@ const serverEnvSchema = z.object({
   
   // AI
   OPENAI_API_KEY: z.string().optional(),
+
+  // CHAT-02 Step 1 — homepage AI assistant widget (src/app/actions/ai-assistant.actions.ts).
+  // Optional, same RULE 30 pattern as ADMIN_NOTIFICATION_EMAIL above: if
+  // unset, the widget still renders but replies with a graceful
+  // "assistant not configured" message instead of throwing.
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 /**
