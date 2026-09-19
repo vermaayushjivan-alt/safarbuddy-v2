@@ -705,3 +705,81 @@ Uint8Array(pdfBuffer), ...)` — no Blob wrapper. Two wrong type-error
 guesses in a row on this one line; see SESSION_HANDOFF.md's
 Correction #2 for the full reasoning. Do not assume this is the last
 type error until a build actually passes end to end.
+
+VENDOR-03 (M2) self-service overhaul + CUSTOMER-NOTIFY-01 +
+INVOICE-EXTRAS-01 + LOGO-01 — CODE COMPLETE 2026-09-18/19 (separate
+chat thread from CONTACT-03/INVOICE-01 above — both threads touched
+this codebase the same day; neither supersedes the other). Full detail
+is in SESSION_HANDOFF.md's own entry for this thread; summarized here
+for the chronological record:
+
+- Facility catalog expanded 15 -> 85+ (migration 017; had to be
+  re-issued once, first version double-quoted two apostrophe'd labels,
+  which Postgres parsed as identifiers).
+- KYC-01: vendor_kyc_documents table + a private `vendor-kyc-documents`
+  Storage bucket created via SQL (migrations 018/019), best-effort
+  Aadhar/PAN/passbook upload wired into submitPropertyListing().
+- DISINTERMEDIATION-01: hotel/vendor booking-notification email no
+  longer includes the guest's phone/email (name only) — admin's copy
+  still gets full contact details. Project-owner's own stated reason:
+  prevent a hotel taking future bookings off-platform.
+- BOOKING-NUM-01: booking notification emails were showing the raw
+  bookings.id UUID instead of the existing human-friendly
+  booking_number — fixed in dispatch.ts + the webhook call site.
+- ROOMS-01 + CALENDAR-01: submitPropertyListing() now creates every
+  room type the owner enters (with up to 6 photos each, into the
+  existing `room-images` bucket) and bulk-seeds 180 days of
+  room_inventory per room, so a newly-approved hotel is bookable
+  immediately. KNOWN GAP: still no owner-facing calendar page — only
+  the existing admin availability page can extend past day 180.
+- PROPERTY-META-01 / POLICY-01 / LOCATION-01: hotels gained
+  property_type + check_in_time + check_out_time (existing but
+  never-set columns, migration-free), cancellation_policy + house_rules
+  (new text columns, migration 020), and google_maps_url (new text
+  column, migration 021 — stored/linked verbatim, deliberately not
+  parsed into the existing latitude/longitude columns).
+- CUSTOMER-NOTIFY-01: the paying customer previously received NO
+  confirmation email at all (only hotel/vendor + admin did). Added
+  notifyCustomerBookingConfirmed() (dispatch.ts), fired from the
+  Cashfree webhook alongside invoice generation, with the invoice PDF
+  attached when available. NOT logged to booking_notifications — its
+  recipient_type CHECK constraint is ('hotel','vendor','admin') only;
+  'customer' would violate it. Logged to console only for now.
+- Root-caused why invoice generation was producing "No invoice has
+  been generated" for real paid bookings: a debugging session (not a
+  code fix on this line — see SESSION_HANDOFF for the exact back-and-
+  forth) narrowed it to the invoice code path specifically, since
+  hotel/admin notifications were confirmed arriving for the same
+  bookings. Root cause not fully pinned to one line in this thread —
+  flagged as the first thing to re-verify against real Vercel logs
+  next session if it recurs after all these migrations are live.
+- INVOICE-EXTRAS-01: invoices gained check_in_time/check_out_time
+  (copied from the hotel at generation time) and a cancellation_policy
+  snapshot (migration 022), threaded through generate-invoice.ts ->
+  invoice-view-model.ts -> both InvoiceView.tsx and InvoiceDocument.tsx
+  (shared view model, per migration 015's original design).
+- LOGO-01: real embedded brand logo. Web view (InvoiceView.tsx) uses
+  the actual SVG directly via a plain <img> (browsers render SVG
+  natively). The PDF (InvoiceDocument.tsx) cannot — @react-pdf/
+  renderer's <Image> only accepts PNG/JPG — so a new `sharp` dependency
+  (added to package.json) converts the SVG to a PNG buffer at render
+  time (src/lib/invoices/logo.ts), cached in memory per server
+  instance. Falls back to a text wordmark if the conversion ever fails.
+
+NOT verified, at all, in this thread: the sandbox this thread ran in
+had no network (couldn't run `npm install` for the new `sharp`
+dependency, or `tsc`/`eslint`) and no working local SVG rasterizer
+either (checked and confirmed absent: rsvg-convert, cairosvg, gi.Rsvg).
+Every file was hand-reviewed against the live schema/patterns already
+confirmed this thread, never executed. In particular: the `sharp`
+logo-conversion path (logo.ts) has NEVER actually been run — treat the
+PDF logo as unverified until one real invoice PDF is opened and
+visually confirmed to show the image, not the text-fallback wordmark.
+
+Next action: run `npm install` (pulls in `sharp`), run migrations
+017-022 in order if not already done, replace every changed file
+listed in SESSION_HANDOFF.md's entry for this thread, redeploy, then
+one real paid booking end to end — confirm the customer email arrives
+with a PDF attached, the PDF actually shows the image logo (not
+"SafarBuddy" text), and check-in/out time + cancellation policy appear
+on it when the hotel has them set.
