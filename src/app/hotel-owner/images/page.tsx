@@ -75,11 +75,3 @@ export default async function HotelOwnerImagesPage() {
   );
 }
 
-function Alert({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-[var(--color-sky-light)]/30 bg-[var(--color-mist-2)] px-4 py-3 text-[13px] text-deep">
-      {children}
-    </div>
-  );
-}
-
