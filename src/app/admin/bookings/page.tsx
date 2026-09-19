@@ -138,6 +138,14 @@ export default async function AdminBookingsListPage({
                           Invoice
                         </Link>
                       )}
+                      {(booking.status === 'confirmed' || booking.status === 'completed') && (
+                        <Link
+                          href={`/admin/bookings/${booking.id}/chat`}
+                          className="focus-ring rounded-lg border border-deep/15 px-2.5 py-1.5 text-[12px] font-semibold text-deep transition hover:bg-mist"
+                        >
+                          Chat
+                        </Link>
+                      )}
                       {booking.status === 'pending' && (
                         <form action={handleConfirm}>
                           <input type="hidden" name="id" value={booking.id} />
