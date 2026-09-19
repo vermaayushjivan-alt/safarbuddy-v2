@@ -22,6 +22,8 @@ const COLOR_DEEP = '#1f2a37';
 const COLOR_INK_60 = '#4b5563';
 const COLOR_INK_45 = '#6b7280';
 const COLOR_BORDER = 'rgba(31, 42, 55, 0.15)';
+// Matches --color-sky in globals.css — the site's brand blue.
+const COLOR_BRAND = '#1b5fcf';
 
 const styles = StyleSheet.create({
   page: {
@@ -123,12 +125,49 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: COLOR_INK_45,
   },
+  // INVOICE-EXTRAS-01 (this session):
+  // LOGO-01: a text wordmark, not an embedded image. @react-pdf/
+  // renderer can render a raster Image (PNG/JPG, as a URL or base64)
+  // but not the site's actual logo files directly — those are SVGs
+  // (public/brand/logo-*.svg), and react-pdf's <Image> does not
+  // rasterize SVG. Converting one to a reliable base64 PNG needs an
+  // actual render pass to verify (this sandbox has no network to test
+  // that), so a styled text wordmark in the exact brand blue
+  // (--color-sky) is the safe, guaranteed-to-render choice for now —
+  // not a placeholder being passed off as finished. Swap this Text
+  // for an <Image source="data:image/png;base64,..."> block later if
+  // a real embedded logo is wanted; nothing else here needs to change.
+  brandWordmark: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: COLOR_BRAND,
+    marginBottom: 10,
+  },
+  policySection: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLOR_BORDER,
+    paddingTop: 10,
+  },
+  policyLabel: {
+    fontSize: 7,
+    fontWeight: 700,
+    color: COLOR_INK_45,
+    marginBottom: 3,
+  },
+  policyText: {
+    fontSize: 7,
+    color: COLOR_INK_45,
+    lineHeight: 1.4,
+  },
 });
 
 export default function InvoiceDocument({ invoice }: { invoice: InvoiceViewModel }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <Text style={styles.brandWordmark}>SafarBuddy</Text>
+
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.paidLabel}>PAYMENT RECEIVED</Text>
@@ -199,6 +238,13 @@ export default function InvoiceDocument({ invoice }: { invoice: InvoiceViewModel
         <Text style={styles.footerNote}>
           This invoice also serves as your booking voucher.
         </Text>
+
+        {invoice.cancellationPolicy && (
+          <View style={styles.policySection}>
+            <Text style={styles.policyLabel}>CANCELLATION POLICY</Text>
+            <Text style={styles.policyText}>{invoice.cancellationPolicy}</Text>
+          </View>
+        )}
       </Page>
     </Document>
   );
