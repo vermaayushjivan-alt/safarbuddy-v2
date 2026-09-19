@@ -4,6 +4,125 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+Continuation (2026-09-20, NEW thread — picks up after the 2026-09-19
+invoice/CHAT-01 thread immediately below; does not replace it)
+
+Started from a request to turn the existing post-booking human chat
+(CHAT-01) into an AI mediator. Ended up covering four separate things,
+in this order — READ THE "NOT DONE YET" NOTE AT THE BOTTOM BEFORE
+STARTING NEW WORK, it changes what "next" means here.
+
+1. INVOICE DISPLAY BUG — DIAGNOSED ONLY, NOT FIXED. Project owner
+   reported the invoice doesn't show right after booking. Code review
+   (not a live test) found two contributing issues: (a) invoices are
+   generated asynchronously by the Cashfree webhook, so there's a race
+   — the customer can land on /booking-confirmation/[id] before the
+   invoice row exists yet; (b) that confirmation page has no link to
+   the invoice at all regardless of timing. NEITHER issue was
+   fixed — no code touched for this item. Likely candidate for a small
+   INVOICE-02 milestone: add a link from booking-confirmation to
+   /dashboard/bookings/[id]/invoice, and either poll/retry there or
+   show a "generating your invoice..." state instead of the current
+   flat "no invoice yet" message. NOT cross-checked against the
+   2026-09-19 entry below, which was ALSO chasing an invoice
+   not-showing bug from a live test — these may be the same underlying
+   bug seen two different ways, or two different bugs. Next session:
+   check both entries before assuming which.
+
+2. CHAT-02 Step 1 — homepage AI assistant widget. SHIPPED, VERIFIED
+   CLEAN (tsc --noEmit, eslint, and a real `npm run build` — Turbopack,
+   same as Vercel — all pass; only remaining build output is the
+   pre-existing sandbox-only Google-Fonts 403, not a real bug, see
+   2026-09-11 entries for precedent on that same warning). Deliberately
+   narrow scope, decided explicitly: general FAQ only (how booking
+   works, hotels/packages, redirects "ask about your specific booking"
+   to logged-in My Bookings → CHAT-01's existing per-booking chat). NO
+   booking data access, no tool-calling. The actual AI-mediator
+   behavior discussed at length (AI reading a real booking, fetching
+   the invoice PDF inside the chat, relaying messages to the hotel) is
+   SEPARATE, LATER, SCOPED TO booking-chat.actions.ts /
+   BookingChatThread.tsx, and has NOT been started — CHAT-02 Step 1
+   only touches the public homepage.
+   Files: src/app/actions/ai-assistant.actions.ts (new),
+   src/components/home/HomeAiChatWidget.tsx (new, wired into
+   src/app/page.tsx only — not RootLayout, homepage-only was an
+   explicit requirement), ANTHROPIC_API_KEY added as optional to
+   src/lib/config/env.ts + src/types/env.d.ts + .env.example (RULE 30
+   pattern: missing key doesn't throw, widget shows a graceful
+   "not configured yet" reply). Widget/button visual language matches
+   Navbar's orange CTA + BookingChatThread's bubble shapes — not a new
+   design system.
+   NOT DONE: ANTHROPIC_API_KEY has NOT been created or added to Vercel
+   yet (project owner deferred this — see item 4). Until it is, the
+   widget renders and functions but always returns the "not configured
+   yet" placeholder line, never a real AI answer.
+
+3. BUILD-BLOCKING BUG FOUND AND FIXED (unrelated to the AI ask, found
+   from a real Vercel build log the project owner pasted in). Turbopack
+   rejected the build with "the name `Alert` is defined multiple
+   times" in src/app/hotel-owner/page.tsx and
+   src/app/hotel-owner/images/page.tsx — both files import the shared
+   `Alert` from @/components/auth/Alert AND separately declare a local
+   `function Alert(...)` lower in the same file (leftover duplicate,
+   not something this thread's changes caused). Fixed by deleting the
+   local duplicate in both files; the shared component's default
+   ("info" variant) renders the exact same classes the local one used,
+   so no visual change. Confirmed via tsc --noEmit, eslint, AND a full
+   `npm run build` — this is the fix that got Vercel's specific pasted
+   error to go away, not a guess.
+
+4. NEW SCOPE — deeply planned, NOTHING BUILT YET, NOT EVEN A MIGRATION:
+   Two separate monetization features, discussed back-to-back:
+
+   a. PROMO-01 (banner ads): 3 homepage slots — after Hero/before
+      Offers, between Destinations and Trending, between Packages and
+      Testimonials. Inline auto-sliding carousel cards (NOT popups —
+      explicitly decided against popups for UX reasons), ticket-notch/
+      hover-lift styling to match the rest of the homepage, a visible
+      "Sponsored"/"Promoted" badge for disclosure, click-through to an
+      external advertiser URL in a new tab, impression + click
+      tracking. Planned (not created) new `promotions` table:
+      hotel_id (optional — a SafarBuddy hotel can also be the
+      advertiser), external company name/logo image/click_url,
+      slot_position, start_date/end_date, is_active, click_count,
+      impression_count. Plus a new admin management page (not built).
+
+   b. RANK-01 (paid featured ranking) — separate from PROMO-01, added
+      when the project owner asked specifically about hotels paying to
+      rank higher. Planned (not created): hotels.is_featured (bool),
+      featured_until (date, auto-expiry), featured_priority (number,
+      for ordering when several hotels are featured at once). Featured
+      hotels sort first wherever hotels are listed (search results,
+      Trending, Destinations) — plan is one shared
+      sortHotelsWithFeatured() helper used everywhere rather than
+      duplicating the sort rule per page. A "Featured"/"Sponsored"
+      badge on the listing itself was explicitly agreed for the same
+      disclosure reason as PROMO-01. Admin control: a toggle +
+      date-range picker on the existing hotel edit form.
+
+   SEQUENCING NOT RECONFIRMED: this session's last exchange proposed
+   building PROMO-01 first, but the project owner's very next message
+   only asked for this handoff — they have not explicitly re-confirmed
+   PROMO-01-before-RANK-01 after RANK-01 was added to scope. Ask before
+   assuming.
+
+WHAT TO DO FIRST NEXT SESSION, IN ORDER:
+1. Confirm which of PROMO-01 / RANK-01 to build first (see sequencing
+   note above) — don't assume PROMO-01 just because it was proposed
+   first.
+2. Ask whether ANTHROPIC_API_KEY has been created/added to Vercel yet
+   (item 2's "not done" note) — if yes, do a live smoke-test of the
+   homepage widget before building anything else AI-related on top of
+   it.
+3. Item 1 (invoice display bug) is still open and undiagnosed-in-code
+   — was only ever discussed, never touched. Cross-check against the
+   2026-09-19 entry below before starting, per that item's note.
+4. The real AI-mediator work inside CHAT-01 (booking-chat.actions.ts /
+   BookingChatThread.tsx) has not been scoped into a written
+   audit/plan yet the way this project's other milestones get one —
+   do that (RULE 15 style) before writing any code for it, same as was
+   done for CONTACT-01/PROFILE-01 earlier in this project.
+
 Continuation (2026-09-19, same thread as the milestone immediately
 below — extends it, does not replace it)
 
