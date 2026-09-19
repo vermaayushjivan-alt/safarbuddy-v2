@@ -13,7 +13,12 @@ import type { InvoiceViewModel } from '@/lib/invoices/invoice-view-model';
 export default function InvoiceView({ invoice }: { invoice: InvoiceViewModel }) {
   return (
     <div className="mx-auto max-w-2xl rounded-2xl border border-deep/15 bg-white p-8">
-      <p className="mb-4 text-[18px] font-bold text-sky">SafarBuddy</p>
+      {/* LOGO-01: the actual brand SVG, rendered directly — browsers
+          display SVG natively via a plain <img>, unlike the PDF
+          renderer (see InvoiceDocument.tsx, which needs a rasterized
+          PNG instead because @react-pdf/renderer can't parse SVG). */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer adds no value for a small static brand asset here */}
+      <img src="/brand/logo-horizontal.svg" alt="SafarBuddy" className="mb-4 h-6 w-auto" />
 
       <div className="flex items-start justify-between border-b border-deep/10 pb-6">
         <div>
