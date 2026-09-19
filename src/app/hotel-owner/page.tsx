@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getMyHotel } from "@/app/actions/owner-hotel.actions";
 import { OwnerHotelForm } from "@/components/owner/OwnerHotelForm";
+import { Alert } from "@/components/auth/Alert";
 import { toSafeErrorMessage } from "@/lib/actions/action-result";
 
 // P0.3 Steps 2 & 5 (2026-09-05 session — see SESSION_HANDOFF.md).
@@ -81,12 +82,20 @@ export default async function HotelOwnerDashboardPage() {
           </p>
         </div>
 
-        <Link
-          href="/hotel-owner/images"
-          className="focus-ring inline-flex shrink-0 rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
-        >
-          Manage Photos
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href="/hotel-owner/bookings"
+            className="focus-ring inline-flex rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
+          >
+            Bookings
+          </Link>
+          <Link
+            href="/hotel-owner/images"
+            className="focus-ring inline-flex rounded-full border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
+          >
+            Manage Photos
+          </Link>
+        </div>
       </div>
 
       {hotel.status !== "active" && (
