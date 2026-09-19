@@ -34,6 +34,12 @@ export interface GenerateInvoiceInput {
   itemName: string;
   itemLocation: string | null;
   vendorId: string | null;
+  // INVOICE-EXTRAS-01 (this session): only meaningful for a hotel
+  // booking — a package call site simply omits both, same nullable
+  // pattern check_in_date/check_out_date already use for that case.
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
+  cancellationPolicy?: string | null;
 }
 
 // Resolves the recipient snapshot from whichever path the booking
@@ -108,6 +114,9 @@ export async function generateInvoiceForBooking(
       check_in_date: booking.check_in_date,
       check_out_date: booking.check_out_date,
       travel_date: booking.travel_date,
+      check_in_time: input.checkInTime ?? null,
+      check_out_time: input.checkOutTime ?? null,
+      cancellation_policy: input.cancellationPolicy ?? null,
       num_guests: booking.num_guests,
 
       currency: booking.currency,
