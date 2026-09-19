@@ -4,6 +4,108 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+Continuation (2026-09-19, same thread as the milestone immediately
+below — extends it, does not replace it)
+
+Picked back up after a live test surfaced two real, separate problems
+that the milestone below had not yet covered, plus one explicit new
+ask:
+
+1. Debugged "No invoice has been generated for this booking yet"
+   showing for a real paid booking. Confirmed via the live app, in
+   order: (a) the `booking_notifications` table existed (user had
+   already run the CONTACT-03 thread's corrected migration — a
+   DIFFERENT table from anything in this thread); (b) hotel/admin
+   emails WERE arriving for the booking in question, which narrowed
+   the problem specifically to the invoice code path rather than the
+   webhook as a whole; (c) never got to a confirmed root cause on one
+   exact line in this thread — kept asking for real Vercel Runtime
+   Logs, which were never actually pasted back. NEXT SESSION: get
+   those logs before touching invoice code again — don't re-guess.
+
+2. CUSTOMER-NOTIFY-01: project owner pointed out the paying customer
+   themselves gets no email/invoice at all (correct — confirmed by
+   reading the code, only hotel/vendor + admin ever did). Built
+   notifyCustomerBookingConfirmed() in dispatch.ts, wired into the
+   Cashfree webhook right after invoice generation, with the PDF
+   attached when generateInvoiceForBooking() succeeded (best-effort —
+   still sends the email without an attachment if it didn't, since
+   that's the very bug being chased in item 1). Real, deliberate gap
+   left in place: NOT logged to booking_notifications, because that
+   table's recipient_type CHECK constraint is ('hotel','vendor','admin')
+   only — 'customer' would violate it. A one-line migration would add
+   it; not done here, only flagged.
+
+3. A real screenshot (INR 1 test booking) confirmed the invoice PDF
+   itself DOES render correctly end-to-end via the existing pipeline
+   once an invoice row exists — subtotal/taxes/discount/amount all
+   correct, SB-INV-000008. This is the first real visual confirmation
+   in this thread that invoice generation works AT ALL when it works —
+   useful context for next session: the bug in item 1 is intermittent
+   or condition-specific, not "invoice generation is broken outright".
+
+4. Project owner then asked for three visible improvements to that
+   same PDF, all shipped: (a) LOGO-01 — a real embedded image logo,
+   not text. Web view uses the actual site SVG directly (trivial,
+   browsers render SVG natively). The PDF needed more: @react-pdf/
+   renderer's <Image> only accepts PNG/JPG, so a new `sharp` dependency
+   (added to package.json — NOT YET INSTALLED, npm install never ran,
+   see verification note below) converts the SVG to a PNG buffer at
+   render time (new file, src/lib/invoices/logo.ts), cached per server
+   instance, falling back to the previous text wordmark if conversion
+   ever throws. (b) Check-in/check-out TIME on the invoice, not just
+   date — new check_in_time/check_out_time columns on invoices
+   (migration 022), copied from the hotel at generation time (the
+   hotel's own check_in_time/check_out_time columns are themselves
+   from this same thread's earlier PROPERTY-META-01 work). (c)
+   Cancellation policy in small print at the bottom — new
+   cancellation_policy column on invoices (same migration 022), copied
+   from hotels.cancellation_policy (POLICY-01, also earlier this
+   thread). Both (b) and (c) simply don't render their section when
+   null — an older invoice, or a hotel that never filled these in,
+   shows no gap or placeholder.
+
+VERIFICATION STATUS FOR ITEM 4 — WORSE THAN THE REST OF THIS THREAD,
+SAY SO EXPLICITLY NEXT SESSION: this sandbox had no network at all
+(confirmed: `npm install` impossible) AND no working local SVG
+rasterizer either (checked and confirmed absent one by one:
+rsvg-convert binary, cairosvg Python package, gi.Rsvg PyGObject
+typelib — ImageMagick's own SVG delegate failed for exactly this
+reason). The sharp-based logo.ts conversion path has literally never
+been executed, not even once, by anything. Treat the PDF logo as
+"probably fine, sharp+SVG-input is a very standard combination" but
+NOT confirmed until someone opens one real generated invoice PDF and
+visually sees the actual logo image rather than the word "SafarBuddy"
+in text. If it fails, the fallback (text wordmark) still fires — it
+will not break invoice generation, but it may silently keep showing
+the old fallback and nobody would necessarily notice.
+
+Files changed this continuation (on top of the milestone below, which
+already listed its own files separately): email.client.ts
+(attachments support), generate-invoice.ts (exports resolveRecipient,
+accepts checkInTime/checkOutTime/cancellationPolicy), dispatch.ts
+(new notifyCustomerBookingConfirmed export), cashfree webhook
+route.ts (wires both the customer email and the three new
+generateInvoiceForBooking fields), invoice.repository.ts
+(check_in_time/check_out_time/cancellation_policy on both
+InvoiceRecord and CreateInvoiceInput), invoice-view-model.ts
+(cancellationPolicy pass-through, stayOrTravelValue now includes
+times), InvoiceDocument.tsx (Image support + policy footer),
+InvoiceView.tsx (real SVG logo + policy footer), render-invoice-pdf.ts
+(fetches the logo, passes it down), new file logo.ts, package.json
+(added `sharp`). New migration: 022_invoice01_snapshot_extras.sql.
+
+Next action, in order: (1) run migrations 017-022 if any aren't
+already live — ask, don't assume, several were already confirmed run
+earlier in this thread but 022 is brand new; (2) `npm install` for
+real so `sharp` actually resolves; (3) one real paid booking,
+capturing actual Vercel Runtime Logs this time if invoice generation
+still doesn't fire — that log is the one thing this entire
+continuation still doesn't have; (4) open the resulting invoice PDF
+and visually confirm the image logo renders.
+
+---
+
 Current milestone
 
 VENDOR-03 (M2) — "List Your Property" self-service form made fully
