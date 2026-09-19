@@ -43,6 +43,12 @@ export interface InvoiceViewModel {
   stayOrTravelValue: string;
   guestsLabel: string;
 
+  // INVOICE-EXTRAS-01 (this session) — pass-through, null when not
+  // applicable (package booking, or a hotel with no policy on file —
+  // see migration 022's header). Rendered as small print at the
+  // bottom, not part of the amount/line-item section above.
+  cancellationPolicy: string | null;
+
   // Amount breakdown, in display order. Empty for a field with no
   // value (e.g. no coupon applied) rather than showing a zero row.
   lineItems: InvoiceLineItem[];
@@ -87,6 +93,24 @@ export function buildInvoiceViewModel(invoice: InvoiceRecord): InvoiceViewModel 
         .join('  →  ') || '—'
     : formatDate(invoice.travel_date) ?? '—';
 
+  // INVOICE-EXTRAS-01: appends "(from 14:00)" / "(until 11:00)" onto
+  // the plain date when the hotel's check-in/check-out time was
+  // captured on this invoice — never invented when null (older
+  // invoices generated before migration 022, or a hotel that never
+  // set these on its listing).
+  const stayOrTravelValueWithTimes = isHotel
+    ? [
+        invoice.check_in_date && invoice.check_in_time
+          ? `${formatDate(invoice.check_in_date)} (from ${invoice.check_in_time})`
+          : formatDate(invoice.check_in_date),
+        invoice.check_out_date && invoice.check_out_time
+          ? `${formatDate(invoice.check_out_date)} (until ${invoice.check_out_time})`
+          : formatDate(invoice.check_out_date),
+      ]
+        .filter(Boolean)
+        .join('  →  ') || '—'
+    : stayOrTravelValue;
+
   const lineItems: InvoiceLineItem[] = [];
 
   const subtotalLabel = formatMoney(invoice.subtotal, invoice.currency);
@@ -121,8 +145,10 @@ export function buildInvoiceViewModel(invoice: InvoiceRecord): InvoiceViewModel 
     vendorName: invoice.vendor_name,
 
     stayOrTravelLabel: isHotel ? 'Dates' : 'Travel date',
-    stayOrTravelValue,
+    stayOrTravelValue: stayOrTravelValueWithTimes,
     guestsLabel: `${invoice.num_guests} ${invoice.num_guests === 1 ? 'guest' : 'guests'}`,
+
+    cancellationPolicy: invoice.cancellation_policy,
 
     lineItems,
     amountPaidLabel: formatMoney(invoice.amount_paid, invoice.currency) ?? '—',
