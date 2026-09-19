@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getMyHotel } from "@/app/actions/owner-hotel.actions";
 import { OwnerHotelImageManager } from "@/components/owner/OwnerHotelImageManager";
+import { Alert } from "@/components/auth/Alert";
 import { toSafeErrorMessage } from "@/lib/actions/action-result";
 
 // Photo gallery audit fix (2026-09-19). Same shape/error-handling as
