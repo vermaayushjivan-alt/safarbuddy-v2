@@ -10,9 +10,16 @@
 import 'server-only';
 import { renderToBuffer } from '@react-pdf/renderer';
 import InvoiceDocument from '@/components/invoices/InvoiceDocument';
+import { getInvoiceLogoBase64 } from '@/lib/invoices/logo';
 import type { InvoiceViewModel } from '@/lib/invoices/invoice-view-model';
 
 export async function renderInvoicePdfBuffer(invoice: InvoiceViewModel): Promise<Buffer> {
-  return renderToBuffer(InvoiceDocument({ invoice }));
+  // LOGO-01: best-effort — getInvoiceLogoBase64() itself never throws
+  // (see its own header), returning null on any failure, which
+  // InvoiceDocument renders as the text wordmark fallback instead of
+  // failing PDF generation over a missing logo.
+  const logoBase64 = await getInvoiceLogoBase64();
+
+  return renderToBuffer(InvoiceDocument({ invoice, logoBase64 }));
 }
 
