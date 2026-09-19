@@ -35,6 +35,11 @@ export interface InvoiceRecord extends DatabaseRecord {
   check_in_date: string | null;
   check_out_date: string | null;
   travel_date: string | null;
+  // INVOICE-EXTRAS-01 (this session) — see migration
+  // 022_invoice01_snapshot_extras.sql.
+  check_in_time: string | null;
+  check_out_time: string | null;
+  cancellation_policy: string | null;
   num_guests: number;
 
   currency: string;
@@ -72,6 +77,9 @@ export interface CreateInvoiceInput {
   check_in_date: string | null;
   check_out_date: string | null;
   travel_date: string | null;
+  check_in_time: string | null;
+  check_out_time: string | null;
+  cancellation_policy: string | null;
   num_guests: number;
 
   currency: string;
