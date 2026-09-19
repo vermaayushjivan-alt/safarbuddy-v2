@@ -13,6 +13,8 @@ import type { InvoiceViewModel } from '@/lib/invoices/invoice-view-model';
 export default function InvoiceView({ invoice }: { invoice: InvoiceViewModel }) {
   return (
     <div className="mx-auto max-w-2xl rounded-2xl border border-deep/15 bg-white p-8">
+      <p className="mb-4 text-[18px] font-bold text-sky">SafarBuddy</p>
+
       <div className="flex items-start justify-between border-b border-deep/10 pb-6">
         <div>
           <p className="text-[13px] font-semibold text-green-600">
@@ -91,6 +93,15 @@ export default function InvoiceView({ invoice }: { invoice: InvoiceViewModel }) 
       <p className="mt-8 text-[11px] text-ink/45">
         This invoice also serves as your booking voucher.
       </p>
+
+      {invoice.cancellationPolicy && (
+        <div className="mt-4 border-t border-deep/10 pt-4">
+          <p className="text-[9px] font-semibold text-ink/45">CANCELLATION POLICY</p>
+          <p className="mt-1 text-[9px] leading-relaxed text-ink/45">
+            {invoice.cancellationPolicy}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
