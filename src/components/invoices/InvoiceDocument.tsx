@@ -15,7 +15,7 @@
 // render-invoice-pdf.ts for the server-only helper that turns this into
 // a Buffer once a route needs one.
 
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import type { InvoiceViewModel } from '@/lib/invoices/invoice-view-model';
 
 const COLOR_DEEP = '#1f2a37';
@@ -143,6 +143,13 @@ const styles = StyleSheet.create({
     color: COLOR_BRAND,
     marginBottom: 10,
   },
+  // LOGO-01: fixed height, auto width via the source PNG's own aspect
+  // ratio — react-pdf's Image respects the source's intrinsic ratio
+  // when only one dimension is set.
+  brandLogo: {
+    height: 24,
+    marginBottom: 10,
+  },
   policySection: {
     marginTop: 16,
     borderTopWidth: 1,
@@ -162,11 +169,24 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function InvoiceDocument({ invoice }: { invoice: InvoiceViewModel }) {
+export default function InvoiceDocument({
+  invoice,
+  logoBase64,
+}: {
+  invoice: InvoiceViewModel;
+  // LOGO-01: null/undefined falls back to the text wordmark — see
+  // getInvoiceLogoBase64()'s header for when/why this can be null.
+  logoBase64?: string | null;
+}) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.brandWordmark}>SafarBuddy</Text>
+        {logoBase64 ? (
+          // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image has no alt prop
+          <Image src={logoBase64} style={styles.brandLogo} />
+        ) : (
+          <Text style={styles.brandWordmark}>SafarBuddy</Text>
+        )}
 
         <View style={styles.headerRow}>
           <View>
