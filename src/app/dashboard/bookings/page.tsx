@@ -147,6 +147,17 @@ export default async function MyBookingsPage({
                         </Link>
                       )}
 
+                      {/* CHAT — confirmed/completed bookings only, same
+                          condition as Invoice above (CHAT-01) */}
+                      {(booking.status === 'confirmed' || booking.status === 'completed') && (
+                        <Link
+                          href={`/dashboard/bookings/${booking.id}/chat`}
+                          className="focus-ring rounded-lg border border-deep/15 px-3 py-1.5 text-[12px] font-semibold text-deep transition hover:bg-mist"
+                        >
+                          Chat
+                        </Link>
+                      )}
+
                       {/* PAY NOW — pending bookings only */}
                       {booking.status === 'pending' && (
                         <Link
@@ -227,6 +238,18 @@ export default async function MyBookingsPage({
                     className="focus-ring w-full rounded-lg border border-deep/15 px-3 py-2 text-center text-[13px] font-semibold text-deep transition hover:bg-mist"
                   >
                     Invoice
+                  </Link>
+                )}
+
+                {/* CHAT — same condition, kept in sync with the
+                    desktop table for the same MOBILE-PAYMENT-BUG-01
+                    reason (CHAT-01). */}
+                {(booking.status === 'confirmed' || booking.status === 'completed') && (
+                  <Link
+                    href={`/dashboard/bookings/${booking.id}/chat`}
+                    className="focus-ring w-full rounded-lg border border-deep/15 px-3 py-2 text-center text-[13px] font-semibold text-deep transition hover:bg-mist"
+                  >
+                    Chat
                   </Link>
                 )}
 
