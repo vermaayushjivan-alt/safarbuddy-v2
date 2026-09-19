@@ -563,6 +563,14 @@ export async function POST(
               : (bookedPackage as { package_name: string }).package_name,
             itemLocation: bookedItem.city,
             vendorId: bookedItem.vendor_id,
+            // INVOICE-EXTRAS-01: only a hotel booking has these —
+            // bookedHotel is null for a package, so both stay
+            // undefined -> null on the invoice, matching
+            // check_in_date/check_out_date's existing package
+            // behavior.
+            checkInTime: bookedHotel?.check_in_time,
+            checkOutTime: bookedHotel?.check_out_time,
+            cancellationPolicy: bookedHotel?.cancellation_policy,
           });
 
           // CUSTOMER-NOTIFY-01 — fires regardless of whether `invoice`
