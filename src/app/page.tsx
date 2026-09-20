@@ -11,6 +11,7 @@ import Testimonials from "@/components/home/Testimonials";
 import AppDownload from "@/components/home/AppDownload";
 import Footer from "@/components/home/Footer";
 import HomeAiChatWidget from "@/components/home/HomeAiChatWidget";
+import PromoBanner from "@/components/home/PromoBanner";
 
 // SEO_AUDIT.md §4.3 — homepage had no dedicated metadata beyond the
 // root layout default. Title/description intentionally match
@@ -25,11 +26,14 @@ export default function Home() {
     <main className="bg-cream">
       <Navbar />
       <Hero />
+      <PromoBanner slot="after_hero" />
       <Offers />
       <Destinations />
+      <PromoBanner slot="between_destinations_trending" />
       <Trending />
       <TrendingFlights />
       <Packages />
+      <PromoBanner slot="between_packages_testimonials" />
       <Testimonials />
       <AppDownload />
       <Newsletter />
