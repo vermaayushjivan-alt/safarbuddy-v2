@@ -4,12 +4,42 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth/session';
 import { OfferRepository, OfferRecord } from '@/lib/repositories/offer.repository';
+import {
+  HotelRepository,
+  type HotelRecord,
+  type HotelOption,
+} from '@/lib/repositories/hotel.repository';
 import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 
-export async function getActiveOffers(): Promise<OfferRecord[]> {
+// Homepage strip uses the default (5); the public /offers page passes a
+// larger limit so "View all offers" really shows all of them.
+export async function getActiveOffers(limit: number = 5): Promise<OfferRecord[]> {
   const supabase = await createClient();
   const repo = new OfferRepository(supabase);
-  return repo.getActiveOffers(5);
+  return repo.getActiveOffers(limit);
+}
+
+// --- OFFER-HOTELS-01: offer -> hotels ---
+//
+// Public (no requireRole, by design — same as getActiveOffers above): the
+// homepage "Book now" button and /offers/[id] are visited by anonymous
+// users. Only a LIVE offer is returned, and only its ACTIVE, non-deleted
+// hotels (HotelRepository.getPublishedHotelsByIds), so linking a hotel to
+// an offer can never expose a hotel that is not already public.
+export async function getActiveOfferWithHotels(
+  offerId: string
+): Promise<{ offer: OfferRecord; hotels: HotelRecord[] } | null> {
+  const supabase = await createClient();
+  const offerRepo = new OfferRepository(supabase);
+
+  const offer = await offerRepo.getActiveOfferById(offerId);
+  if (!offer) return null;
+
+  const hotelIds = await offerRepo.getHotelIdsForOffer(offer.id);
+  const hotelRepo = new HotelRepository(supabase);
+  const hotels = await hotelRepo.getPublishedHotelsByIds(hotelIds);
+
+  return { offer, hotels };
 }
 
 // --- ADMIN-08 follow-up: Image Upload ---
@@ -119,6 +149,10 @@ const offerInputSchema = z.object({
     .min(1, 'Status is required')
     .transform((v) => v.toLowerCase()),
   banner_image: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  // OFFER-HOTELS-01: hotels this offer applies to (public.offer_hotels).
+  // NOT a column on `offers` — split off before the row is written, see
+  // createOfferAdmin/updateOfferAdmin.
+  hotel_ids: z.array(z.string().uuid()).max(500).default([]),
 });
 
 export type OfferInput = z.infer<typeof offerInputSchema>;
@@ -141,9 +175,14 @@ export async function createOfferAdmin(input: OfferInput): Promise<ActionResult<
   return runAction(async () => {
     await requireRole(['admin', 'super_admin']);
     const parsed = offerInputSchema.parse(input);
+    const { hotel_ids, ...offerData } = parsed;
     const supabase = await createClient();
     const repo = new OfferRepository(supabase);
-    return repo.createOffer(parsed);
+    const created = await repo.createOffer(offerData);
+    // If linking fails the offer already exists (without hotels); the
+    // admin sees the error and can just open Edit and re-select hotels.
+    await repo.setOfferHotels(created.id, hotel_ids);
+    return created;
   });
 }
 
@@ -154,9 +193,12 @@ export async function updateOfferAdmin(
   return runAction(async () => {
     await requireRole(['admin', 'super_admin']);
     const parsed = offerInputSchema.parse(input);
+    const { hotel_ids, ...offerData } = parsed;
     const supabase = await createClient();
     const repo = new OfferRepository(supabase);
-    return repo.updateOffer(id, parsed);
+    const updated = await repo.updateOffer(id, offerData);
+    await repo.setOfferHotels(id, hotel_ids);
+    return updated;
   });
 }
 
@@ -167,4 +209,20 @@ export async function deleteOfferAdmin(id: string): Promise<ActionResult<boolean
     const repo = new OfferRepository(supabase);
     return repo.deleteOffer(id);
   });
+}
+
+// --- OFFER-HOTELS-01: admin form helpers ---
+
+export async function getOfferHotelIdsAdmin(offerId: string): Promise<string[]> {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new OfferRepository(supabase);
+  return repo.getHotelIdsForOffer(offerId);
+}
+
+export async function getHotelOptionsAdmin(): Promise<HotelOption[]> {
+  await requireRole(['admin', 'super_admin']);
+  const supabase = await createClient();
+  const repo = new HotelRepository(supabase);
+  return repo.listHotelOptions();
 }
