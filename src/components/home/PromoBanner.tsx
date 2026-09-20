@@ -7,12 +7,14 @@
 // with no active promotions renders nothing (no empty card, no
 // layout shift).
 //
-// Styling matches Offers.tsx's card shape (rounded-2xl, white card,
-// soft shadow) and Trending's hover-lift, so this doesn't read as a
-// bolted-on design system.
+// SIZE: deliberately a large, full-width display-ad banner (not a
+// thin row-card) — sponsors pay more for a bigger, more visible
+// placement, so the whole uploaded logo/banner image fills the card
+// as a background, with company name + CTA overlaid at the bottom,
+// same visual weight as a real ad unit rather than a small chip.
 
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import {
   getActivePromotionsForSlot,
   trackPromotionImpression,
@@ -66,54 +68,56 @@ export default function PromoBanner({ slot }: { slot: PromotionSlot }) {
   const current = promotions[activeIndex];
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-4">
+    <div className="mx-auto max-w-6xl px-6 py-6">
       <a
         href={current.click_url}
         target="_blank"
         rel="noopener noreferrer sponsored"
         onClick={() => trackPromotionClick(current.id)}
-        className="focus-ring group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-deep/10 bg-white px-5 py-4 shadow-[0_16px_30px_-18px_rgba(11,47,92,0.4)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_36px_-16px_rgba(11,47,92,0.45)]"
+        className="focus-ring group relative block h-56 w-full overflow-hidden rounded-3xl border border-deep/10 bg-deep shadow-[0_24px_48px_-20px_rgba(11,47,92,0.45)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_54px_-18px_rgba(11,47,92,0.5)] sm:h-64 md:h-72"
       >
-        <span className="absolute right-3 top-3 rounded-full bg-mist px-2 py-0.5 font-heading text-[10px] font-semibold uppercase tracking-wide text-ink/50">
-          Sponsored
-        </span>
-
         {current.logo_image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={current.logo_image}
             alt={current.company_name}
-            className="h-12 w-12 shrink-0 rounded-xl object-contain"
+            className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-mist font-heading text-[14px] font-bold text-deep">
-            {current.company_name.slice(0, 1).toUpperCase()}
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-br from-deep via-deep-2 to-ink" />
         )}
 
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-heading text-[14px] font-semibold text-deep">
-            {current.company_name}
-          </p>
-          <p className="truncate text-[12px] text-ink/55">
-            {current.click_url.replace(/^https?:\/\//, '')}
-          </p>
-        </div>
+        {/* Bottom gradient so text stays readable over any image */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-        <ExternalLink
-          size={16}
-          className="shrink-0 text-deep/40 transition group-hover:text-deep"
-          aria-hidden
-        />
+        <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 font-heading text-[11px] font-semibold uppercase tracking-wide text-deep">
+          Sponsored
+        </span>
+
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 sm:p-7">
+          <div className="min-w-0">
+            <p className="truncate font-display text-2xl text-white sm:text-3xl">
+              {current.company_name}
+            </p>
+            <p className="mt-1 truncate text-[13px] text-white/70">
+              {current.click_url.replace(/^https?:\/\//, '')}
+            </p>
+          </div>
+
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-4 py-2.5 font-heading text-[13px] font-semibold text-deep transition group-hover:bg-cream">
+            Visit
+            <ArrowUpRight size={15} aria-hidden />
+          </span>
+        </div>
       </a>
 
       {promotions.length > 1 && (
-        <div className="mt-2 flex justify-center gap-1.5">
+        <div className="mt-3 flex justify-center gap-1.5">
           {promotions.map((p, i) => (
             <span
               key={p.id}
               className={`h-1.5 rounded-full transition-all ${
-                i === activeIndex ? 'w-4 bg-deep/60' : 'w-1.5 bg-deep/20'
+                i === activeIndex ? 'w-6 bg-deep/60' : 'w-1.5 bg-deep/20'
               }`}
             />
           ))}
@@ -122,4 +126,3 @@ export default function PromoBanner({ slot }: { slot: PromotionSlot }) {
     </div>
   );
 }
-
