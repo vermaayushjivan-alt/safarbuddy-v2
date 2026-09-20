@@ -20,16 +20,27 @@ export class OfferRepository extends BaseRepository<OfferRecord> {
     });
   }
 
+  // FIX (offers not showing on homepage): the old filter used
+  //   status = 'ACTIVE' (case-sensitive) AND end_date >= now()
+  // which silently dropped (a) offers saved as 'active'/'Active' and
+  // (b) offers with no End Date (NULL never satisfies >=). Now:
+  //   - status match is case-insensitive
+  //   - offers with NULL end_date are treated as "no expiry"
+  //   - end_date is compared as a plain date (YYYY-MM-DD), so an offer
+  //     ending today stays live for the whole day
   async getActiveOffers(limit: number = 5): Promise<OfferRecord[]> {
-    const today = new Date().toISOString();
-    return this.findMany({
-      filters: [
-        { column: 'status', operator: 'eq', value: 'ACTIVE' },
-        { column: 'end_date', operator: 'gte', value: today },
-      ],
-      sort: { column: 'start_date', ascending: false },
-      pagination: { page: 1, limit },
-    });
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data, error } = await this.supabase
+      .from('offers')
+      .select('*')
+      .ilike('status', 'active')
+      .or(`end_date.is.null,end_date.gte.${today}`)
+      .order('start_date', { ascending: false, nullsFirst: false })
+      .limit(limit);
+
+    if (error) throw new Error(error.message);
+    return (data ?? []) as OfferRecord[];
   }
 
   // --- ADMIN-08: minimal public exposure of BaseRepository, mirrors
