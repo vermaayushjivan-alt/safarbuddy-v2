@@ -13,9 +13,7 @@ import {
   runAction,
   emptyToNull,
   type ActionResult,
-} from '@/lib/actions/action-result';
-
-// --- PROMO-01: Public homepage read + click/impression tracking ---
+} from '@/lib/actions/action-result';// --- PROMO-01: Public homepage read + click/impression tracking ---
 //
 // No requireRole() on any of the three functions below — an
 // anonymous homepage visitor must be able to see banners and have
@@ -57,6 +55,81 @@ export async function trackPromotionClick(id: string): Promise<void> {
   } catch (error) {
     console.error('[trackPromotionClick]', error);
   }
+}
+
+// --- PROMO-01 follow-up: Logo Upload ---
+//
+// Mirrors uploadHotelImageAdmin's validation/upload pattern exactly
+// (ADMIN-03), simplified: a promotion has one logo, stored as a plain
+// URL on the `promotions` row itself (no separate images table), so
+// this only needs to upload the file and hand back its public URL —
+// the admin form then sets logo_image to that URL, same as if it had
+// been pasted in manually. Requires migration 025 (promotion-logos
+// public bucket) to be run first.
+
+const PROMOTION_LOGO_ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+];
+
+const PROMOTION_LOGO_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+
+function promotionLogoExtensionFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    default:
+      return 'webp';
+  }
+}
+
+export async function uploadPromotionLogoAdmin(
+  file: File
+): Promise<ActionResult<{ url: string }>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+
+    if (!PROMOTION_LOGO_ALLOWED_TYPES.includes(file.type)) {
+      throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+    }
+
+    if (file.size > PROMOTION_LOGO_MAX_SIZE_BYTES) {
+      throw new Error('Image must be 5MB or smaller.');
+    }
+
+    // Service role, not the session client — an admin uploading a
+    // logo has no reason to be blocked by a storage.objects RLS
+    // policy that doesn't exist for this bucket anyway (see migration
+    // 025's header note).
+    const supabase = createServiceRoleClient();
+
+    const ext = promotionLogoExtensionFromMimeType(file.type);
+    const objectKey = `${crypto.randomUUID()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('promotion-logos')
+      .upload(objectKey, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload logo: ${uploadError.message}`);
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('promotion-logos')
+      .getPublicUrl(objectKey);
+
+    return { url: publicUrlData.publicUrl };
+  });
 }
 
 // --- PROMO-01: Admin Management (CRUD) — mirrors offer.actions.ts (ADMIN-08) ---
