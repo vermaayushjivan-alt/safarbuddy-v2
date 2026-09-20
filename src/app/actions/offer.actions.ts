@@ -92,6 +92,18 @@ export async function uploadOfferImageAdmin(
 // optional string passthrough — no Storage/bucket logic is added here;
 // that is out of scope for this milestone per explicit instruction.
 
+// SCHEMA-FIX-01 (this session): the live `offers` table's actual
+// column is `banner_image`, confirmed via information_schema — this
+// schema/action previously used `image` throughout (form, this Zod
+// schema, OfferRecord), which is why saving/editing an offer failed
+// with "Could not find the 'image' column of 'offers' in the schema
+// cache" (same class of error the project owner also hit for
+// `discount`, which genuinely does exist — that one was a stale
+// PostgREST cache, not a real mismatch; this one is a real mismatch).
+// Renamed end-to-end (this file, offer.repository.ts, OfferForm.tsx,
+// components/home/Offers.tsx) rather than aliasing, to match this
+// project's stated preference for one true name over a translation
+// layer for a field this simple.
 const offerInputSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.preprocess(emptyToNull, z.string().nullable().optional()),
@@ -99,7 +111,7 @@ const offerInputSchema = z.object({
   start_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
   end_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
   status: z.string().min(1, 'Status is required'),
-  image: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  banner_image: z.preprocess(emptyToNull, z.string().nullable().optional()),
 });
 
 export type OfferInput = z.infer<typeof offerInputSchema>;
