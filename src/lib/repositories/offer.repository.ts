@@ -21,10 +21,11 @@ export class OfferRepository extends BaseRepository<OfferRecord> {
   }
 
   // FIX (offers not showing on homepage): the old filter used
-  //   status = 'ACTIVE' (case-sensitive) AND end_date >= now()
-  // which silently dropped (a) offers saved as 'active'/'Active' and
-  // (b) offers with no End Date (NULL never satisfies >=). Now:
-  //   - status match is case-insensitive
+  //   status = 'ACTIVE' (uppercase) AND end_date >= now()
+  // but the offers_public_read RLS policy only lets public visitors see
+  // lowercase status ('active'/'approved'/'published') and deleted_at IS NULL,
+  // so the two never matched. Also NULL end_date never satisfied >=. Now:
+  //   - status is matched case-insensitively (data should be lowercase)
   //   - offers with NULL end_date are treated as "no expiry"
   //   - end_date is compared as a plain date (YYYY-MM-DD), so an offer
   //     ending today stays live for the whole day
