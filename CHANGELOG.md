@@ -4,6 +4,35 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-09-20 — PROMO-01 (homepage banner ads)
+
+Status: CODE COMPLETE. Migration renumbered 023 -> 024 and reported
+run live in Supabase by the project owner (017-023 all confirmed
+already live; 023 was taken by something else, not this table). Code
+itself NOT yet pushed to GitHub/Vercel. `npm install`/`tsc --noEmit`/
+`eslint` all run for real and clean in this sandbox.
+
+3 homepage slots, inline auto-sliding cards (explicitly not popups —
+prior session's own decision). New `promotions` table
+(src/db/sql/024_promo01_promotions.sql — see file header for the
+renumbering note), RLS public-read scoped to
+active/in-range rows, two SECURITY DEFINER functions for atomic
+impression/click counting (avoids a read-then-write race under
+concurrent homepage traffic). New: promotion.repository.ts (mirrors
+OfferRepository/ADMIN-08), promotion.actions.ts (public
+get/track functions have no requireRole() by design — an anon visitor
+must be able to see and be counted; admin CRUD is
+requireRole+service-role, same as offer.actions.ts), PromoBanner.tsx
+(client, per-slot, renders nothing when empty), PromotionForm.tsx +
+/admin/promotions pages (CRUD, mirrors /admin/offers). Modified:
+src/app/page.tsx (3 slot placements), src/app/admin/page.tsx
+(dashboard card).
+
+Not done: RANK-01 (separate milestone, not started — sequencing with
+PROMO-01 never reconfirmed by project owner). No hotel-picker dropdown
+for the optional hotel_id field — plain-text UUID input, consistent
+with this project's existing minimal-scope pattern (e.g. LOCATION-01).
+
 2026-09-18 — INVOICE-01 Step 5a+5b (customer invoice view + PDF download)
 
 Status: CODE COMPLETE, NOT VERIFIED (sandbox network disabled — same
