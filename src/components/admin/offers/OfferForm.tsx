@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   createOfferAdmin,
   updateOfferAdmin,
+  uploadOfferImageAdmin,
   type OfferInput,
 } from "@/app/actions/offer.actions";
 import type { OfferRecord } from "@/lib/repositories/offer.repository";
@@ -17,6 +18,7 @@ interface OfferFormProps {
 function OfferForm({ mode, offer }: OfferFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState<OfferInput>({
@@ -37,6 +39,30 @@ function OfferForm({ mode, offer }: OfferFormProps) {
       ...prev,
       [key]: value,
     }));
+  }
+
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setIsUploading(true);
+
+    startTransition(async () => {
+      try {
+        const result = await uploadOfferImageAdmin(file);
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        handleChange("image", result.data.url);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed.");
+      } finally {
+        setIsUploading(false);
+        input.value = "";
+      }
+    });
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -157,14 +183,35 @@ function OfferForm({ mode, offer }: OfferFormProps) {
       </Field>
 
 
-      <Field label="Image URL">
+      <Field label="Banner Image">
+        {form.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={form.image}
+            alt="Offer banner preview"
+            className="mb-2 h-24 w-full rounded-xl border border-deep/15 object-cover"
+          />
+        ) : null}
+        <input
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          onChange={handleImageUpload}
+          disabled={isUploading}
+          className="block w-full text-[13px] text-ink/70"
+        />
+        <p className="mt-1 text-[12px] text-ink/45">
+          {isUploading
+            ? "Uploading..."
+            : "jpg, jpeg, png, or webp. Max 5MB. Wide images look best in the card's top banner."}
+        </p>
         <input
           type="text"
+          placeholder="Or paste an image URL directly"
           value={form.image ?? ""}
           onChange={(e) =>
             handleChange("image", e.target.value)
           }
-          className={inputClass}
+          className={`${inputClass} mt-2`}
         />
       </Field>
 
