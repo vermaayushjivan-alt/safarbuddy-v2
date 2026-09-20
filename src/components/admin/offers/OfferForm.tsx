@@ -27,7 +27,7 @@ function OfferForm({ mode, offer }: OfferFormProps) {
     discount: offer?.discount ?? "",
     start_date: offer?.start_date ?? "",
     end_date: offer?.end_date ?? "",
-    status: offer?.status ?? "",
+    status: (offer?.status ?? "ACTIVE").toUpperCase(),
     banner_image: offer?.banner_image ?? "",
   });
 
@@ -170,16 +170,17 @@ function OfferForm({ mode, offer }: OfferFormProps) {
 
 
       <Field label="Status" required>
-        <input
-          type="text"
+        <select
           required
           value={form.status}
           onChange={(e) =>
             handleChange("status", e.target.value)
           }
-          placeholder="e.g. ACTIVE"
           className={inputClass}
-        />
+        >
+          <option value="ACTIVE">ACTIVE (shows on homepage)</option>
+          <option value="INACTIVE">INACTIVE (hidden)</option>
+        </select>
       </Field>
 
 
