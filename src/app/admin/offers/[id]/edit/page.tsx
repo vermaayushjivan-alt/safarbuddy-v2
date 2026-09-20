@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { getOfferByIdAdmin } from "@/app/actions/offer.actions";
+import {
+  getOfferByIdAdmin,
+  getOfferHotelIdsAdmin,
+  getHotelOptionsAdmin,
+} from "@/app/actions/offer.actions";
 import OfferForm from "@/components/admin/offers/OfferForm";
 
 export default async function EditOfferPage({
@@ -14,12 +18,22 @@ export default async function EditOfferPage({
     notFound();
   }
 
+  const [hotelOptions, initialHotelIds] = await Promise.all([
+    getHotelOptionsAdmin(),
+    getOfferHotelIdsAdmin(id),
+  ]);
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="font-display text-3xl text-deep">Edit Offer</h1>
       </div>
-      <OfferForm mode="edit" offer={offer} />
+      <OfferForm
+        mode="edit"
+        offer={offer}
+        hotelOptions={hotelOptions}
+        initialHotelIds={initialHotelIds}
+      />
     </div>
   );
 }
