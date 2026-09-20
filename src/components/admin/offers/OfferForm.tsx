@@ -27,7 +27,7 @@ function OfferForm({ mode, offer }: OfferFormProps) {
     discount: offer?.discount ?? "",
     start_date: offer?.start_date ?? "",
     end_date: offer?.end_date ?? "",
-    status: (offer?.status ?? "ACTIVE").toUpperCase(),
+    status: (offer?.status ?? "active").toLowerCase(),
     banner_image: offer?.banner_image ?? "",
   });
 
@@ -178,8 +178,8 @@ function OfferForm({ mode, offer }: OfferFormProps) {
           }
           className={inputClass}
         >
-          <option value="ACTIVE">ACTIVE (shows on homepage)</option>
-          <option value="INACTIVE">INACTIVE (hidden)</option>
+          <option value="active">active (shows on homepage)</option>
+          <option value="inactive">inactive (hidden)</option>
         </select>
       </Field>
 
