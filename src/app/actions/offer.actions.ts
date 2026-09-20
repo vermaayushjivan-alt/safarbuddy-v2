@@ -110,7 +110,12 @@ const offerInputSchema = z.object({
   discount: z.preprocess(emptyToNull, z.string().nullable().optional()),
   start_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
   end_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  status: z.string().min(1, 'Status is required'),
+  // Normalised to UPPERCASE so 'active' / 'Active' / 'ACTIVE' all behave the same.
+  status: z
+    .string()
+    .trim()
+    .min(1, 'Status is required')
+    .transform((v) => v.toUpperCase()),
   banner_image: z.preprocess(emptyToNull, z.string().nullable().optional()),
 });
 
