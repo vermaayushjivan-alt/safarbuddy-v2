@@ -323,6 +323,33 @@ Next Development Phase
 
 ROOM-05 — COMPLETE (see above). BOOKING-02 — COMPLETE (see Known Issues above). VENDOR-02 — CODE COMPLETE, migration confirmed live 2026-09-03 (see below). VENDOR-03 — M1 CODE COMPLETE, migration confirmed live 2026-09-05; M2 CODE COMPLETE, NOT VERIFIED (see below); M3 not scoped (dangling claim corrected 2026-09-17, see DOC_DEBT.md item 16c); M4 CODE COMPLETE, backfilled 2026-09-17, NOT VERIFIED live (see below). CONTACT-02 — CODE COMPLETE 2026-09-17, NOT VERIFIED live (see below). PAY-04 — CODE COMPLETE 2026-09-17 (RULE 15 audit performed in chat session, see CHANGELOG.md same date) — this turned out to be manual settlement tracking (fixed 20% commission split + admin-logged payout receipts), not the originally-scoped Cashfree Payouts split-settlement automation; that automation is still not started and remains blocked on migration 010 (not yet run in production) and the unwired Cashfree Payouts client. Migration 013 (PAY-04's own schema) is also not yet run in production — see DATABASE_BIBLE.md Migration Registry. CONTACT-02's RULE 15 audit was performed and recorded 2026-09-17 (see CONTACT-02 entry above and CHANGELOG.md same date) — DOC_DEBT.md item 5's original dangling-audit claim remains open only as a historical record of the earlier false claim, not as a live blocker anymore.
 
+PROMO-01 — Homepage Banner Ads. CODE COMPLETE 2026-09-20 (chat
+session), NOT VERIFIED. 3 homepage slots (after Hero/before Offers,
+between Destinations and Trending, between Packages and Testimonials),
+inline auto-sliding cards — explicitly NOT popups, per the prior
+session's own product decision recorded in SESSION_HANDOFF.md. New
+public.promotions table (src/db/sql/024_promo01_promotions.sql —
+originally guessed as 023, project owner confirmed 017-023 are all
+already run live in Supabase and 023 was taken by something else, so
+renumbered to 024; that table+functions are now confirmed run live
+under this SQL), RLS public-read scoped to active + in-date-range rows,
+two SECURITY DEFINER SQL functions for atomic impression/click
+counting. New: promotion.repository.ts, promotion.actions.ts,
+PromoBanner.tsx (homepage), PromotionForm.tsx +
+/admin/promotions (admin CRUD). RANK-01 (paid featured ranking) —
+the other half of the monetization scope discussed alongside PROMO-01
+— NOT started; sequencing between the two was never explicitly
+reconfirmed by the project owner.
+
+Verified: `npm install`, `tsc --noEmit`, `eslint` all run for real —
+clean except the two pre-existing untouched issues already on record
+(ProfileMenu.tsx, PropertyListingForm.tsx). `npm run build` reached
+only the same pre-existing sandbox-only Google Fonts 403 seen in every
+prior session. Migration 024 reported run live in Supabase (not yet
+independently confirmed via information_schema.columns). NOT DEPLOYED:
+this code has not been pushed to GitHub/Vercel yet. NOT verified: no
+live walkthrough of a real banner rendering/sliding/click-tracking.
+
 INVOICE-01 — Invoices/Vouchers. Step 1 (product scope audit) COMPLETE
 2026-09-17. Step 2 (schema + PDF-library decision) COMPLETE 2026-09-17
 (same day, following session). Decisions (full RULE 15 audit in
