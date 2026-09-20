@@ -9,6 +9,7 @@ import {
   Wallet,
   Ticket,
   HandCoins,
+  Megaphone,
 } from "lucide-react";
 
 const sections = [
@@ -65,6 +66,12 @@ const sections = [
     label: "Settlements",
     description: "Track vendor dues and mark settlement payments as paid.",
     icon: HandCoins,
+  },
+  {
+    href: "/admin/promotions",
+    label: "Promotions",
+    description: "Manage homepage banner-ad slots for hotels and external advertisers.",
+    icon: Megaphone,
   },
 ];
 
