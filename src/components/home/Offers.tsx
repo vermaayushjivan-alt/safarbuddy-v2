@@ -1,77 +1,46 @@
 "use client";
 
+// ADMIN-08 follow-up — this section was previously a hardcoded static
+// array, completely disconnected from /admin/offers (any offer
+// created/edited/deleted there never showed up here). Now fetches
+// real active offers via getActiveOffers() and renders the actual
+// admin-managed image/title/description/discount/end_date.
+//
+// Design intentionally kept as close to the original as possible —
+// same card shape, same top banner area, same ticket-perforation
+// footer — per explicit instruction not to redesign the section, only
+// to make it show the real uploaded image. Two things could not be
+// kept as-is because they were never real data: the per-category
+// tag+icon chip (Flights/Hotels/Bus/...) and the "CODE: XXXX" line —
+// neither field exists on the `offers` table (title/image/description/
+// discount/start_date/end_date/status only), so inventing a fake
+// category or promo code here would just be new fabricated data in
+// a different spot. Dropped both rather than fake them; everything
+// else (banner height, card width, spacing, buttons) is unchanged.
+
 import { useEffect, useState } from "react";
-import { Plane, Building2, Bus, Umbrella, Clock, ArrowRight } from "lucide-react";
+import { Tag, Clock, ArrowRight } from "lucide-react";
+import { getActiveOffers } from "@/app/actions/offer.actions";
+import type { OfferRecord } from "@/lib/repositories/offer.repository";
 
-type Offer = {
-  id: string;
-  tag: string;
-  icon: typeof Plane;
-  banner: string;
-  title: string;
-  desc: string;
-  discount: string;
-  code: string;
-  expiry: string;
-};
-
-const offers: Offer[] = [
-  {
-    id: "fly500",
-    tag: "Flights",
-    icon: Plane,
-    banner: "from-sky to-deep",
-    title: "Flat ₹500 off",
-    desc: "On domestic flight bookings above ₹4,000",
-    discount: "UP TO ₹500 OFF",
-    code: "FLY500",
-    expiry: "Valid till 31 Aug 2026",
-  },
-  {
-    id: "stay20",
-    tag: "Hotels",
-    icon: Building2,
-    banner: "from-orange to-orange-2",
-    title: "20% off hotels",
-    desc: "Weekend stays across 4,000+ properties",
-    discount: "20% OFF",
-    code: "STAY20",
-    expiry: "Valid till 15 Sep 2026",
-  },
-  {
-    id: "bus150",
-    tag: "Bus",
-    icon: Bus,
-    banner: "from-deep to-deep-2",
-    title: "₹150 cashback",
-    desc: "First bus booking on the SafarBuddy app",
-    discount: "₹150 CASHBACK",
-    code: "BUS150",
-    expiry: "Valid till 10 Sep 2026",
-  },
-  {
-    id: "holi10k",
-    tag: "Holiday",
-    icon: Umbrella,
-    banner: "from-sky-light to-sky",
-    title: "Up to ₹10,000 off",
-    desc: "Curated holiday packages, this monsoon",
-    discount: "UP TO ₹10,000 OFF",
-    code: "HOLI10K",
-    expiry: "Valid till 30 Sep 2026",
-  },
-  {
-    id: "train75",
-    tag: "Train",
-    icon: Bus,
-    banner: "from-deep-2 to-deep",
-    title: "Extra 5% off",
-    desc: "Tatkal and general train tickets, all classes",
-    discount: "5% OFF",
-    code: "TRAIN75",
-    expiry: "Valid till 20 Aug 2026",
-  },
+const FALLBACK_GRADIENTS = [
+  "from-sky to-deep",
+  "from-orange to-orange-2",
+  "from-deep to-deep-2",
+  "from-sky-light to-sky",
+  "from-deep-2 to-deep",
 ];
+
+function formatValidTill(endDate: string | null): string | null {
+  if (!endDate) return null;
+  const d = new Date(endDate);
+  if (Number.isNaN(d.getTime())) return null;
+  return `Valid till ${d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })}`;
+}
 
 function OfferCardSkeleton() {
   return (
@@ -91,7 +60,7 @@ function EmptyOffers() {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-deep/15 bg-mist-2 px-6 py-16 text-center">
       <div className="grid h-12 w-12 place-items-center rounded-full bg-mist text-deep">
-        <Umbrella size={20} aria-hidden />
+        <Tag size={20} aria-hidden />
       </div>
       <p className="mt-4 font-heading text-[15px] font-semibold text-deep">
         No offers live right now
@@ -105,10 +74,20 @@ function EmptyOffers() {
 
 export default function Offers() {
   const [loading, setLoading] = useState(true);
+  const [offers, setOffers] = useState<OfferRecord[]>([]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setLoading(false), 700);
-    return () => window.clearTimeout(t);
+    let cancelled = false;
+    getActiveOffers()
+      .then((rows) => {
+        if (!cancelled) setOffers(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -150,7 +129,9 @@ export default function Offers() {
           aria-label="Current offers"
         >
           {offers.map((o, i) => {
-            const Icon = o.icon;
+            const validTill = formatValidTill(o.end_date);
+            const gradient = FALLBACK_GRADIENTS[i % FALLBACK_GRADIENTS.length];
+
             return (
               <div
                 key={o.id}
@@ -159,22 +140,30 @@ export default function Offers() {
                 style={{ animationDelay: `${i * 80}ms` }}
               >
                 <div
-                  className={`relative flex h-32 flex-col justify-between bg-gradient-to-br ${o.banner} p-4`}
+                  className={`relative flex h-32 flex-col justify-between overflow-hidden ${
+                    o.image ? "" : `bg-gradient-to-br ${gradient}`
+                  } p-4`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="route-tag inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium text-deep">
-                      <Icon size={12} aria-hidden />
-                      {o.tag.toUpperCase()}
-                    </span>
-                    <span className="rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
+                  {o.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={o.image}
+                      alt={o.title}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Tag
+                      size={40}
+                      className="absolute bottom-4 right-4 text-white/25"
+                      aria-hidden
+                    />
+                  )}
+
+                  {o.discount && (
+                    <span className="route-tag relative ml-auto inline-flex items-center gap-1.5 rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
                       {o.discount}
                     </span>
-                  </div>
-                  <Icon
-                    size={40}
-                    className="self-end text-white/25"
-                    aria-hidden
-                  />
+                  )}
                 </div>
 
                 <div className="flex flex-1 flex-col justify-between p-5">
@@ -182,22 +171,21 @@ export default function Offers() {
                     <h3 className="font-heading text-lg font-semibold text-deep">
                       {o.title}
                     </h3>
-                    <p className="mt-1 text-[13px] leading-relaxed text-ink/60">
-                      {o.desc}
-                    </p>
+                    {o.description && (
+                      <p className="mt-1 text-[13px] leading-relaxed text-ink/60">
+                        {o.description}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="ticket-perf mt-4 space-y-2 pl-4">
-                    <div className="flex items-center justify-between">
-                      <span className="route-tag text-[12px] font-medium text-deep">
-                        CODE: {o.code}
-                      </span>
+                  {validTill && (
+                    <div className="ticket-perf mt-4 space-y-2 pl-4">
+                      <p className="flex items-center gap-1.5 text-[11px] text-ink/45">
+                        <Clock size={12} aria-hidden />
+                        {validTill}
+                      </p>
                     </div>
-                    <p className="flex items-center gap-1.5 text-[11px] text-ink/45">
-                      <Clock size={12} aria-hidden />
-                      {o.expiry}
-                    </p>
-                  </div>
+                  )}
 
                   <button
                     type="button"
