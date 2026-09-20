@@ -141,13 +141,13 @@ export default function Offers() {
               >
                 <div
                   className={`relative flex h-32 flex-col justify-between overflow-hidden ${
-                    o.image ? "" : `bg-gradient-to-br ${gradient}`
+                    o.banner_image ? "" : `bg-gradient-to-br ${gradient}`
                   } p-4`}
                 >
-                  {o.image ? (
+                  {o.banner_image ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={o.image}
+                      src={o.banner_image}
                       alt={o.title}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
