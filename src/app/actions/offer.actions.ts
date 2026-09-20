@@ -110,12 +110,14 @@ const offerInputSchema = z.object({
   discount: z.preprocess(emptyToNull, z.string().nullable().optional()),
   start_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
   end_date: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  // Normalised to UPPERCASE so 'active' / 'Active' / 'ACTIVE' all behave the same.
+  // Normalised to lowercase: the offers_public_read RLS policy only allows
+  // status IN ('active','approved','published') (case-sensitive), so anything
+  // else is invisible to public visitors.
   status: z
     .string()
     .trim()
     .min(1, 'Status is required')
-    .transform((v) => v.toUpperCase()),
+    .transform((v) => v.toLowerCase()),
   banner_image: z.preprocess(emptyToNull, z.string().nullable().optional()),
 });
 
