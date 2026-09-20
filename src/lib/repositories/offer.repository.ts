@@ -4,7 +4,7 @@ import { SupabaseClientType, DatabaseRecord } from './types';
 export interface OfferRecord extends DatabaseRecord {
   id: string;
   title: string;
-  image: string | null;
+  banner_image: string | null;
   description: string | null;
   discount: string | null;
   start_date: string | null;
