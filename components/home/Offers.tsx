@@ -122,7 +122,7 @@ export default function Offers() {
             const style = offerStyles[i % offerStyles.length];
             const Icon = style.icon;
             const hasImage =
-              Boolean(o.image && o.image.trim().length > 0) &&
+              Boolean(o.banner_image && o.banner_image.trim().length > 0) &&
               !failedImages.has(o.id);
 
             return (
@@ -140,7 +140,7 @@ export default function Offers() {
                   {hasImage && (
                     <>
                       <Image
-                        src={o.image as string}
+                        src={o.banner_image as string}
                         alt={o.title}
                         fill
                         sizes="(max-width: 640px) 280px, 300px"
