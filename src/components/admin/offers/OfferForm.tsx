@@ -28,7 +28,7 @@ function OfferForm({ mode, offer }: OfferFormProps) {
     start_date: offer?.start_date ?? "",
     end_date: offer?.end_date ?? "",
     status: offer?.status ?? "",
-    image: offer?.image ?? "",
+    banner_image: offer?.banner_image ?? "",
   });
 
   function handleChange<K extends keyof OfferInput>(
@@ -55,7 +55,7 @@ function OfferForm({ mode, offer }: OfferFormProps) {
         if (!result.success) {
           throw new Error(result.error);
         }
-        handleChange("image", result.data.url);
+        handleChange("banner_image", result.data.url);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed.");
       } finally {
@@ -184,10 +184,10 @@ function OfferForm({ mode, offer }: OfferFormProps) {
 
 
       <Field label="Banner Image">
-        {form.image ? (
+        {form.banner_image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={form.image}
+            src={form.banner_image}
             alt="Offer banner preview"
             className="mb-2 h-24 w-full rounded-xl border border-deep/15 object-cover"
           />
@@ -207,9 +207,9 @@ function OfferForm({ mode, offer }: OfferFormProps) {
         <input
           type="text"
           placeholder="Or paste an image URL directly"
-          value={form.image ?? ""}
+          value={form.banner_image ?? ""}
           onChange={(e) =>
-            handleChange("image", e.target.value)
+            handleChange("banner_image", e.target.value)
           }
           className={`${inputClass} mt-2`}
         />
