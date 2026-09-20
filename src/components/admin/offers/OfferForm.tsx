@@ -9,13 +9,23 @@ import {
   type OfferInput,
 } from "@/app/actions/offer.actions";
 import type { OfferRecord } from "@/lib/repositories/offer.repository";
+import type { HotelOption } from "@/lib/repositories/hotel.repository";
 
 interface OfferFormProps {
   mode: "create" | "edit";
   offer?: OfferRecord;
+  // OFFER-HOTELS-01: every (non-deleted) hotel the admin can attach, and
+  // the ones already attached to this offer (edit mode).
+  hotelOptions?: HotelOption[];
+  initialHotelIds?: string[];
 }
 
-function OfferForm({ mode, offer }: OfferFormProps) {
+function OfferForm({
+  mode,
+  offer,
+  hotelOptions = [],
+  initialHotelIds = [],
+}: OfferFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
@@ -29,6 +39,7 @@ function OfferForm({ mode, offer }: OfferFormProps) {
     end_date: offer?.end_date ?? "",
     status: (offer?.status ?? "active").toLowerCase(),
     banner_image: offer?.banner_image ?? "",
+    hotel_ids: initialHotelIds,
   });
 
   function handleChange<K extends keyof OfferInput>(
@@ -184,6 +195,15 @@ function OfferForm({ mode, offer }: OfferFormProps) {
       </Field>
 
 
+      <Field label="Hotels in this offer">
+        <HotelPicker
+          options={hotelOptions}
+          selectedIds={form.hotel_ids}
+          onChange={(ids) => handleChange("hotel_ids", ids)}
+        />
+      </Field>
+
+
       <Field label="Banner Image">
         {form.banner_image ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -236,6 +256,131 @@ function OfferForm({ mode, offer }: OfferFormProps) {
       </div>
 
     </form>
+  );
+}
+
+
+// OFFER-HOTELS-01: checkbox list of hotels with a search box. Selected
+// ids that are not in `options` (e.g. a hotel that was deleted after being
+// linked) stay in the form state and are re-saved untouched — harmless,
+// because the public page only ever shows active, non-deleted hotels.
+function HotelPicker({
+  options,
+  selectedIds,
+  onChange,
+}: {
+  options: HotelOption[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? options.filter(
+        (h) =>
+          h.hotel_name.toLowerCase().includes(q) ||
+          (h.city ?? "").toLowerCase().includes(q)
+      )
+    : options;
+
+  const selected = new Set(selectedIds);
+
+  function toggle(id: string) {
+    onChange(
+      selected.has(id)
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id]
+    );
+  }
+
+  function selectAllShown() {
+    onChange(Array.from(new Set([...selectedIds, ...visible.map((h) => h.id)])));
+  }
+
+  function clearAll() {
+    onChange([]);
+  }
+
+  if (options.length === 0) {
+    return (
+      <p className="rounded-xl border border-deep/15 bg-mist-2 px-3.5 py-3 text-[13px] text-ink/60">
+        No hotels found. Add a hotel first, then attach it to this offer.
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-deep/15 p-3">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search hotel or city"
+          className={inputClass}
+        />
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-[12px] text-ink/60">
+        <span>
+          {selectedIds.length} selected
+        </span>
+        <span className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={selectAllShown}
+            className="font-semibold text-deep underline-offset-2 hover:underline"
+          >
+            Select all shown
+          </button>
+          <button
+            type="button"
+            onClick={clearAll}
+            className="font-semibold text-deep underline-offset-2 hover:underline"
+          >
+            Clear
+          </button>
+        </span>
+      </div>
+
+      <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto pr-1">
+        {visible.length === 0 ? (
+          <li className="px-2 py-3 text-[13px] text-ink/50">
+            No hotels match your search.
+          </li>
+        ) : (
+          visible.map((h) => (
+            <li key={h.id}>
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 text-[13px] text-deep hover:bg-mist">
+                <input
+                  type="checkbox"
+                  checked={selected.has(h.id)}
+                  onChange={() => toggle(h.id)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
+                />
+                <span className="min-w-0">
+                  <span className="font-medium">{h.hotel_name}</span>
+                  {h.city ? (
+                    <span className="text-ink/50"> — {h.city}</span>
+                  ) : null}
+                  {h.status !== "active" ? (
+                    <span className="ml-1.5 rounded-full bg-mist px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ink/60">
+                      {h.status} — hidden until active
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            </li>
+          ))
+        )}
+      </ul>
+
+      <p className="mt-2 text-[12px] text-ink/45">
+        Visitors who tap &quot;Book now&quot; on this offer will see these hotels.
+        Only hotels with status &quot;active&quot; are shown publicly.
+      </p>
+    </div>
   );
 }
 
