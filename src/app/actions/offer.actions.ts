@@ -12,6 +12,78 @@ export async function getActiveOffers(): Promise<OfferRecord[]> {
   return repo.getActiveOffers(5);
 }
 
+// --- ADMIN-08 follow-up: Image Upload ---
+//
+// The milestone's own original note above (offerInputSchema comment)
+// said Storage/bucket logic was explicitly out of scope. That
+// instruction has changed per chat — this mirrors
+// uploadPromotionLogoAdmin's (PROMO-01) validation/upload pattern,
+// but uses createClient() rather than createServiceRoleClient(), to
+// stay consistent with the rest of this file's admin writes (all of
+// which already use the session client, unlike promotion.actions.ts).
+// Requires migration 026 (offer-images public bucket) to be run first.
+
+const OFFER_IMAGE_ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+];
+
+const OFFER_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+
+function offerImageExtensionFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    default:
+      return 'webp';
+  }
+}
+
+export async function uploadOfferImageAdmin(
+  file: File
+): Promise<ActionResult<{ url: string }>> {
+  return runAction(async () => {
+    await requireRole(['admin', 'super_admin']);
+
+    if (!OFFER_IMAGE_ALLOWED_TYPES.includes(file.type)) {
+      throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+    }
+
+    if (file.size > OFFER_IMAGE_MAX_SIZE_BYTES) {
+      throw new Error('Image must be 5MB or smaller.');
+    }
+
+    const supabase = await createClient();
+
+    const ext = offerImageExtensionFromMimeType(file.type);
+    const objectKey = `${crypto.randomUUID()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('offer-images')
+      .upload(objectKey, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload image: ${uploadError.message}`);
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('offer-images')
+      .getPublicUrl(objectKey);
+
+    return { url: publicUrlData.publicUrl };
+  });
+}
+
 // --- ADMIN-08: Offer Management (CRUD) ---
 // Mirrors destination.actions.ts (ADMIN-06). status kept as a validated
 // non-empty string (not a hardcoded enum) — no enum is confirmed for
