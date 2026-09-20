@@ -4,6 +4,106 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+Continuation (2026-09-20, new chat session — picks up item 4a
+(PROMO-01) from the "WHAT TO DO FIRST NEXT SESSION" list right below
+this entry; does not answer items 2/3/4-sequencing, only started
+PROMO-01 on explicit instruction, popups explicitly still out of
+scope per the prior entry's own decision)
+
+MIGRATION NUMBER — RESOLVED, RENUMBERED 024: originally shipped this
+session as 023 (guessing 017-022 were taken by the separate
+VENDOR-03-overhaul thread not present in this repo zip). Project
+owner confirmed live in chat that 017-023 are ALL already run in
+Supabase — 023 specifically was taken by something else, not this
+table. The file was renamed to 024_promo01_promotions.sql and its own
+header comment corrected to record what was actually run (RULE 32 —
+the on-disk file must match live reality, not the session's original
+guess). The `promotions` table + the two SECURITY DEFINER functions
+are confirmed already live in Supabase under this SQL. GitHub/Vercel
+do NOT have any of this session's code yet — that push is still
+outstanding, separate from the DB being ready.
+
+Built this session — PROMO-01 (banner ads), 3 homepage slots (after
+Hero/before Offers, between Destinations and Trending, between
+Packages and Testimonials), per the plan already recorded below.
+Inline auto-sliding cards (still explicitly not popups), "Sponsored"
+badge, click-through in a new tab, impression + click tracking.
+
+New: src/db/sql/024_promo01_promotions.sql (promotions table — hotel_id
+nullable FK to hotels for when a SafarBuddy hotel is the advertiser,
+company_name/logo_image/click_url, slot_position CHECK-constrained to
+the 3 agreed slots, start_date/end_date, is_active, click_count/
+impression_count; RLS public-read scoped to active+in-range rows only,
+same pattern as 011's hotel_facilities; two SECURITY DEFINER SQL
+functions — increment_promotion_impression/click — so an anon visitor
+can bump a counter atomically without a general UPDATE grant on the
+table). src/lib/repositories/promotion.repository.ts (BaseRepository
+subclass, mirrors OfferRepository/ADMIN-08 exactly for the admin CRUD
+half; getActivePromotionsForSlot() is a raw query, not
+BaseRepository.findMany(), because "start_date/end_date IS NULL OR
+<=/>= today" is an OR-of-ANDs the generic filter chain can't express —
+date validity is re-checked in JS after fetch, which is
+defense-in-depth on top of the RLS policy already enforcing the same
+rule server-side, not the only guard). src/app/actions/promotion.actions.ts
+(getActivePromotionsForSlot/trackPromotionImpression/trackPromotionClick
+— all three deliberately have NO requireRole(), since an anonymous
+homepage visitor must be able to see and be counted; safety comes from
+the RLS read policy + the counters only ever going through the two
+SQL functions, never a direct column UPDATE; the two tracking
+functions are best-effort/never throw, same resilience contract as
+CONTACT-02's notifyBookingCreated. Admin half — getAllPromotionsAdmin/
+getPromotionByIdAdmin/create/update/deletePromotionAdmin — is
+requireRole(['admin','super_admin']) + createServiceRoleClient(),
+mirrors offer.actions.ts; admin list uses the service-role client
+specifically so inactive/expired rows still show up for review, which
+the public RLS policy would otherwise hide). src/components/home/PromoBanner.tsx
+(client component, one per slot, renders nothing when a slot has no
+active promotions — no empty card/layout shift; auto-slides every 6s
+only when >1 card; fires one impression per card via a ref-backed
+"already sent" set, not on every re-render). src/components/admin/promotions/PromotionForm.tsx
++ src/app/admin/promotions/{page.tsx,new/page.tsx,[id]/edit/page.tsx}
+(CRUD UI, mirrors OfferForm/admin/offers exactly). Modified:
+src/app/page.tsx (three <PromoBanner slot="..."/> placements at the
+agreed positions), src/app/admin/page.tsx (new "Promotions" dashboard
+card).
+
+Deliberately not done: RANK-01 (paid featured ranking) — separate
+milestone, not started, sequencing with PROMO-01 was never
+reconfirmed by the project owner (see the still-open note in the
+2026-09-19 continuation below); this session only had explicit
+instruction for the homepage/PROMO-01 piece. No hotel-picker dropdown
+for the optional hotel_id field on the admin form — plain text UUID
+input instead, consistent with this project's existing minimal-scope
+pattern (e.g. LOCATION-01's plain-text Google Maps URL) rather than
+building a new hotel-search-select component for this milestone.
+
+Verified for real this session — npm install succeeded (registry
+reachable), `npx tsc --noEmit` clean (whole project), `npx eslint .`
+clean except the two pre-existing, untouched errors/warning already
+on record (ProfileMenu.tsx effect-setState lint rule, PropertyListingForm.tsx
+unescaped apostrophe — neither touched here). `npm run build`
+(Turbopack) reached the same pre-existing sandbox-only Google Fonts
+403 documented in every prior session's build attempt (see the
+2026-09-11/CHAT-02 entries) — not a real bug, unrelated to this
+change.
+
+NOT verified: migration 024 is reported run live (see above) but not
+independently confirmed via information_schema.columns from this
+sandbox (no reachable Supabase here). No live walkthrough yet of an
+actual banner rendering, auto-sliding, or a real click/impression
+count incrementing — and none of this session's code is on
+GitHub/Vercel yet, only in Supabase.
+
+Next action: (1) confirm 024 via information_schema.columns if not
+already done; (2) push this session's files to GitHub and redeploy;
+(3) create one real promotion row via /admin/promotions/new and
+confirm it renders in its slot on the live homepage, auto-slides if a
+second one is added, and that clicking it increments click_count while a
+plain page view increments impression_count; (4) once confirmed,
+return to the still-open items from the entry below (RANK-01
+sequencing, ANTHROPIC_API_KEY, the invoice display bug, AI-mediator
+scoping) — none of those were touched this session.
+
 Continuation (2026-09-20, NEW thread — picks up after the 2026-09-19
 invoice/CHAT-01 thread immediately below; does not replace it)
 
