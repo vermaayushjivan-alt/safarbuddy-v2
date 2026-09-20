@@ -95,6 +95,16 @@ export interface HotelImageRow {
   sort_order: number;
 }
 
+// OFFER-HOTELS-01: minimal hotel shape for the admin offer form's hotel
+// picker. Deliberately NOT a full HotelRecord — the picker only needs to
+// show a name/city and know whether the hotel is publicly visible.
+export interface HotelOption {
+  id: string;
+  hotel_name: string;
+  city: string | null;
+  status: HotelStatus;
+}
+
 const DEFAULT_HOTEL_PLACEHOLDER = '/images/placeholders/default-hotel.webp';
 
 // Ensures every HotelRecord returned to callers has the legacy-compat
@@ -321,6 +331,51 @@ export class HotelRepository extends BaseRepository<HotelRecord> {
       withLegacyDefaults(data as HotelRecord),
     ]);
     return resolved;
+  }
+
+  // OFFER-HOTELS-01: the hotels attached to an offer, for the public
+  // /offers/[id] page ("Book now" on the homepage offer card). Same
+  // visibility rule as every other public hotel read: status 'active' and
+  // not soft-deleted — a hotel that is pending/inactive/suspended is never
+  // shown just because an admin linked it. Images are resolved the same
+  // way as the /hotels listing so HotelGrid renders identically.
+  async getPublishedHotelsByIds(ids: string[]): Promise<HotelRecord[]> {
+    if (ids.length === 0) return [];
+
+    const { data, error } = await this.supabase
+      .from('hotels')
+      .select('*')
+      .in('id', ids)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .order('star_rating', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      throw new Error(`Failed to get hotels by ids: ${error.message}`);
+    }
+
+    return this.resolveImages(
+      ((data ?? []) as HotelRecord[]).map(withLegacyDefaults)
+    );
+  }
+
+  // OFFER-HOTELS-01: lightweight hotel list for the admin offer form's
+  // picker. Bounded (RULE 36) — the picker is a checkbox list, not a
+  // paginated table; if the catalogue ever outgrows this it should become
+  // a searchable async picker rather than a bigger limit.
+  async listHotelOptions(limit: number = 500): Promise<HotelOption[]> {
+    const { data, error } = await this.supabase
+      .from('hotels')
+      .select('id, hotel_name, city, status')
+      .is('deleted_at', null)
+      .order('hotel_name', { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      throw new Error(`Failed to list hotel options: ${error.message}`);
+    }
+
+    return (data ?? []) as HotelOption[];
   }
 
   // ADMIN-02 CRUD.
