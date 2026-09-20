@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   createPromotionAdmin,
   updatePromotionAdmin,
+  uploadPromotionLogoAdmin,
   type PromotionInput,
 } from "@/app/actions/promotion.actions";
 import {
@@ -26,6 +27,7 @@ const SLOT_LABELS: Record<(typeof PROMOTION_SLOT_VALUES)[number], string> = {
 function PromotionForm({ mode, promotion }: PromotionFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState<PromotionInput>({
@@ -44,6 +46,30 @@ function PromotionForm({ mode, promotion }: PromotionFormProps) {
     value: PromotionInput[K]
   ) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setIsUploading(true);
+
+    startTransition(async () => {
+      try {
+        const result = await uploadPromotionLogoAdmin(file);
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        handleChange("logo_image", result.data.url);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed.");
+      } finally {
+        setIsUploading(false);
+        input.value = "";
+      }
+    });
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -119,12 +145,33 @@ function PromotionForm({ mode, promotion }: PromotionFormProps) {
         />
       </Field>
 
-      <Field label="Logo Image URL">
+      <Field label="Logo / Banner Image">
+        {form.logo_image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={form.logo_image}
+            alt="Logo preview"
+            className="mb-2 h-24 w-full rounded-xl border border-deep/15 object-cover"
+          />
+        ) : null}
+        <input
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          onChange={handleLogoUpload}
+          disabled={isUploading}
+          className="block w-full text-[13px] text-ink/70"
+        />
+        <p className="mt-1 text-[12px] text-ink/45">
+          {isUploading
+            ? "Uploading..."
+            : "jpg, jpeg, png, or webp. Max 5MB. Wide images (e.g. 1200×500) look best in the big banner slot."}
+        </p>
         <input
           type="text"
+          placeholder="Or paste an image URL directly"
           value={form.logo_image ?? ""}
           onChange={(e) => handleChange("logo_image", e.target.value)}
-          className={inputClass}
+          className={`${inputClass} mt-2`}
         />
       </Field>
 
@@ -178,7 +225,7 @@ function PromotionForm({ mode, promotion }: PromotionFormProps) {
       <div className="flex gap-3 pt-2">
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || isUploading}
           className="focus-ring rounded-xl bg-deep px-5 py-2.5 font-heading text-[13px] font-semibold text-cream transition hover:bg-deep-2 disabled:opacity-50"
         >
           {isPending
@@ -216,4 +263,3 @@ function Field({
 }
 
 export default PromotionForm;
-
