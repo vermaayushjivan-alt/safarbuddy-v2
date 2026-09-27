@@ -25,6 +25,7 @@ import { getMyBookingById } from '@/app/actions/booking.actions';
 import { getMyInvoiceByBookingId } from '@/app/actions/invoice.actions';
 import { buildInvoiceViewModel } from '@/lib/invoices/invoice-view-model';
 import InvoiceView from '@/components/invoices/InvoiceView';
+import InvoiceGeneratingNotice from '@/components/invoices/InvoiceGeneratingNotice';
 
 export default async function MyBookingInvoicePage({
   params,
@@ -77,6 +78,17 @@ export default async function MyBookingInvoicePage({
             </a>
           </div>
         </>
+      ) : booking.status === 'confirmed' ? (
+        // INVOICE-02: booking.status is only set to 'confirmed' by the
+        // Cashfree webhook, in the same handler that generates the
+        // invoice (src/app/api/public/cashfree/webhook/route.ts) — so a
+        // confirmed booking with no invoice row yet means the invoice
+        // half of that handler hasn't finished (or failed) after the
+        // booking-confirm half already committed, not that no invoice
+        // will ever exist. Worth auto-retrying; see
+        // InvoiceGeneratingNotice's own header comment for the race
+        // this works around.
+        <InvoiceGeneratingNotice />
       ) : (
         <div className="rounded-2xl border border-deep/15 bg-white px-6 py-10 text-center">
           <p className="text-[14px] text-ink/60">
