@@ -13,7 +13,7 @@
 // one-step-at-a-time pattern. These two actions exist now so Step 3a
 // is a complete, working backend slice on its own.
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { requireRole, getAuthUser, resolvePublicUserId } from '@/lib/auth/session';
 import { InvoiceRepository, InvoiceRecord } from '@/lib/repositories/invoice.repository';
 import { BookingRepository } from '@/lib/repositories/booking.repository';
@@ -55,6 +55,35 @@ export async function getMyInvoiceByBookingId(
   const booking = await bookingRepo.getBookingById(bookingId);
 
   if (!booking || booking.customer_id !== customerId) {
+    return null;
+  }
+
+  return invoiceRepo.getInvoiceByBookingId(bookingId);
+}
+
+// --- Guest checkout: fetch own invoice by booking id (INVOICE-02) ---
+// Same trust model as getGuestBookingConfirmation() (booking.actions.ts):
+// no session exists for a guest booking (BOOKING-03), so the opaque
+// booking UUID itself is the access token — not an enumerable id, and
+// never listed/searchable anywhere public. Service-role read, no
+// ownership check (there is no customer_id to check against for a
+// guest booking; that's the whole reason this separate action exists
+// instead of reusing getMyInvoiceByBookingId above).
+export async function getGuestInvoiceByBookingId(
+  bookingId: string
+): Promise<InvoiceRecord | null> {
+  if (!bookingId || !bookingId.trim()) {
+    return null;
+  }
+
+  const supabase = createServiceRoleClient();
+
+  const bookingRepo = new BookingRepository(supabase);
+  const invoiceRepo = new InvoiceRepository(supabase);
+
+  const booking = await bookingRepo.getBookingById(bookingId);
+
+  if (!booking) {
     return null;
   }
 
