@@ -7,6 +7,7 @@
 // enumerable identifier). /booking-confirmation/ is in middleware.ts's
 // public allowlist.
 
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Navbar from '@/components/home/Navbar';
 import Footer from '@/components/home/Footer';
@@ -94,7 +95,21 @@ export default async function BookingConfirmationPage({
             )}
           </dl>
 
-          <p className="mt-8 text-[11px] text-ink/45">
+          {/* INVOICE-02: this was previously the only page a guest ever
+              landed on — no link anywhere led to an invoice, even once
+              one existed. The invoice page itself handles the
+              not-generated-yet race (see InvoiceGeneratingNotice), so
+              this link is always shown, not conditionally. */}
+          <div className="mt-8 border-t border-deep/10 pt-6">
+            <Link
+              href={`/booking-confirmation/${booking.id}/invoice`}
+              className="focus-ring inline-block rounded-lg border border-deep/15 px-4 py-2 text-[13px] font-semibold text-deep transition hover:bg-mist"
+            >
+              View invoice
+            </Link>
+          </div>
+
+          <p className="mt-6 text-[11px] text-ink/45">
             Save this link — it&apos;s the only way to view this booking
             without creating an account.
           </p>
