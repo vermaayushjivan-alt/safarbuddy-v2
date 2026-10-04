@@ -349,7 +349,7 @@ export type FooterContact = {
 };
 
 export const footerContact: FooterContact = {
-  supportEmail: "vermaayushjivan@gmail.com",
+  supportEmail: "safarbuddytravel@gmail.com",
   supportPhone: "+91 7307493338",
   address:
     "FF Shop No. 6, Arohi Arcade, Munshipulia, Lucknow – 226016, Uttar Pradesh, India",
