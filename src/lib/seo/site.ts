@@ -36,7 +36,7 @@ export const SITE_DESCRIPTION =
 // here for Organization JSON-LD rather than inventing new figures
 // (RULE 11).
 export const ORG_CONTACT = {
-  email: 'vermaayushjivan@gmail.com',
+  email: 'safarbuddytravel@gmail.com',
   phone: '+91 7307493338',
   address:
     'FF Shop No. 6, Arohi Arcade, Munshipulia, Lucknow – 226016, Uttar Pradesh, India',
