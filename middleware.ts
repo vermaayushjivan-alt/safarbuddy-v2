@@ -23,6 +23,11 @@ const PUBLIC_ROUTES = [
   // form -- breaking the host-signup funnel entirely.
   "/list-your-property",
 
+  // LAUNCH-01: public legal pages
+  "/privacy",
+  "/terms",
+  "/refund-policy",
+
   // BOOKING-03: guest checkout. A guest must be able to reach a
   // package's booking page (previously only /hotels/ had the prefix
   // match below — /packages/[id] and /packages/[id]/book were
