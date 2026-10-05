@@ -30,7 +30,7 @@ export default function Hero() {
   const [activeTab, setActiveTab] = useState(0);
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-deep via-deep to-deep-2 pb-28 pt-16 text-cream">
+    <section className="relative overflow-hidden bg-gradient-to-b from-deep via-deep to-deep-2 pb-16 pt-8 text-cream sm:pb-28 sm:pt-16">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -57,13 +57,13 @@ export default function Hero() {
 
         {/* Search card */}
         <div
-          className="reveal ticket-notch relative mx-auto mt-10 max-w-4xl rounded-2xl bg-white text-ink shadow-[0_30px_60px_-20px_rgba(11,47,92,0.55)]"
+          className="reveal ticket-notch relative mx-auto mt-6 max-w-4xl sm:mt-10 rounded-2xl bg-white text-ink shadow-[0_30px_60px_-20px_rgba(11,47,92,0.55)]"
           style={{ animationDelay: "120ms" }}
         >
           <div
             role="tablist"
             aria-label="Travel type"
-            className="flex flex-wrap gap-1 border-b border-dashed border-deep/15 px-5 pt-4 sm:px-7"
+            className="hidden flex-wrap gap-1 border-b border-dashed border-deep/15 px-5 pt-4 sm:flex sm:px-7"
           >
             {tabs.map((tab, i) => (
               <button
