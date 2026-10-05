@@ -1,3 +1,4 @@
+// ROOT PATH: src/components/public/HotelGallery.tsx
 'use client';
 
 // MOBILE-03: app-style hotel photo gallery — full-width hero with back +
