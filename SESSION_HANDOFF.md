@@ -4,6 +4,24 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+REFERRAL-01 (2026-10-05) — Refer & Earn CODED, NOT VERIFIED. Owner decisions:
+referrer gets % coupon; reward on friend's first PAID booking; friend also gets
+a % coupon. Full file list + design in CHANGELOG.md 2026-10-05 REFERRAL-01.
+BEFORE DEPLOY: (1) run src/db/sql/028_referral01_referrals.sql in Supabase, then
+confirm with information_schema.columns that coupons.owner_user_id /
+is_single_use and tables referral_codes / referrals exist (RULE 13/35);
+(2) npm run build / tsc / eslint (never run); (3) walkthrough: user A opens
+/referral -> copy link -> private window register via /register?ref=CODE ->
+check referrals row (status signed_up) + friend coupon in coupons -> confirm
+email, login, book + pay -> webhook -> referrals row rewarded + referrer coupon
+visible on A's /referral -> apply coupon at checkout as A (works) and as B
+(rejected: not valid for your account) -> reuse after a paid booking (rejected).
+Assumption to verify live: public.users row (with auth_user_id) already exists
+when signUp() returns — if not, the referral is skipped and logged
+("[registerAction] referral ... failed"/"not recorded").
+Defaults to confirm with owner: 10%/10%, cap INR 1000, 90-day validity
+(src/lib/referrals/referral-config.ts).
+
 LAUNCH-02 (2026-10-05) — OWNER DECISIONS RECORDED: refunds within 7 days of
 approved cancellation; legal pages accepted by owner; Cashfree is live and
 real bookings are happening (so refunds are a live obligation — there is
@@ -18,8 +36,7 @@ Functional walkthrough NOT DONE: register + list-your-property with the keys
 set, and with them unset.
 Still needed from owner: Grievance Officer's name (set GRIEVANCE_OFFICER_NAME
 in src/components/legal/LegalPage.tsx).
-REFERRAL: planned only, nothing coded (RULE 12/13 — reward not decided and
-live schema not verifiable from the sandbox).
+REFERRAL: see REFERRAL-01 entry directly below (now coded).
 
 
 PROMO-02 (2026-10-05) — PromoBanner restyled so the uploaded creative is the
