@@ -10,7 +10,7 @@
 
 import type { PromotionSlot } from "@/lib/repositories/promotion.repository";
 
-export const SHOW_HOME_DEMO = true;
+export const SHOW_HOME_DEMO = false; // LAUNCH-04: keep false on a live site
 
 export interface DemoAd {
   title: string;
