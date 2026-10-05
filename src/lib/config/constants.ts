@@ -24,8 +24,8 @@ export const APP = {
   DESCRIPTION: 'Book flights, hotels, holiday packages and more with SafarBuddy',
   VERSION: '0.1.0',
   COMPANY: 'SafarBuddy Technologies',
-  SUPPORT_EMAIL: 'support@safarbuddy.com',
-  SUPPORT_PHONE: '+91 1800-xxx-xxxx',
+  SUPPORT_EMAIL: 'safarbuddytravel@gmail.com',
+  SUPPORT_PHONE: '+91 7307493338',
 } as const;
 
 /**
