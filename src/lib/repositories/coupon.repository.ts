@@ -20,6 +20,11 @@ export interface CouponRecord extends DatabaseRecord {
   valid_from: string | null;
   valid_until: string | null;
   is_active: boolean;
+  // REFERRAL-01 (migration 028): a personal coupon is redeemable only by
+  // owner_user_id (public.users.id); is_single_use blocks a second use.
+  // Both are null/false on every pre-existing coupon.
+  owner_user_id: string | null;
+  is_single_use: boolean;
   created_by: string | null;
   updated_by: string | null;
 }
@@ -109,6 +114,66 @@ export class CouponRepository extends BaseRepository<CouponRecord> {
       hasNext: safePage < totalPages,
       hasPrev: safePage > 1,
     };
+  }
+
+  // REFERRAL-01: a single-use coupon counts as used once a booking that
+  // carries it is confirmed/completed. Pending (unpaid/abandoned) and
+  // cancelled bookings do not burn it.
+  async countRedeemedBookings(couponId: string): Promise<number> {
+    const { count, error } = await this.supabase
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('coupon_id', couponId)
+      .in('booking_status', ['confirmed', 'completed'])
+      .is('deleted_at', null);
+
+    if (error) {
+      console.error('[coupons] countRedeemedBookings failed', error);
+      throw error;
+    }
+
+    return count ?? 0;
+  }
+
+  // REFERRAL-01: personal coupons issued to one user (newest first).
+  async getOwnedCoupons(userId: string): Promise<CouponRecord[]> {
+    const { data, error } = await this.supabase
+      .from('coupons')
+      .select('*')
+      .eq('owner_user_id', userId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[coupons] getOwnedCoupons failed', error);
+      throw error;
+    }
+
+    return (data ?? []) as CouponRecord[];
+  }
+
+  // REFERRAL-01: of the given coupon ids, which already have a
+  // confirmed/completed booking. One query (no N+1, RULE 37).
+  async getRedeemedCouponIds(couponIds: string[]): Promise<Set<string>> {
+    if (couponIds.length === 0) return new Set();
+
+    const { data, error } = await this.supabase
+      .from('bookings')
+      .select('coupon_id')
+      .in('coupon_id', couponIds)
+      .in('booking_status', ['confirmed', 'completed'])
+      .is('deleted_at', null);
+
+    if (error) {
+      console.error('[coupons] getRedeemedCouponIds failed', error);
+      throw error;
+    }
+
+    return new Set(
+      ((data ?? []) as { coupon_id: string | null }[])
+        .map((row) => row.coupon_id)
+        .filter((id): id is string => !!id)
+    );
   }
 
   // Count of bookings that used this coupon — informational only
