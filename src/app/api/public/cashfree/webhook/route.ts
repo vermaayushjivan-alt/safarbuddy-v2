@@ -13,6 +13,7 @@ import { notifyBookingCreated, notifyCustomerBookingConfirmed } from "@/lib/noti
 import { generateInvoiceForBooking, resolveRecipient } from "@/lib/invoices/generate-invoice";
 import { renderInvoicePdfBuffer } from "@/lib/invoices/render-invoice-pdf";
 import { buildInvoiceViewModel } from "@/lib/invoices/invoice-view-model";
+import { grantReferralRewardForPaidBooking } from "@/lib/referrals/referral-service";
 
 export const runtime = "nodejs";
 
@@ -428,6 +429,16 @@ export async function POST(
 
         return serverError();
       }
+
+      // REFERRAL-01 — reward the referrer on the referred friend's
+      // FIRST confirmed paid booking. Same once-per-booking guarantee as
+      // the blocks below (this whole block only runs when the booking
+      // was still 'pending'), plus an atomic claim inside the function.
+      // Never throws and never affects the webhook response.
+      await grantReferralRewardForPaidBooking(supabase, {
+        id: booking.id,
+        customerId: booking.user_id,
+      });
 
       // CONTACT-02 — Payment-Triggered Notifications.
       //
