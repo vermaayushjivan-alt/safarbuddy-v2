@@ -70,6 +70,12 @@ const serverEnvSchema = z.object({
   // unset, the widget still renders but replies with a graceful
   // "assistant not configured" message instead of throwing.
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  // LAUNCH-02 — Cloudflare Turnstile CAPTCHA (signup + /list-your-property).
+  // Both optional (RULE 30): if the secret is unset the server-side check is
+  // skipped with a logged warning; if the site key is unset no widget renders.
+  TURNSTILE_SECRET_KEY: z.string().optional(),
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
 });
 
 /**
@@ -83,6 +89,7 @@ const clientEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   NEXT_PUBLIC_CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
   NEXT_PUBLIC_GOOGLE_MAPS_KEY: z.string().optional(),
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().optional(),
 });
 
 /**
@@ -110,6 +117,7 @@ function validateEnv() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_CASHFREE_ENV: process.env.NEXT_PUBLIC_CASHFREE_ENV,
     NEXT_PUBLIC_GOOGLE_MAPS_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   });
   
   if (!parsed.success) {
