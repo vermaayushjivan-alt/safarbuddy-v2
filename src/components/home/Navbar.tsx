@@ -9,15 +9,13 @@ import ProfileMenu from "@/components/layout/ProfileMenu";
 import MobileDrawer from "@/components/layout/MobileDrawer";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+// LAUNCH-03: only pages that actually exist. Flights / Bus / Train / Visa /
+// Forex were "#" (dead clicks) — they return when those products ship.
 const links: { label: string; href: string }[] = [
-{ label: "Flights", href: "#" },
-{ label: "Hotels", href: "/hotels" },
-{ label: "Bus", href: "#" },
-{ label: "Train", href: "#" },
-{ label: "Holiday", href: "#" },
-{ label: "Visa", href: "#" },
-{ label: "Forex", href: "#" },
-{ label: "Offers", href: "#" },
+  { label: "Hotels", href: "/hotels" },
+  { label: "Packages", href: "/packages" },
+  { label: "Destinations", href: "/destinations" },
+  { label: "Offers", href: "/offers" },
 ];
 
 export default function Navbar() {
@@ -28,7 +26,7 @@ const { t } = useLanguage();
 return (
 <>
 <header className="sticky top-0 z-50 border-b border-white/40 bg-white/70 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-<div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+<div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
 <Link
 href="/"
 className="focus-ring flex items-center gap-2 rounded-md"
