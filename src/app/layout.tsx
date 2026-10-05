@@ -15,7 +15,7 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   title: 'SafarBuddy - Your Travel Companion',
-  description: 'Enterprise-grade travel platform for hotels, resorts, homestays, and tour packages',
+  description: 'Book hotels, resorts, homestays and holiday packages with SafarBuddy.',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
