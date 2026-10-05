@@ -104,6 +104,9 @@ export default function ProfileMenu() {
           <a href="/dashboard/bookings" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
             My Bookings
           </a>
+          <a href="/referral" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
+            Refer &amp; Earn
+          </a>
           {navAccess?.isHotelOwner && (
             <a href="/hotel-owner" role="menuitem" onClick={() => setOpen(false)} className="focus-ring block px-4 py-2.5 font-heading text-[14px] font-medium text-ink/75 hover:bg-mist hover:text-deep">
               My Property
