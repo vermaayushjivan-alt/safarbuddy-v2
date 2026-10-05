@@ -7,7 +7,7 @@ import {
   type MyNavAccess,
 } from "@/app/actions/my-nav-access.actions";
 
-function getInitials(name: string | null | undefined, email: string | null | undefined): string {
+export function getInitials(name: string | null | undefined, email: string | null | undefined): string {
   if (name && name.trim().length > 0) {
     const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
