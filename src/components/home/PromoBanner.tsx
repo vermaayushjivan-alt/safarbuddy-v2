@@ -7,11 +7,13 @@
 // with no active promotions renders nothing (no empty card, no
 // layout shift).
 //
-// SIZE: deliberately a large, full-width display-ad banner (not a
-// thin row-card) — sponsors pay more for a bigger, more visible
-// placement, so the whole uploaded logo/banner image fills the card
-// as a background, with company name + CTA overlaid at the bottom,
-// same visual weight as a real ad unit rather than a small chip.
+// LOOK (PROMO-02): the uploaded creative IS the ad. The image is shown
+// edge-to-edge at its own natural aspect ratio (no crop, no dark
+// gradient, no overlaid company name / Visit button) — the CTA text
+// ("Apply Now", "Abhi Search Karein", ...) is part of the uploaded
+// image, like a normal display-ad unit. Only a tiny "Ad" tag is kept
+// for ad-labelling. A promotion with NO image falls back to the old
+// text card so it never renders blank.
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
@@ -68,47 +70,37 @@ export default function PromoBanner({ slot }: { slot: PromotionSlot }) {
   const current = promotions[activeIndex];
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6">
+    <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">
       <a
         href={current.click_url}
         target="_blank"
         rel="noopener noreferrer sponsored"
         onClick={() => trackPromotionClick(current.id)}
-        className="focus-ring group relative block h-56 w-full overflow-hidden rounded-3xl border border-deep/10 bg-deep shadow-[0_24px_48px_-20px_rgba(11,47,92,0.45)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_54px_-18px_rgba(11,47,92,0.5)] sm:h-64 md:h-72"
+        aria-label={`${current.company_name} — sponsored`}
+        className="focus-ring group relative block w-full overflow-hidden rounded-3xl bg-deep shadow-[0_12px_30px_-14px_rgba(11,47,92,0.45)] transition hover:-translate-y-0.5"
       >
         {current.logo_image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={current.logo_image}
             alt={current.company_name}
-            className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            className="block h-auto w-full"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-deep via-deep-2 to-ink" />
-        )}
-
-        {/* Bottom gradient so text stays readable over any image */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-        <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 font-heading text-[11px] font-semibold uppercase tracking-wide text-deep">
-          Sponsored
-        </span>
-
-        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-5 sm:p-7">
-          <div className="min-w-0">
-            <p className="truncate font-display text-2xl text-white sm:text-3xl">
+          <div className="flex h-40 items-end justify-between gap-4 bg-gradient-to-br from-deep via-deep-2 to-ink p-5 sm:h-52 sm:p-7">
+            <p className="min-w-0 truncate font-display text-2xl text-white sm:text-3xl">
               {current.company_name}
             </p>
-            <p className="mt-1 truncate text-[13px] text-white/70">
-              {current.click_url.replace(/^https?:\/\//, '')}
-            </p>
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-4 py-2.5 font-heading text-[13px] font-semibold text-deep">
+              Visit
+              <ArrowUpRight size={15} aria-hidden />
+            </span>
           </div>
+        )}
 
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-4 py-2.5 font-heading text-[13px] font-semibold text-deep transition group-hover:bg-cream">
-            Visit
-            <ArrowUpRight size={15} aria-hidden />
-          </span>
-        </div>
+        <span className="absolute right-3 top-3 rounded-full bg-black/45 px-2 py-0.5 font-heading text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+          Ad
+        </span>
       </a>
 
       {promotions.length > 1 && (
