@@ -4,6 +4,15 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-05 — HOME-REDESIGN-01 (mobile-first homepage, demo ads/sponsors) + ROOM page restyle
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run). No DB/auth/booking/payment change.
+New: src/data/home-demo.ts, src/components/home/{ServicesGrid,CouponStrip,PartnersStrip,HostBanner}.tsx,
+HOMEPAGE_BIBLE.md. Modified: PromoBanner.tsx (sample-ad fallback), Hero.tsx (phone spacing, tab row
+hidden <sm), src/app/page.tsx, src/app/hotels/[slug]/rooms/[roomId]/page.tsx (now mirrors hotel page:
+HotelGallery, highlight tiles, ReadMore, other rooms, sticky mobile book bar, metadata),
+src/components/public/HotelGallery.tsx (optional fallbackHref).
+
 2026-10-05 — MOBILE-02 (side menu replaces mobile footer, language + settings)
 
 Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run — no node_modules in
