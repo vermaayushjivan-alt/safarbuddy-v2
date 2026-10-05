@@ -44,6 +44,7 @@ Storage: Supabase Storage
   the full story). Created by `016_contact03_admin_notify.sql`. RLS
   status: **UNVERIFIED — flag per RULE 24, confirm before relying on
   it in production.**
+- referral_codes, referrals — added for REFERRAL-01 (`028_referral01_referrals.sql`); user columns reference public.users(id). RLS: enabled, no policy (service-role only). **Not yet run in production.**
 - vendor_payout_details — added for VENDOR-02
   (`010_vendor02_payout_kyc.sql`); one row per vendor, separate from
   `vendors` by design (see migration header). RLS: **enabled, no
@@ -166,6 +167,7 @@ production-run status, so the two can never silently drift again:
 | 005_room01_schema.sql | never existed by design (content-table pattern, see v1 note) | n/a |
 | 015_invoice01_invoices.sql | yes | **User reports run in production 2026-09-17** (same INVOICE-01 Step 3a session that added this row's update) — not independently verified via information_schema.columns this session (no reachable Supabase instance in this sandbox). Step 3a's webhook-side code (generateInvoiceForBooking) was written and type/lint-checked against this file's column list, but has NOT been exercised against the live table — verify via information_schema.columns per RULE 13/35, then a live webhook walkthrough, before trusting this as CONFIRMED. |
 | 016_contact03_admin_notify.sql | yes | **NOT YET RUN (revised 2026-09-18)** — v1 of this file tried to `alter table public.notifications` and failed live with `ERROR 42703: column "recipient_type" does not exist`, because that table name already belongs to an unrelated, pre-existing generic notification feed in production (same class of collision as 014_coupon01_coupons.sql's legacy `coupons` table, above). v2 instead creates a new `public.booking_notifications` table, and `notification.repository.ts` was updated to point at that name. Not yet run against production; verify via information_schema.columns per RULE 13/35 once it is. |
+| 028_referral01_referrals.sql | yes | **NOT YET RUN (2026-10-05)** — adds coupons.owner_user_id + coupons.is_single_use (additive, `add column if not exists`), and new tables referral_codes + referrals (RLS enabled, no policy, service-role only). Verify via information_schema.columns per RULE 13/35 once run. |
 
 Any "assumed yes" above should be spot-checked against
 `information_schema` next time that milestone's tables are touched —
