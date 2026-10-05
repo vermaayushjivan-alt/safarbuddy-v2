@@ -12,6 +12,7 @@ import { TextField } from "@/components/auth/TextField";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { Alert } from "@/components/auth/Alert";
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 
 const initialState: AuthActionState = {};
 
@@ -98,6 +99,8 @@ export default function RegisterPage() {
           required
           error={state.fieldErrors?.confirmPassword?.[0]}
         />
+
+        <TurnstileWidget resetKey={state} />
 
         <SubmitButton
           pending={isPending}
