@@ -26,7 +26,7 @@ export default async function OffersPage() {
     <main className="bg-cream">
       <Navbar />
 
-      <section className="mx-auto max-w-7xl px-6 py-12">
+      <section className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:py-12 lg:pb-12">
         <div className="mb-8">
           <span className="font-heading text-[13px] font-semibold uppercase tracking-wide text-orange">
             Deals boarding now
