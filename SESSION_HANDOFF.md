@@ -4,6 +4,37 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+LAUNCH-04 (2026-10-06) — Vercel build was red because two HOME-REDESIGN-01
+components (DemoAdCarousel, SceneArt) were never committed. Removed the
+demo-only homepage pieces instead of recreating them (see CHANGELOG).
+Files modified: src/components/home/PromoBanner.tsx, src/app/page.tsx,
+src/data/home-demo.ts, src/app/globals.css (+ docs). Files to DELETE with
+git rm: src/components/home/CouponStrip.tsx, src/components/home/PartnersStrip.tsx.
+Next build NOT RUN here — the real result is the next Vercel build.
+OWNER DECISION NEEDED: the redesigned homepage planned a coupon strip and
+partners strip. If wanted, they must be rebuilt on REAL data (public
+coupons, real partners) rather than demo content.
+
+
+LAUNCH-03 (2026-10-05) — link audit fixes. Files created: src/app/offers/[id]/page.tsx.
+Files modified: src/app/destinations/[slug]/page.tsx, src/app/offers/page.tsx,
+src/components/home/Navbar.tsx, middleware.ts, CHANGELOG.md, SESSION_HANDOFF.md.
+tsc/eslint/build: NOT RUN. Functional check NOT DONE — on a real deploy:
+(1) tap "Book now" on an offer -> detail page opens logged-out, shows its
+hotels; (2) /offers/not-a-uuid -> 404; (3) a destination page shows the
+button and its hotels (hotels match on hotels.city ilike destination name —
+if a destination's name differs from the hotels' city text the list is
+empty and the empty state shows); (4) Navbar has only live links; check all
+on a real phone width.
+OPEN FROM THE AUDIT (not done): no /packages/[id] detail page (cards go
+straight to /book); Hero tabs "coming soon"; v37 zip still contains stale
+root files (lib/, components/, home.ts, gitignore, "next.config (2).ts",
+src/lib/data/home.ts) -> git rm them; 028_referral01_referrals.sql sits at
+the repo root, move to src/db/sql/ and confirm it was run in Supabase;
+.env.example lacks NEXT_PUBLIC_SITE_URL / AISENSY_API_KEY entries; the
+middleware.ts-at-root location question (LAUNCH-01 risk A) is still open.
+
+
 HOME-REDESIGN-01 (2026-10-05) — Phase 1 CODED, NOT VERIFIED. Full plan/rules: HOMEPAGE_BIBLE.md.
 Owner decision: put DEMO content now; owner replaces it later from the admin panel one by one.
 Built: src/data/home-demo.ts (SHOW_HOME_DEMO switch + sample ads/coupons/partners), ServicesGrid,
