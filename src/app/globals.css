@@ -23,6 +23,35 @@
 
 html {
   scroll-behavior: smooth;
+  /* MOBILE-01: stop iOS from auto-inflating text in landscape */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* MOBILE-01: app-like touch behaviour — no grey tap flash, no 300ms
+   double-tap-zoom delay on tappable elements (pinch zoom still works). */
+body {
+  -webkit-tap-highlight-color: transparent;
+}
+a,
+button,
+input,
+select,
+textarea,
+summary,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* MOBILE-01: iOS Safari zooms the whole page when a focused field has a
+   font-size under 16px (which is what makes forms feel "off" on iPhones).
+   16px on phones prevents that zoom; desktop sizes are untouched. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 body {
@@ -87,8 +116,12 @@ body {
 .hover-lift {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.hover-lift:hover {
-  transform: translateY(-4px);
+/* MOBILE-01: only lift on devices that really hover, so cards don't
+   stay "stuck" raised after a tap on touch screens. */
+@media (hover: hover) {
+  .hover-lift:hover {
+    transform: translateY(-4px);
+  }
 }
 
 /* Scroll-in entrance — apply with style="animation-delay: Nms" for stagger */
