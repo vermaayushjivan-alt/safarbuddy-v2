@@ -1,341 +1,142 @@
-"use server";
+"use client";
 
-import { redirect } from "next/navigation";
-import { z } from "zod";
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth/session";
-import { verifyCaptcha } from "@/lib/security/turnstile";
+import { Suspense, useActionState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
-  normalizeReferralCode,
-  recordReferralSignup,
-} from "@/lib/referrals/referral-service";
+  registerAction,
+  googleLoginAction,
+  type AuthActionState,
+} from "@/actions/auth";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { TextField } from "@/components/auth/TextField";
+import { PasswordField } from "@/components/auth/PasswordField";
+import { SubmitButton } from "@/components/auth/SubmitButton";
+import { Alert } from "@/components/auth/Alert";
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 
-/* -------------------------------------------------------------------------- */
-/* Validation                                                                 */
-/* -------------------------------------------------------------------------- */
+const initialState: AuthActionState = {};
 
-const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address."),
-  password: z.string().min(6, "Password must be at least 6 characters."),
-});
+// REFERRAL-01: carries ?ref=CODE from the shared link into the signup
+// form. registerAction validates and uses it; an absent/invalid value
+// simply means "no referral". useSearchParams() needs a Suspense
+// boundary for the production build, hence the wrapper at the use site.
+function ReferralField() {
+  const ref = useSearchParams().get("ref");
+  return ref ? <input type="hidden" name="ref" value={ref} /> : null;
+}
 
-const registerSchema = z
-  .object({
-    fullName: z.string().min(2, "Full name is too short."),
-    email: z.string().email("Enter a valid email address."),
-    password: z.string().min(6, "Password must be at least 6 characters."),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match.",
-    path: ["confirmPassword"],
-  });
+export default function RegisterPage() {
+  const [state, formAction, isPending] = useActionState(
+    registerAction,
+    initialState
+  );
 
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Enter a valid email address."),
-});
+  if (state.success) {
+    return (
+      <AuthLayout
+        eyebrow="Almost there"
+        title="Check your inbox"
+        subtitle="One more step before you can start booking."
+      >
+        <Alert variant="success">
+          We&apos;ve sent a confirmation link to your email. Verify your
+          address to finish creating your account.
+        </Alert>
+        <Link
+          href="/login"
+          className="mt-6 inline-block text-sm font-medium text-[var(--color-sky)] hover:underline"
+        >
+          Back to login
+        </Link>
+      </AuthLayout>
+    );
+  }
 
-const resetPasswordSchema = z
-  .object({
-    password: z.string().min(6, "Password must be at least 6 characters."),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match.",
-    path: ["confirmPassword"],
-  });
-
-export type AuthActionState = {
-  error?: string;
-  fieldErrors?: Record<string, string[]>;
-  success?: boolean;
-};
-
-/* -------------------------------------------------------------------------- */
-/* Site URL                                                                   */
-/* -------------------------------------------------------------------------- */
-
-// P0 fix: NEXT_PUBLIC_SITE_URL is not part of the validated env schema
-// (src/lib/config/env.ts) and is not documented in .env.example — if
-// unset, the three redirect URLs below previously resolved to the
-// literal string "undefined/auth/callback...", which Google/Supabase
-// reject as an invalid redirect_uri. NEXT_PUBLIC_APP_URL is the
-// canonical, validated variable (validated with a default in env.ts,
-// documented in .env.example) — same fallback order already used by
-// src/lib/actions/payment.actions.ts's siteUrl helper, reused here
-// rather than inventing a new pattern.
-function getSiteUrl(): string {
   return (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3000"
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Email / Password Login                                                     */
-/* -------------------------------------------------------------------------- */
-
-export async function loginAction(
-  _prevState: AuthActionState,
-  formData: FormData
-): Promise<AuthActionState> {
-  const parsed = loginSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
-
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  const redirectTo = formData.get("redirectTo");
-
-  if (typeof redirectTo === "string" && redirectTo) {
-    redirect(redirectTo);
-  }
-
-  // P0.3 Step 4 — smart default redirect (2026-09-05 session, see
-  // SESSION_HANDOFF.md). Only applies when the caller didn't already
-  // ask for a specific page (e.g. via ?redirectTo=... from middleware
-  // bouncing an unauthenticated visit) — that explicit request always
-  // wins, unchanged, above.
-  //
-  // Scope note (Bible Rule 12 — stating the assumption rather than
-  // guessing silently): there is no `has_logged_in_before` column or
-  // similar on `users`/`vendors` to actually distinguish a hotel_owner's
-  // FIRST login from a later one (adding one wasn't done here — Bible
-  // Rule 7, no inventing schema), so this applies on every default-
-  // landing login for a hotel_owner, not literally only the first. In
-  // practice this is the only login that matters for that role: once
-  // an owner reaches /hotel-owner they naturally navigate from there,
-  // and a plain hotel_owner has no reason to land on the public
-  // homepage instead of their own dashboard.
-  let destination = "/";
-
-  try {
-    const current = await getCurrentUser();
-    const roles = current?.roles ?? [];
-    const isPlainOwner =
-      roles.includes("hotel_owner") &&
-      !roles.includes("admin") &&
-      !roles.includes("super_admin");
-
-    if (isPlainOwner) {
-      destination = "/hotel-owner";
-    }
-  } catch {
-    // Role lookup failing here must never block an otherwise-successful
-    // login — same reasoning as every other best-effort catch in this
-    // codebase (RULE 38: still worth knowing about, even though it
-    // can't be allowed to fail the request).
-    console.error(
-      "[loginAction] role lookup for smart redirect failed; defaulting to /"
-    );
-  }
-
-  redirect(destination);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Register                                                                   */
-/* -------------------------------------------------------------------------- */
-
-export async function registerAction(
-  _prevState: AuthActionState,
-  formData: FormData
-): Promise<AuthActionState> {
-  const parsed = registerSchema.safeParse({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-    password: formData.get("password"),
-    confirmPassword: formData.get("confirmPassword"),
-  });
-
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
-  }
-
-  // LAUNCH-02 — bot protection before any account is created.
-  const captcha = await verifyCaptcha(
-    formData.get("cf-turnstile-response")?.toString()
-  );
-  if (!captcha.ok) {
-    return { error: captcha.error };
-  }
-
-  const supabase = await createClient();
-  const { fullName, email, password } = parsed.data;
-
-  const { data: signUpData, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { full_name: fullName },
-      emailRedirectTo: `${getSiteUrl()}/auth/callback`,
-    },
-  });
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  // REFERRAL-01 — link this new account to the friend who referred it
-  // and issue the welcome coupon. Best effort: a referral problem must
-  // never block or fail an otherwise successful signup (RULE 38 — it is
-  // logged). identities is empty when the email already belonged to an
-  // existing account (Supabase hides that) — that account must never be
-  // attached to a referral, so it is skipped.
-  const refCode = normalizeReferralCode(formData.get("ref"));
-  const isFreshAccount = (signUpData.user?.identities?.length ?? 0) > 0;
-
-  if (refCode && signUpData.user && isFreshAccount) {
-    try {
-      const result = await recordReferralSignup(createServiceRoleClient(), {
-        authUserId: signUpData.user.id,
-        code: refCode,
-      });
-      if (!result.recorded) {
-        console.warn("[registerAction] referral not recorded:", result.reason);
+    <AuthLayout
+      eyebrow="Join SafarBuddy"
+      title="Create your account"
+      subtitle="Join SafarBuddy and start planning your next trip."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-[var(--color-sky)] hover:underline"
+          >
+            Log in
+          </Link>
+        </>
       }
-    } catch (referralError) {
-      console.error("[registerAction] referral recording failed", referralError);
-    }
-  }
+    >
+      <form action={formAction} className="space-y-5" noValidate>
+        {state.error && <Alert variant="error">{state.error}</Alert>}
 
-  // public.users row is created by the `on_auth_user_created` Postgres
-  // trigger (see src/db/sql/001_auth_sync_trigger.sql) — no manual insert
-  // needed here, and doing one here would race the trigger.
+        <TextField
+          id="fullName"
+          name="fullName"
+          label="Full name"
+          autoComplete="name"
+          required
+          error={state.fieldErrors?.fullName?.[0]}
+        />
 
-  return { success: true };
-}
+        <TextField
+          id="email"
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          error={state.fieldErrors?.email?.[0]}
+        />
 
-/* -------------------------------------------------------------------------- */
-/* Google Login                                                               */
-/* -------------------------------------------------------------------------- */
+        <PasswordField
+          id="password"
+          name="password"
+          label="Password"
+          autoComplete="new-password"
+          required
+          error={state.fieldErrors?.password?.[0]}
+        />
 
-export async function googleLoginAction(formData: FormData) {
-  const redirectTo = formData.get("redirectTo");
-  const supabase = await createClient();
+        <PasswordField
+          id="confirmPassword"
+          name="confirmPassword"
+          label="Confirm password"
+          autoComplete="new-password"
+          required
+          error={state.fieldErrors?.confirmPassword?.[0]}
+        />
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${getSiteUrl()}/auth/callback${
-        typeof redirectTo === "string" && redirectTo
-          ? `?redirectTo=${encodeURIComponent(redirectTo)}`
-          : ""
-      }`,
-    },
-  });
+        <Suspense fallback={null}>
+          <ReferralField />
+        </Suspense>
 
-  if (error || !data.url) {
-    redirect(
-      `/login?error=${encodeURIComponent(
-        error?.message ?? "Google sign-in failed."
-      )}`
-    );
-  }
+        <TurnstileWidget resetKey={state} />
 
-  redirect(data.url);
-}
+        <SubmitButton
+          pending={isPending}
+          label="Create account"
+          pendingLabel="Creating account..."
+        />
+      </form>
 
-/* -------------------------------------------------------------------------- */
-/* Forgot Password                                                            */
-/* -------------------------------------------------------------------------- */
+      <div className="my-6 flex items-center gap-3">
+        <div className="h-px flex-1 bg-[var(--color-mist)]" />
+        <span className="text-xs text-[var(--color-ink)]/35">or</span>
+        <div className="h-px flex-1 bg-[var(--color-mist)]" />
+      </div>
 
-export async function forgotPasswordAction(
-  _prevState: AuthActionState,
-  formData: FormData
-): Promise<AuthActionState> {
-  const parsed = forgotPasswordSchema.safeParse({
-    email: formData.get("email"),
-  });
-
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    parsed.data.email,
-    {
-      redirectTo: `${getSiteUrl()}/auth/callback?next=/reset-password`,
-    }
+      <form action={googleLoginAction}>
+        <button
+          type="submit"
+          className="w-full rounded-xl border border-[var(--color-mist)] py-2.5 text-sm font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-mist-2)]"
+        >
+          Continue with Google
+        </button>
+      </form>
+    </AuthLayout>
   );
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return { success: true };
-}
-
-/* -------------------------------------------------------------------------- */
-/* Reset Password                                                             */
-/* -------------------------------------------------------------------------- */
-
-// STABILIZATION fix: forgotPasswordAction sends users to
-// /auth/callback?next=/reset-password after they click the emailed link.
-// The callback route already exchanges the code for a session (see
-// src/app/auth/callback/route.ts), so this action only needs to update
-// the password on the now-authenticated session — it does not re-verify
-// the reset token itself. No new auth architecture introduced; reuses
-// the existing Supabase client + AuthActionState pattern used by every
-// other action in this file.
-export async function resetPasswordAction(
-  _prevState: AuthActionState,
-  formData: FormData
-): Promise<AuthActionState> {
-  const parsed = resetPasswordSchema.safeParse({
-    password: formData.get("password"),
-    confirmPassword: formData.get("confirmPassword"),
-  });
-
-  if (!parsed.success) {
-    return { fieldErrors: parsed.error.flatten().fieldErrors };
-  }
-
-  const supabase = await createClient();
-
-  // No active session means the reset link was missing, expired, or
-  // already used — the callback route would not have reached this page
-  // with a valid session in that case.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return {
-      error:
-        "This reset link has expired or was already used. Please request a new one.",
-    };
-  }
-
-  const { error } = await supabase.auth.updateUser({
-    password: parsed.data.password,
-  });
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return { success: true };
-}
-
-/* -------------------------------------------------------------------------- */
-/* Logout                                                                     */
-/* -------------------------------------------------------------------------- */
-
-export async function logoutAction() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/login");
 }
