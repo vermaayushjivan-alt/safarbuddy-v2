@@ -71,6 +71,13 @@ const serverEnvSchema = z.object({
   // "assistant not configured" message instead of throwing.
   ANTHROPIC_API_KEY: z.string().optional(),
 
+  // CHAT-03 — the homepage assistant now runs on Google Gemini
+  // (Google AI Studio key). Both optional (RULE 30): no key = the widget
+  // replies "not set up yet". GEMINI_MODEL lets the model be changed in
+  // Vercel without a code change (default gemini-2.5-flash).
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().optional(),
+
   // LAUNCH-02 — Cloudflare Turnstile CAPTCHA (signup + /list-your-property).
   // Both optional (RULE 30): if the secret is unset the server-side check is
   // skipped with a logged warning; if the site key is unset no widget renders.
