@@ -4,6 +4,19 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+HOME-REDESIGN-01 (2026-10-05) — Phase 1 CODED, NOT VERIFIED. Full plan/rules: HOMEPAGE_BIBLE.md.
+Owner decision: put DEMO content now; owner replaces it later from the admin panel one by one.
+Built: src/data/home-demo.ts (SHOW_HOME_DEMO switch + sample ads/coupons/partners), ServicesGrid,
+CouponStrip, PartnersStrip, HostBanner, PromoBanner demo fallback ("Sample ad" when a slot has no
+real promotion), Hero mobile tweaks (tab row hidden <sm, tighter spacing), page.tsx order.
+Also earlier this session: room detail page restyled like the hotel page (+ HotelGallery fallbackHref).
+BEFORE DEPLOY: npm run build / tsc / eslint (never run); look at / on a real phone and /hotels/<slug>/rooms/<id>.
+BEFORE REAL LAUNCH OF ADS: set SHOW_HOME_DEMO=false (demo coupon codes are not valid at checkout).
+NEXT: Phase 2 (destination story circles, date chips in HotelSearchBar, recently viewed) then
+Phase 3 (needs SQL for new promotion slots/format + sponsored hotel cards + partners table).
+Known data issues seen on live: a room priced INR 1 (test price) and a room with
+capacity_children 2 but max_occupancy 2 — fix in admin.
+
 REFERRAL-01 (2026-10-05) — Refer & Earn CODED, NOT VERIFIED. Owner decisions:
 referrer gets % coupon; reward on friend's first PAID booking; friend also gets
 a % coupon. Full file list + design in CHANGELOG.md 2026-10-05 REFERRAL-01.
