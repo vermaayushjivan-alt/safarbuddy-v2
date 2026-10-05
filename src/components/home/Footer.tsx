@@ -32,7 +32,7 @@ export default function Footer() {
       {liveSearches.length > 0 && (
         <>
       {/* Popular searches (SEO footer) */}
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mx-auto max-w-7xl px-6 py-5 sm:py-8">
         <h3 className="font-heading text-[12px] font-semibold uppercase tracking-wide text-cream/50">
           {footerContent.popularSearchesLabel}
         </h3>
@@ -58,12 +58,12 @@ export default function Footer() {
       )}
 
       {/* Trust badges */}
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        <ul className="flex flex-wrap justify-center gap-x-8 gap-y-3 sm:justify-between">
+      <div className="mx-auto max-w-7xl px-6 py-5 sm:py-8">
+        <ul className="grid grid-cols-2 gap-x-4 gap-y-3 sm:flex sm:flex-wrap sm:justify-between sm:gap-x-8">
           {footerTrustBadges.map((badge) => (
             <li
               key={badge.id}
-              className="flex items-center gap-2 text-[12px] font-medium text-cream/80"
+              className="flex items-center gap-2 text-[12px] font-medium leading-tight text-cream/80"
             >
               <badge.icon size={16} className="text-orange" aria-hidden />
               {badge.label}
@@ -75,22 +75,22 @@ export default function Footer() {
       <div className="mx-auto h-px max-w-7xl bg-cream/10" />
 
       {/* Main columns */}
-      <div className="mx-auto max-w-7xl px-6 py-12">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mx-auto max-w-7xl px-6 py-8 sm:py-12">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:gap-10 lg:grid-cols-5">
           {/* Column 1: brand */}
-          <div className="sm:col-span-2 lg:col-span-1">
+          <div className="col-span-2 lg:col-span-1">
             <Image
               src="/brand/logo-horizontal-white.svg"
               alt="SafarBuddy"
               width={200}
               height={50}
-              className="h-10 w-auto"
+              className="h-9 w-auto sm:h-10"
             />
             <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-cream/60">
               {footerContent.description}
             </p>
 
-            <address className="mt-5 space-y-2 not-italic">
+            <address className="mt-4 space-y-2.5 not-italic sm:mt-5 sm:space-y-2">
               <a
                 href={`mailto:${footerContact.supportEmail}`}
                 className="focus-ring flex items-center gap-2 rounded text-[12px] text-cream/70 transition hover:text-cream"
@@ -124,7 +124,7 @@ export default function Footer() {
             </address>
 
             {liveSocials.length > 0 && (
-            <ul className="mt-5 flex items-center gap-3">
+            <ul className="mt-4 flex items-center gap-3 sm:mt-5">
               {liveSocials.map((social) => (
                 <li key={social.id}>
                   <a
@@ -146,12 +146,12 @@ export default function Footer() {
               <h3 className="font-heading text-[13px] font-semibold text-cream">
                 {column.title}
               </h3>
-              <ul className="mt-4 space-y-2.5">
+              <ul className="mt-2 space-y-0.5 sm:mt-4 sm:space-y-2.5">
                 {column.links.map((link) => (
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="focus-ring rounded text-[13px] text-cream/60 transition hover:text-cream"
+                      className="focus-ring inline-block rounded py-1.5 text-[13px] text-cream/60 transition hover:text-cream sm:py-0"
                     >
                       {link.label}
                     </Link>
@@ -166,7 +166,7 @@ export default function Footer() {
       <div className="mx-auto h-px max-w-7xl bg-cream/10" />
 
       {/* Payments */}
-      <div className="mx-auto max-w-7xl px-6 py-8">
+      <div className="mx-auto max-w-7xl px-6 py-5 sm:py-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-cream/45">
@@ -176,7 +176,7 @@ export default function Footer() {
               {paymentMethods.map((method) => (
                 <li
                   key={method.id}
-                  className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-medium text-cream/80"
+                  className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5 font-medium text-cream/80"
                 >
                   <method.icon size={13} aria-hidden />
                   {method.label}
@@ -191,19 +191,18 @@ export default function Footer() {
       <div className="mx-auto h-px max-w-7xl bg-cream/10" />
 
       {/* Bottom bar */}
-      <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-6 py-6 text-center sm:flex-row sm:justify-between sm:text-left">
-        <p className="text-[12px] text-cream/50">{footerContent.copyrightText}</p>
+      <div className="mx-auto flex max-w-7xl flex-row items-center justify-between gap-3 px-6 py-4 text-left sm:gap-4 sm:py-6">
+        <p className="text-[11px] leading-snug text-cream/50 sm:text-[12px]">{footerContent.copyrightText}</p>
         <button
           type="button"
           onClick={scrollToTop}
           aria-label="Back to top"
-          className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-cream/20 px-4 py-2 text-[12px] font-medium text-cream/80 transition hover:bg-white/10"
+          className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-cream/20 text-[12px] font-medium text-cream/80 transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2"
         >
-          Back to top
+          <span className="hidden sm:inline">Back to top</span>
           <ArrowUp size={13} aria-hidden />
         </button>
       </div>
     </footer>
   );
-                  }
-            
+}
