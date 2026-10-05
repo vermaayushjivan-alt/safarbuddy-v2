@@ -50,6 +50,8 @@ function isPublicRoute(pathname: string) {
     // /login even though the pages themselves require no session.
     pathname.startsWith("/hotels/") ||
     pathname.startsWith("/destinations/") ||
+    // LAUNCH-03: /offers/[id] detail pages are public too.
+    pathname.startsWith("/offers/") ||
     // BOOKING-03: same reasoning as /hotels/ above — /packages has its
     // own dynamic detail/book routes that must stay unauthenticated too.
     pathname.startsWith("/packages/") ||
