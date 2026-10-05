@@ -1,3 +1,4 @@
+// ROOT PATH: src/components/home/PromoBanner.tsx
 'use client';
 
 // PROMO-01 — inline auto-sliding banner-ad carousel for one homepage
@@ -22,6 +23,8 @@ import {
   trackPromotionImpression,
   trackPromotionClick,
 } from '@/app/actions/promotion.actions';
+import { demoAds, SHOW_HOME_DEMO } from '@/data/home-demo';
+import DemoAdCarousel from '@/components/home/DemoAdCarousel';
 import type {
   PromotionRecord,
   PromotionSlot,
@@ -65,7 +68,15 @@ export default function PromoBanner({ slot }: { slot: PromotionSlot }) {
     trackPromotionImpression(current.id);
   }, [promotions, activeIndex]);
 
-  if (!promotions || promotions.length === 0) return null;
+  if (!promotions) return null;
+
+  // HOME-REDESIGN-01: no real campaign in this slot yet -> show a SAMPLE ad
+  // so the layout looks full. Real promotions (admin) always win; set
+  // SHOW_HOME_DEMO=false in src/data/home-demo.ts to render nothing instead.
+  if (promotions.length === 0) {
+    if (!SHOW_HOME_DEMO) return null;
+    return <DemoAdCarousel ads={demoAds[slot]} />;
+  }
 
   const current = promotions[activeIndex];
 
