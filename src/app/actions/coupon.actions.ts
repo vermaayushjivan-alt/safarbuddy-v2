@@ -29,7 +29,7 @@
 
 import { z } from 'zod';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth/session';
+import { requireRole, getAuthUser, resolvePublicUserId } from '@/lib/auth/session';
 import { CouponRepository, type CouponRecord, type CouponWithVendorName } from '@/lib/repositories/coupon.repository';
 import { computeCouponDiscount } from '@/lib/coupons/coupon-discount';
 import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
@@ -220,10 +220,17 @@ export type CouponValidationResult = CouponValidationSuccess | CouponValidationF
 // server module, so createBooking() never has to trust a
 // client-supplied discount amount; it always re-derives this from
 // scratch using its own server-resolved subtotal.
+//
+// REFERRAL-01: userId is the booking customer's public.users.id (null
+// for a guest). A coupon with owner_user_id set is valid only for that
+// user; a single-use coupon is valid only until a confirmed/completed
+// booking carries it. Existing coupons have neither flag, so for them
+// userId is ignored and behaviour is unchanged.
 export async function resolveCouponForBooking(input: {
   code: string;
   vendorId: string | null;
   subtotal: number;
+  userId?: string | null;
 }): Promise<CouponValidationResult> {
   const code = input.code.trim();
 
@@ -251,6 +258,22 @@ export async function resolveCouponForBooking(input: {
 
   if (coupon.valid_until && new Date(coupon.valid_until) < now) {
     return { valid: false, reason: 'This coupon has expired.' };
+  }
+
+  if (coupon.owner_user_id) {
+    if (!input.userId) {
+      return { valid: false, reason: 'Please log in to use this coupon.' };
+    }
+    if (coupon.owner_user_id !== input.userId) {
+      return { valid: false, reason: 'This coupon is not valid for your account.' };
+    }
+  }
+
+  if (coupon.is_single_use) {
+    const redeemed = await repo.countRedeemedBookings(coupon.id);
+    if (redeemed > 0) {
+      return { valid: false, reason: 'This coupon has already been used.' };
+    }
   }
 
   if (coupon.scope === 'vendor' && coupon.vendor_id !== input.vendorId) {
@@ -286,6 +309,20 @@ export async function validateCouponPublic(input: {
   vendorId: string | null;
   subtotal: number;
 }): Promise<CouponValidationResult> {
-  return resolveCouponForBooking(input);
+  // REFERRAL-01: resolve the signed-in user server-side (never from the
+  // client) so a personal coupon can be previewed for its owner only.
+  // A guest, or any lookup failure, simply means userId = null.
+  let userId: string | null = null;
+
+  try {
+    const authUser = await getAuthUser();
+    if (authUser) {
+      userId = await resolvePublicUserId(createServiceRoleClient(), authUser.id);
+    }
+  } catch (error) {
+    console.error('[coupons] validateCouponPublic user lookup failed', error);
+  }
+
+  return resolveCouponForBooking({ ...input, userId });
 }
 
