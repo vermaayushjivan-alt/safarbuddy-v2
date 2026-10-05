@@ -11,7 +11,7 @@ import PromoBanner from "@/components/home/PromoBanner";
 import ServicesGrid from "@/components/home/ServicesGrid";
 import CouponStrip from "@/components/home/CouponStrip";
 import PartnersStrip from "@/components/home/PartnersStrip";
-import HostBanner from "@/components/home/HostBanner";
+import HomeHostCta from "@/components/home/HomeHostCta";
 
 // SEO_AUDIT.md §4.3 — homepage had no dedicated metadata beyond the
 // root layout default. Title/description intentionally match
@@ -36,7 +36,7 @@ export default function Home() {
       <Packages />
       <PartnersStrip />
       <PromoBanner slot="between_packages_testimonials" />
-      <HostBanner />
+      <HomeHostCta />
       <Footer />
       <HomeAiChatWidget />
     </main>
