@@ -8,6 +8,10 @@ import Packages from "@/components/home/Packages";
 import Footer from "@/components/home/Footer";
 import HomeAiChatWidget from "@/components/home/HomeAiChatWidget";
 import PromoBanner from "@/components/home/PromoBanner";
+import ServicesGrid from "@/components/home/ServicesGrid";
+import CouponStrip from "@/components/home/CouponStrip";
+import PartnersStrip from "@/components/home/PartnersStrip";
+import HostBanner from "@/components/home/HostBanner";
 
 // SEO_AUDIT.md §4.3 — homepage had no dedicated metadata beyond the
 // root layout default. Title/description intentionally match
@@ -22,13 +26,17 @@ export default function Home() {
     <main className="bg-cream">
       <Navbar />
       <Hero />
+      <ServicesGrid />
       <PromoBanner slot="after_hero" />
+      <CouponStrip />
       <Offers />
       <Destinations />
       <PromoBanner slot="between_destinations_trending" />
       <Trending />
       <Packages />
+      <PartnersStrip />
       <PromoBanner slot="between_packages_testimonials" />
+      <HostBanner />
       <Footer />
       <HomeAiChatWidget />
     </main>
