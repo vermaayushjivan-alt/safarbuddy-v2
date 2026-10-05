@@ -4,6 +4,100 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+LAUNCH-02 (2026-10-05) — OWNER DECISIONS RECORDED: refunds within 7 days of
+approved cancellation; legal pages accepted by owner; Cashfree is live and
+real bookings are happening (so refunds are a live obligation — there is
+still NO refund flow in code, refunds are manual); Gmail SMTP stays until
+~200 bookings/month; wants CAPTCHA on signup/listing; wants a referral
+program (NOT built yet — awaiting reward decision, see below).
+Built: Turnstile CAPTCHA (see CHANGELOG). tsc/eslint/build NOT RUN.
+To activate: create a free Turnstile widget at dash.cloudflare.com, add the
+domain, then set NEXT_PUBLIC_TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY in
+Vercel and redeploy. Until both are set CAPTCHA is OFF (logged warning).
+Functional walkthrough NOT DONE: register + list-your-property with the keys
+set, and with them unset.
+Still needed from owner: Grievance Officer's name (set GRIEVANCE_OFFICER_NAME
+in src/components/legal/LegalPage.tsx).
+REFERRAL: planned only, nothing coded (RULE 12/13 — reward not decided and
+live schema not verifiable from the sandbox).
+
+
+PROMO-02 (2026-10-05) — PromoBanner restyled so the uploaded creative is the
+whole ad (reference: houserenter.in homepage banners). Files modified:
+src/components/home/PromoBanner.tsx (+ CHANGELOG.md, SESSION_HANDOFF.md).
+tsc/eslint/build: NOT RUN (no node_modules in sandbox). Functional check
+NOT DONE: upload 1-2 real creatives in /admin/promotions for each slot and
+view the homepage on a phone. Operational guidance for creatives: put the
+CTA inside the image; use the same aspect ratio within one slot (images
+are not cropped, so mixed ratios make the slot height jump while sliding);
+suggested ~1200x600 (2:1) or ~1200x440 (wide strip), JPG/WebP, under ~300 KB.
+Slot "between_packages_testimonials" still exists but Testimonials was
+unmounted in LAUNCH-01 — it now sits between Packages and the footer area.
+Pending: DB slot name left unchanged on purpose (RULE 8 / no migration).
+
+
+Continuation (2026-10-05, new chat session) — owner email migration, full
+pre-launch audit, then LAUNCH-01 cleanup on explicit sign-off.
+
+ADMIN-EMAIL-01 — DONE. Only 3 hardcoded occurrences of the old email existed
+(footer supportEmail x2 duplicate files, ORG_CONTACT in seo/site.ts). No
+email-based admin check exists; admin = user_roles (admin/super_admin).
+Owner ran SQL in Supabase to grant admin+super_admin to
+safarbuddytravel@gmail.com. Login still showed /unauthorized until the
+public.users.auth_user_id link for that account was repaired (resolvePublicUserId
+in src/lib/auth/session.ts matches on auth_user_id, NOT users.id). Owner then
+confirmed /admin opens. Old account's roles NOT yet revoked (owner's call).
+Cashfree: untouched. Still to do on owner side: set
+ADMIN_NOTIFICATION_EMAIL=safarbuddytravel@gmail.com in Vercel env and redeploy.
+
+LAUNCH-01 — see CHANGELOG.md 2026-10-05 for the full file list.
+Files modified: src/app/page.tsx, src/components/home/Footer.tsx,
+src/data/home.ts, src/lib/config/constants.ts, src/app/layout.tsx,
+src/app/sitemap.ts, middleware.ts, package.json, .env.example.
+Files created: src/components/legal/LegalPage.tsx, src/app/privacy/page.tsx,
+src/app/terms/page.tsx, src/app/refund-policy/page.tsx.
+Files deleted: see CHANGELOG (root home.ts, root lib/, root components/,
+"next.config (2).ts", "gitignore", root ".env", src/lib/data/home.ts).
+TypeScript (tsc --noEmit): NOT RUN — no node_modules and no network in this
+sandbox. Only a syntax-level parse of the changed files was run: clean.
+ESLint: NOT RUN (same reason). next build: NOT RUN.
+Functional walkthrough: NOT DONE. Must check on a real deploy: homepage
+renders without the removed sections; footer shows only live links;
+/privacy, /terms, /refund-policy open logged-out (middleware allowlist) and
+are in /sitemap.xml; no stale imports of deleted files.
+New env vars: none. New tables/migrations: none (RLS n/a).
+Pending / not verified (RULE 23): everything above marked NOT RUN.
+
+OWNER DECISIONS NEEDED (nothing was invented):
+1. Real cancellation/refund terms (windows, %, refund timeline, gateway-fee
+   handling). refund-policy page is deliberately generic.
+2. Named Grievance Officer (required for Indian e-commerce) — currently only
+   the support email/phone are listed.
+3. Governing-law/jurisdiction (draft says Lucknow courts) and 18+ age rule.
+4. Lawyer review of /privacy, /terms, /refund-policy before launch.
+5. Testimonials/stats/newsletter/app-download: re-add only with real data
+   (real reviews, real newsletter provider, a real app). Social links: add
+   real URLs to footerSocialLinks (they are hidden while href is "#").
+
+TOP RISKS FOUND BY THE AUDIT, NOT FIXED THIS SESSION (do next, in order):
+A. middleware.ts sits at the repo ROOT while the app uses src/. Next ignores a
+   root middleware when src/ exists (and Next 16 renames it proxy.ts). It may
+   not be running at all. Verify on the live site (logged-out visit to
+   /dashboard should redirect to /login) BEFORE moving it — moving it changes
+   behaviour for the whole site (RULE 12: not changed blindly).
+B. Cashfree still defaults to sandbox; no refund flow; no real paid booking
+   walkthrough (RULE 22). Production keys + one real end-to-end payment needed.
+C. Migrations 011/012 etc. still flagged "not run in production" in older
+   entries — confirm against information_schema (RULE 35).
+D. Email is Gmail SMTP (personal app password, ~500/day). Move to Resend/SES
+   on a domain with SPF/DKIM.
+E. No rate limit/CAPTCHA on /list-your-property and signup (creates accounts
+   via service role). Guest invoice/confirmation rely on the booking UUID only.
+F. Password minimum is 6; no CSP/HSTS headers; no Sentry/analytics; zero
+   automated tests; dangerouslyAllowSVG + picsum.photos in next.config.ts.
+G. Run npm install, tsc --noEmit, eslint, next build for real before deploy.
+
+
 Continuation (2026-09-20, new chat session — picks up item 4a
 (PROMO-01) from the "WHAT TO DO FIRST NEXT SESSION" list right below
 this entry; does not answer items 2/3/4-sequencing, only started
