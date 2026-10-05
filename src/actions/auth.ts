@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { verifyCaptcha } from "@/lib/security/turnstile";
 
 /* -------------------------------------------------------------------------- */
 /* Validation                                                                 */
@@ -156,6 +157,14 @@ export async function registerAction(
 
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // LAUNCH-02 — bot protection before any account is created.
+  const captcha = await verifyCaptcha(
+    formData.get("cf-turnstile-response")?.toString()
+  );
+  if (!captcha.ok) {
+    return { error: captcha.error };
   }
 
   const supabase = await createClient();
