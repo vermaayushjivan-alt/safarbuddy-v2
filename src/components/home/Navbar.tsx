@@ -6,6 +6,8 @@ import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import ProfileMenu from "@/components/layout/ProfileMenu";
+import MobileDrawer from "@/components/layout/MobileDrawer";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const links: { label: string; href: string }[] = [
 { label: "Flights", href: "#" },
@@ -21,8 +23,10 @@ const links: { label: string; href: string }[] = [
 export default function Navbar() {
 const [open, setOpen] = useState(false);
 const { user } = useAuth();
+const { t } = useLanguage();
 
 return (
+<>
 <header className="sticky top-0 z-50 border-b border-white/40 bg-white/70 pt-[env(safe-area-inset-top)] backdrop-blur-md">
 <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
 <Link
@@ -89,9 +93,9 @@ className="focus-ring flex items-center gap-2 rounded-md"
 
       <button
         type="button"
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? t("closeMenu") : t("openMenu")}
         aria-expanded={open}
-        aria-controls="mobile-nav"
+        aria-controls="mobile-drawer"
         onClick={() => setOpen((v) => !v)}
         className="focus-ring grid h-9 w-9 place-items-center rounded-full text-deep lg:hidden"
       >
@@ -100,59 +104,9 @@ className="focus-ring flex items-center gap-2 rounded-md"
     </div>
   </div>
 
-  {/* Mobile navigation */}
-  <nav
-    id="mobile-nav"
-    aria-label="Mobile"
-    className={`grid overflow-hidden border-t border-deep/10 bg-white/95 backdrop-blur-md transition-[grid-template-rows] duration-300 lg:hidden ${
-      open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-    }`}
-  >
-    <div className="min-h-0">
-      <ul className="flex flex-col gap-1 px-6 py-3">
-        {links.map((l) => (
-          <li key={l.label}>
-            <Link
-              href={l.href}
-              onClick={() => setOpen(false)}
-              className="focus-ring block rounded-md px-2 py-2.5 font-heading text-[15px] font-medium text-ink/75 hover:bg-mist hover:text-deep"
-            >
-              {l.label}
-            </Link>
-          </li>
-        ))}
-
-        {/* Mobile: List Your Property */}
-        <li className="mt-1 border-t border-deep/10 pt-3">
-          <Link
-            href="/list-your-property"
-            onClick={() => setOpen(false)}
-            className="focus-ring block rounded-full border border-deep/15 px-4 py-2.5 text-center font-heading text-[15px] font-semibold text-deep transition hover:bg-deep/5"
-          >
-            List Your Property
-          </Link>
-        </li>
-
-        {/* Mobile: Login / Profile */}
-        <li className="mt-1 border-t border-deep/10 pt-3 sm:hidden">
-          {user ? (
-            <div className="px-2 py-1">
-              <ProfileMenu />
-            </div>
-          ) : (
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="focus-ring block rounded-md px-2 py-2.5 font-heading text-[15px] font-medium text-deep"
-            >
-              Login
-            </Link>
-          )}
-        </li>
-      </ul>
-    </div>
-  </nav>
 </header>
 
+<MobileDrawer open={open} onClose={() => setOpen(false)} />
+</>
 );
 }
