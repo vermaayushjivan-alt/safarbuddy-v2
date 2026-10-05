@@ -810,3 +810,10 @@ one real paid booking end to end — confirm the customer email arrives
 with a PDF attached, the PDF actually shows the image logo (not
 "SafarBuddy" text), and check-in/out time + cancellation policy appear
 on it when the hotel has them set.
+
+REFERRAL-01 — Refer & Earn — CODE COMPLETE, NOT VERIFIED (2026-10-05)
+
+Reuses COUPON-01 (personal + single-use coupons via two new columns). Migration
+028 not yet run. tsc/eslint/build and the functional walkthrough are pending —
+see SESSION_HANDOFF.md. Not Frozen until the walkthrough is done (RULE 21/22,
+touches the payment webhook).
