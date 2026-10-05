@@ -43,6 +43,7 @@ import {
 import { sendEmail } from '@/lib/notifications/email.client';
 import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 import { slugify } from '@/lib/utils/format';
+import { verifyCaptcha } from '@/lib/security/turnstile';
 
 /* -------------------------------------------------------------------------- */
 /* Validation                                                                 */
@@ -490,7 +491,8 @@ function getSiteUrl(): string {
 export async function submitPropertyListing(
   input: PropertyListingInput,
   kycFiles?: PropertyListingKycFiles,
-  roomImageFiles?: PropertyListingRoomImageFiles
+  roomImageFiles?: PropertyListingRoomImageFiles,
+  captchaToken?: string
 ): Promise<ActionResult<PropertyListingResult>> {
   return runAction(async () => {
     const parsed = propertyListingSchema.parse(input);
@@ -527,6 +529,13 @@ export async function submitPropertyListing(
       // match. Not enforced in the Zod schema above because the
       // schema has no visibility into session state (see comment
       // there).
+      // LAUNCH-02 — bot protection, only for brand-new visitors (a
+      // signed-in user reusing their account creates nothing here).
+      const captcha = await verifyCaptcha(captchaToken);
+      if (!captcha.ok) {
+        throw new Error(captcha.error);
+      }
+
       if (!parsed.password || parsed.password.length < 6) {
         throw new Error('Password must be at least 6 characters.');
       }
