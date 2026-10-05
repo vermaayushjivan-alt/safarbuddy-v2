@@ -2,9 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { verifyCaptcha } from "@/lib/security/turnstile";
+import {
+  normalizeReferralCode,
+  recordReferralSignup,
+} from "@/lib/referrals/referral-service";
 
 /* -------------------------------------------------------------------------- */
 /* Validation                                                                 */
@@ -170,7 +174,7 @@ export async function registerAction(
   const supabase = await createClient();
   const { fullName, email, password } = parsed.data;
 
-  const { error } = await supabase.auth.signUp({
+  const { data: signUpData, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -181,6 +185,29 @@ export async function registerAction(
 
   if (error) {
     return { error: error.message };
+  }
+
+  // REFERRAL-01 — link this new account to the friend who referred it
+  // and issue the welcome coupon. Best effort: a referral problem must
+  // never block or fail an otherwise successful signup (RULE 38 — it is
+  // logged). identities is empty when the email already belonged to an
+  // existing account (Supabase hides that) — that account must never be
+  // attached to a referral, so it is skipped.
+  const refCode = normalizeReferralCode(formData.get("ref"));
+  const isFreshAccount = (signUpData.user?.identities?.length ?? 0) > 0;
+
+  if (refCode && signUpData.user && isFreshAccount) {
+    try {
+      const result = await recordReferralSignup(createServiceRoleClient(), {
+        authUserId: signUpData.user.id,
+        code: refCode,
+      });
+      if (!result.recorded) {
+        console.warn("[registerAction] referral not recorded:", result.reason);
+      }
+    } catch (referralError) {
+      console.error("[registerAction] referral recording failed", referralError);
+    }
   }
 
   // public.users row is created by the `on_auth_user_created` Postgres
