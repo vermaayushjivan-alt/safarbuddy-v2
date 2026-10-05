@@ -4,6 +4,110 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-05 — LAUNCH-02 (CAPTCHA + refund timeline + grievance officer block)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run; only a
+syntax-level parse). Owner sign-off given in chat.
+Cloudflare Turnstile added to email signup (registerAction) and to
+/list-your-property (submitPropertyListing, only for brand-new visitors).
+New: src/lib/security/turnstile.ts, src/components/security/TurnstileWidget.tsx.
+Modified: src/actions/auth.ts, src/app/(auth)/register/page.tsx,
+src/app/actions/property-listing.actions.ts,
+src/components/public/PropertyListingForm.tsx, src/lib/config/env.ts,
+.env.example (RULE 29: TURNSTILE_SECRET_KEY, NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+both optional). RULE 30: if the secret is unset the server check is skipped
+with a console.warn (gated off); if set, a missing/invalid token is rejected.
+Refund page: owner decision "refund within 7 days of approved cancellation".
+LegalPage: Grievance Officer block (48h acknowledge / 1 month resolve, per
+Consumer Protection (E-Commerce) Rules 2020). GRIEVANCE_OFFICER_NAME is empty
+until the owner supplies the name. Rate limiting beyond CAPTCHA (Upstash/DB)
+deliberately NOT built. Gmail SMTP stays until ~200 bookings/month (owner).
+
+
+2026-10-05 — PROMO-05 (third banner creative: astrology / Pundit Ji)
+
+Created public/promo/astro-pundit-banner.png (1200x600 PNG) for Banner 3
+(slot between_packages_testimonials, bottom of homepage). No code change.
+Copy makes no accuracy or outcome claims and carries a "Jyotish margdarshan
+hai, parinaam ki guarantee nahi" line. Activation = insert a row into
+public.promotions or upload in /admin/promotions. NOT verified: the actual
+astrology service, Pundit Ji's name/photo, the booking link and the listed
+topics (Kundli / Muhurat / Rashifal) must be confirmed by the owner.
+
+
+2026-10-05 — PROMO-04 (first two banner creatives)
+
+Created public/promo/reelrampro-banner.png (OTT promo, for Banner 1 Top, just
+above Offers) and public/promo/finance-loan-banner.png (loan promo, Banner 2
+Middle). 1200x600 PNG, no code change. The finance banner deliberately has no
+interest rate, no bank names/logos and carries a "lender ke terms / T&C apply"
+line. Activation = insert rows into public.promotions (SQL in chat) or upload
+the same images in /admin/promotions. REAL lender/partner, regulatory
+compliance of the loan ad and the actual ReelRamPro tagline/logo are
+owner-confirmed items, NOT verified here.
+
+
+2026-10-05 — PROMO-03 (admin wording for the 3 homepage banner slots)
+
+Owner asked for 3 admin-controlled banner boxes on the homepage. Already
+built in PROMO-01/02 (3 slots in src/app/page.tsx, CRUD at /admin/promotions,
+image upload, dates, active toggle). Only src/components/admin/promotions/
+PromotionForm.tsx changed: slot dropdown now reads Banner 1 Top / Banner 2
+Middle / Banner 3 Bottom (the old label mentioned Testimonials, which was
+unmounted in LAUNCH-01) and the image hint explains the creative must carry
+its own headline/button. DB slot values unchanged. tsc/eslint NOT RUN.
+
+
+2026-10-05 — PROMO-02 (banner look: creative-only, like houserenter.in)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run — no
+node_modules in sandbox). Touches PROMO-01 (render only, RULE 10: owner
+requested visual change). Only src/components/home/PromoBanner.tsx changed.
+Banner now shows the uploaded image full-width at its natural aspect ratio:
+no dark gradient, no overlaid company name/URL/Visit button, no zoom-on-hover,
+smaller side padding on mobile. Tiny "Ad" tag replaces the "Sponsored" pill.
+Click tracking, impression tracking, auto-slide and dots unchanged. A
+promotion with no image still renders the old text card. No DB/admin/schema
+change. Operational note: the CTA must now be part of the uploaded image.
+
+
+2026-10-05 — LAUNCH-01 (pre-launch cleanup: fake content, legal pages, repo hygiene)
+
+Status: CODE COMPLETE, NOT VERIFIED. Done on explicit owner sign-off
+("Hmm karo") after a full pre-launch audit. This touches Frozen HOME-01..03
+surfaces; allowed under RULE 10 because the removed content is a confirmed
+defect (fabricated claims shown to the public), not a feature change.
+
+Removed from the homepage render (components left on disk, unmounted):
+Testimonials (invented customers), homeStats claims, AppDownload (no app
+exists), Newsletter (setTimeout fake success, saved nothing), TrendingFlights
+(hardcoded fake flights/prices/seats; no flight backend exists).
+Footer: links with href "#" are no longer rendered (socials, Careers, Blog,
+Flights/Bus/Train/Visa etc.); fake "Get the app" badges removed; "24x7 Support"
+badge (contradicted the 9AM-9PM hours) and "Trusted by Travelers" removed;
+description no longer claims flights/buses. Real links added: /privacy,
+/terms, /refund-policy, /packages, /destinations, /offers, /list-your-property.
+New: src/components/legal/LegalPage.tsx, src/app/privacy/page.tsx,
+src/app/terms/page.tsx, src/app/refund-policy/page.tsx (DRAFTS, lawyer review
+required). middleware.ts PUBLIC_ROUTES + src/app/sitemap.ts updated.
+Also: APP.SUPPORT_EMAIL/PHONE in constants.ts aligned to the real contact;
+layout.tsx description no longer says "Enterprise-grade"; package.json name
+-> safarbuddy-v2.
+Deleted (stale/dead, none imported anywhere): root home.ts, root lib/ and
+components/ (older copies of src files; the lib one had a mangled filename),
+"next.config (2).ts", un-dotted "gitignore", root ".env" (a stale copy of
+src/lib/config/env.ts, not a real env file), src/lib/data/home.ts (unused
+duplicate of src/data/home.ts).
+
+2026-10-05 — ADMIN-EMAIL-01 (owner email migration)
+
+Old personal email replaced with safarbuddytravel@gmail.com in
+src/data/home.ts, src/lib/seo/site.ts (and the since-deleted duplicate
+src/lib/data/home.ts); .env.example ADMIN_NOTIFICATION_EMAIL set. No admin
+email check existed in code (RBAC is user_roles-based). Cashfree config
+untouched. Admin role for the new account was granted via SQL (see handoff).
+
+
 2026-09-20 — PROMO-01 (homepage banner ads)
 
 Status: CODE COMPLETE. Migration renumbered 023 -> 024 and reported
