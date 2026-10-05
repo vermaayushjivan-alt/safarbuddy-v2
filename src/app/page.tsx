@@ -9,8 +9,6 @@ import Footer from "@/components/home/Footer";
 import HomeAiChatWidget from "@/components/home/HomeAiChatWidget";
 import PromoBanner from "@/components/home/PromoBanner";
 import ServicesGrid from "@/components/home/ServicesGrid";
-import CouponStrip from "@/components/home/CouponStrip";
-import PartnersStrip from "@/components/home/PartnersStrip";
 import HomeHostCta from "@/components/home/HomeHostCta";
 
 // SEO_AUDIT.md §4.3 — homepage had no dedicated metadata beyond the
@@ -28,13 +26,11 @@ export default function Home() {
       <Hero />
       <ServicesGrid />
       <PromoBanner slot="after_hero" />
-      <CouponStrip />
       <Offers />
       <Destinations />
       <PromoBanner slot="between_destinations_trending" />
       <Trending />
       <Packages />
-      <PartnersStrip />
       <PromoBanner slot="between_packages_testimonials" />
       <HomeHostCta />
       <Footer />
