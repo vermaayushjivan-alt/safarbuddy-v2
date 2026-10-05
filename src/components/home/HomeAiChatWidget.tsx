@@ -108,7 +108,7 @@ export default function HomeAiChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 sm:bottom-6 sm:right-6">
+    <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-50 sm:right-6 lg:bottom-6">
       {isOpen && (
         <div className="reveal mb-3 flex h-[500px] max-h-[70vh] w-[360px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-2xl border border-deep/15 bg-white shadow-2xl">
           {/* Header */}
