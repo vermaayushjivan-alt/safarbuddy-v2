@@ -27,8 +27,23 @@ import { APP } from '@/lib/config/constants';
 // server-only secrets in this codebase, see env.ts).
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // Model is configurable so it can be changed in Vercel without a code
-// change if Google renames/retires one.
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// change. Google retires free-tier model names often (gemini-2.5-flash
+// returned 404 "no longer available to new users" on 2026-10-05), so if
+// the chosen model answers 404 the next one in this list is tried, and
+// the first one that works is remembered for this server instance.
+const MODEL_CANDIDATES: string[] = Array.from(
+  new Set(
+    [
+      process.env.GEMINI_MODEL?.trim(),
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-3-flash-preview',
+    ].filter((m): m is string => !!m)
+  )
+);
+
+let workingModel: string | null = null;
 
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_HISTORY_MESSAGES = 12; // keeps token usage bounded per turn
@@ -97,34 +112,59 @@ export async function askHomeAssistant(
         parts: [{ text: turn.content.slice(0, MAX_MESSAGE_LENGTH) }],
       }));
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Header (not ?key=) so the key never lands in URLs/logs.
-          'x-goog-api-key': GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: buildSystemPrompt(knowledge) }] },
-          contents: [
-            ...boundedHistory,
-            { role: 'user', parts: [{ text: trimmed }] },
-          ],
-          generationConfig: {
-            // Gemini 2.5+/3 models count internal "thinking" tokens
-            // toward this limit, so it is set well above the visible
-            // reply length to avoid cut-off or empty answers.
-            maxOutputTokens: 1500,
-            temperature: 0.4,
-          },
-        }),
-      }
-    );
+    const requestBody = JSON.stringify({
+      systemInstruction: { parts: [{ text: buildSystemPrompt(knowledge) }] },
+      contents: [
+        ...boundedHistory,
+        { role: 'user', parts: [{ text: trimmed }] },
+      ],
+      generationConfig: {
+        // Gemini 2.5+/3 models count internal "thinking" tokens toward
+        // this limit, so it is set well above the visible reply length
+        // to avoid cut-off or empty answers.
+        maxOutputTokens: 1500,
+        temperature: 0.4,
+      },
+    });
 
-    if (!response.ok) {
-      console.error('[AI ASSISTANT] Gemini API error', response.status, await response.text());
+    const modelsToTry = workingModel
+      ? [workingModel, ...MODEL_CANDIDATES.filter((m) => m !== workingModel)]
+      : MODEL_CANDIDATES;
+
+    let response: Response | null = null;
+
+    for (const model of modelsToTry) {
+      const attempt = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // Header (not ?key=) so the key never lands in URLs/logs.
+            'x-goog-api-key': GEMINI_API_KEY,
+          },
+          body: requestBody,
+        }
+      );
+
+      if (attempt.ok) {
+        workingModel = model;
+        response = attempt;
+        break;
+      }
+
+      console.error(
+        `[AI ASSISTANT] Gemini API error model=${model} status=${attempt.status}`,
+        await attempt.text()
+      );
+
+      // Only "model not found / retired" moves on to the next model.
+      // A bad key (400/401/403) or rate limit (429) would fail on every
+      // model, so stop immediately.
+      if (attempt.status !== 404) break;
+    }
+
+    if (!response) {
       throw new Error('The assistant is having trouble responding right now. Please try again in a moment.');
     }
 
