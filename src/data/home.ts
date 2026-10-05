@@ -23,8 +23,6 @@ import {
   AtSign,
   Briefcase,
   PlaySquare,
-  Users,
-  Headphones,
   BadgeCheck,
   CreditCard,
   Smartphone,
@@ -275,9 +273,11 @@ export const footerLinkColumns: FooterLinkColumn[] = [
     links: [
       { label: "Flights", href: "#" },
       { label: "Hotels", href: "/hotels" },
+      { label: "Destinations", href: "/destinations" },
+      { label: "Offers", href: "/offers" },
       { label: "Bus", href: "#" },
       { label: "Train", href: "#" },
-      { label: "Holiday Packages", href: "#" },
+      { label: "Holiday Packages", href: "/packages" },
       { label: "Visa", href: "#" },
       { label: "Forex", href: "#" },
       { label: "Travel Insurance", href: "#" },
@@ -289,8 +289,7 @@ export const footerLinkColumns: FooterLinkColumn[] = [
     links: [
       { label: "Help Center", href: "#" },
       { label: "Contact Us", href: "/contact" },
-      { label: "Cancellation Policy", href: "#" },
-      { label: "Refund Policy", href: "#" },
+      { label: "Cancellation & Refund Policy", href: "/refund-policy" },
       { label: "FAQ", href: "#" },
       { label: "Customer Support", href: "#" },
     ],
@@ -304,15 +303,15 @@ export const footerLinkColumns: FooterLinkColumn[] = [
       { label: "Blog", href: "#" },
       { label: "Press", href: "#" },
       { label: "Affiliate Program", href: "#" },
-      { label: "Partner With Us", href: "#" },
+      { label: "List Your Property", href: "/list-your-property" },
     ],
   },
   {
     id: "legal",
     title: "Legal",
     links: [
-      { label: "Privacy Policy", href: "#" },
-      { label: "Terms & Conditions", href: "#" },
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms & Conditions", href: "/terms" },
       { label: "Cookie Policy", href: "#" },
       { label: "Disclaimer", href: "#" },
     ],
@@ -321,8 +320,6 @@ export const footerLinkColumns: FooterLinkColumn[] = [
 
 export const footerTrustBadges: TrustBadge[] = [
   { id: "secure-payments", label: "Secure Payments", icon: Lock },
-  { id: "trusted-travelers", label: "Trusted by Travelers", icon: Users },
-  { id: "support-24x7", label: "24×7 Support", icon: Headphones },
   { id: "verified-partners", label: "Verified Partners", icon: BadgeCheck },
 ];
 
@@ -364,7 +361,7 @@ export type FooterContent = {
 
 export const footerContent: FooterContent = {
   description:
-    "SafarBuddy helps you book flights, hotels, buses and holiday packages at the best prices — all in one place.",
+    "SafarBuddy helps you book hotels, resorts, homestays and holiday packages at great prices — all in one place.",
   copyrightText: "© 2026 SafarBuddy. All Rights Reserved.",
   popularSearchesLabel: "Popular Searches",
 };
