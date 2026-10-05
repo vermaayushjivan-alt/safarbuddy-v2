@@ -1,7 +1,8 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { RootProvider } from '@/components/providers/RootProvider';
+import MobileBottomNav from '@/components/layout/MobileBottomNav';
 import { getSiteUrl, SITE_NAME, ORG_CONTACT } from '@/lib/seo/site';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -12,7 +13,23 @@ const inter = Inter({ subsets: ['latin'] });
 // /packages, homepage in this session) would fail to resolve to an
 // absolute URL. This is what makes those canonical/OG tags actually
 // work correctly.
+// MOBILE-01: viewport-fit=cover lets the page use the full phone screen
+// (notch / home-bar safe areas are handled with env(safe-area-inset-*)).
+// Zoom is intentionally NOT disabled (accessibility).
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#0b2f5c',
+};
+
 export const metadata: Metadata = {
+  applicationName: 'SafarBuddy',
+  appleWebApp: {
+    capable: true,
+    title: 'SafarBuddy',
+    statusBarStyle: 'default',
+  },
   metadataBase: new URL(getSiteUrl()),
   title: 'SafarBuddy - Your Travel Companion',
   description: 'Book hotels, resorts, homestays and holiday packages with SafarBuddy.',
@@ -73,6 +90,7 @@ export default function RootLayout({
         />
         <RootProvider>
           {children}
+          <MobileBottomNav />
         </RootProvider>
       </body>
     </html>
