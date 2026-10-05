@@ -4,6 +4,59 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-05 — CHAT-03 (homepage AI assistant -> Google Gemini + public catalog knowledge)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run; no live call made —
+the API key was never visible to the assistant). Owner asked for the chatbot to use
+his Gemini key and to be able to tell everything. Provider switched from Anthropic to
+Gemini (generateContent, key sent in x-goog-api-key header). The bot now receives a
+cached (10 min) snapshot of PUBLIC data: live hotels (price, check-in/out,
+cancellation policy, house rules), packages, destinations, active offers, support
+contacts, refer-and-earn and refund basics. Scope is deliberately public-only: NO
+bookings/payments/invoices/user/vendor/coupon/admin data (unauthenticated surface,
+prompt-injection risk). Logged-in booking questions still go to My Bookings (CHAT-01).
+New: src/lib/ai/site-knowledge.ts. Modified: src/app/actions/ai-assistant.actions.ts,
+src/lib/config/env.ts, src/types/env.d.ts, .env.example.
+RULE 29: new optional env vars GEMINI_API_KEY, GEMINI_MODEL (default gemini-2.5-flash).
+To activate: add GEMINI_API_KEY in Vercel (Production) and redeploy. If replies error,
+check Vercel logs for "[AI ASSISTANT] Gemini API error" and set GEMINI_MODEL to a model
+name shown in Google AI Studio. ANTHROPIC_API_KEY is no longer used by this action.
+
+2026-10-05 — REFERRAL-01 (Refer & Earn)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run — no node_modules
+in sandbox; a project-wide tsc diff against the original showed no new errors
+other than missing-dependency noise). Migration 028 NOT run in production.
+Owner decisions (chat): referrer reward = % discount coupon; reward given on
+the friend's FIRST PAID booking (Cashfree webhook success); the new friend also
+gets a % coupon.
+RULE 15 audit: coupons already exist (COUPON-01) -> reused, not duplicated. Two
+additive columns on public.coupons: owner_user_id (only that public.users.id may
+redeem) and is_single_use. Existing coupons unchanged (null/false).
+Flow: /referral shows the user's code (SB + 6 chars, created lazily) and link
+/register?ref=CODE -> registerAction records the referral and issues the
+friend's coupon (email signup only) -> Cashfree webhook, right after
+confirmBooking(), calls grantReferralRewardForPaidBooking(): atomic
+signed_up->rewarded claim, then issues the referrer's coupon (claim is reverted
+if coupon creation fails so the next paid booking retries).
+Created: src/db/sql/028_referral01_referrals.sql, src/lib/referrals/referral-config.ts,
+src/lib/referrals/referral-service.ts, src/lib/repositories/referral.repository.ts,
+src/app/actions/referral.actions.ts, src/app/referral/page.tsx,
+src/components/referral/ReferralShare.tsx.
+Modified: src/lib/repositories/coupon.repository.ts, src/app/actions/coupon.actions.ts
+(resolveCouponForBooking gained userId; owner + single-use checks),
+src/app/actions/booking.actions.ts (passes customerId), src/actions/auth.ts,
+src/app/(auth)/register/page.tsx, src/app/api/public/cashfree/webhook/route.ts,
+src/components/layout/ProfileMenu.tsx (Refer & Earn link).
+RULE 29: no new env var (uses NEXT_PUBLIC_SITE_URL / NEXT_PUBLIC_APP_URL).
+RULE 24: both new tables RLS-enabled, no policy, service-role only.
+Defaults NOT confirmed by owner (all in referral-config.ts): 10% / 10%, cap
+INR 1000 each, coupon valid 90 days.
+Known gaps: Google signup does not carry ?ref (OAuth); no email/notification to
+the referrer when rewarded; a friend who books, pays, then cancels/refunds keeps
+the referrer's reward (no clawback); two unpaid pending bookings carrying the
+same single-use coupon could both be paid (no hard lock at booking time).
+
 2026-10-05 — LAUNCH-02 (CAPTCHA + refund timeline + grievance officer block)
 
 Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run; only a
