@@ -45,6 +45,21 @@ const MODEL_CANDIDATES: string[] = Array.from(
 
 let workingModel: string | null = null;
 
+// 503 (model overloaded), 500, 504 are temporary Google-side errors:
+// retry the same model once after a short pause, then move on to the
+// next model. 404 (model retired) and 429 (per-model quota) skip
+// straight to the next model. Anything else (400/401/403 = bad
+// request / bad key) would fail on every model, so we stop.
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
+const SKIP_MODEL_STATUS = new Set([404, 429]);
+const ATTEMPTS_PER_MODEL = 2;
+const RETRY_DELAY_MS = 800;
+const REQUEST_TIMEOUT_MS = 12_000;
+// Overall cap so the server action never outlives the hosting timeout.
+const TOTAL_BUDGET_MS = 25_000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_HISTORY_MESSAGES = 12; // keeps token usage bounded per turn
 
@@ -132,40 +147,73 @@ export async function askHomeAssistant(
       : MODEL_CANDIDATES;
 
     let response: Response | null = null;
+    let lastStatus = 0;
+    const startedAt = Date.now();
 
-    for (const model of modelsToTry) {
-      const attempt = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // Header (not ?key=) so the key never lands in URLs/logs.
-            'x-goog-api-key': GEMINI_API_KEY,
-          },
-          body: requestBody,
+    modelLoop: for (const model of modelsToTry) {
+      for (let attemptNo = 1; attemptNo <= ATTEMPTS_PER_MODEL; attemptNo++) {
+        if (Date.now() - startedAt > TOTAL_BUDGET_MS) break modelLoop;
+
+        let attempt: Response;
+        try {
+          attempt = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // Header (not ?key=) so the key never lands in URLs/logs.
+                'x-goog-api-key': GEMINI_API_KEY,
+              },
+              body: requestBody,
+              signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+            }
+          );
+        } catch (err) {
+          // Network error / timeout: treat like a temporary failure.
+          lastStatus = 0;
+          console.error(`[AI ASSISTANT] Gemini request failed model=${model}`, err);
+          if (attemptNo < ATTEMPTS_PER_MODEL) {
+            await sleep(RETRY_DELAY_MS);
+            continue;
+          }
+          continue modelLoop;
         }
-      );
 
-      if (attempt.ok) {
-        workingModel = model;
-        response = attempt;
-        break;
+        if (attempt.ok) {
+          workingModel = model;
+          response = attempt;
+          break modelLoop;
+        }
+
+        lastStatus = attempt.status;
+        console.error(
+          `[AI ASSISTANT] Gemini API error model=${model} status=${attempt.status} attempt=${attemptNo}`,
+          await attempt.text()
+        );
+
+        if (RETRYABLE_STATUS.has(attempt.status)) {
+          if (attemptNo < ATTEMPTS_PER_MODEL) {
+            await sleep(RETRY_DELAY_MS);
+            continue; // retry same model once
+          }
+          continue modelLoop; // still busy -> next model
+        }
+
+        if (SKIP_MODEL_STATUS.has(attempt.status)) continue modelLoop;
+
+        // 400/401/403 etc: would fail on every model -> stop.
+        break modelLoop;
       }
-
-      console.error(
-        `[AI ASSISTANT] Gemini API error model=${model} status=${attempt.status}`,
-        await attempt.text()
-      );
-
-      // Only "model not found / retired" moves on to the next model.
-      // A bad key (400/401/403) or rate limit (429) would fail on every
-      // model, so stop immediately.
-      if (attempt.status !== 404) break;
     }
 
     if (!response) {
-      throw new Error('The assistant is having trouble responding right now. Please try again in a moment.');
+      const busy = lastStatus === 0 || RETRYABLE_STATUS.has(lastStatus) || lastStatus === 429;
+      throw new Error(
+        busy
+          ? 'The assistant is very busy right now. Please try again in a few seconds.'
+          : 'The assistant is having trouble responding right now. Please try again in a moment.'
+      );
     }
 
     const data = (await response.json()) as GeminiResponse;
