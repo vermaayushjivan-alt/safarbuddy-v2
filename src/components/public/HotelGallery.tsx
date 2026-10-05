@@ -16,6 +16,8 @@ interface HotelGalleryProps {
   images: { id: string; publicUrl: string }[];
   alt: string;
   shareTitle: string;
+  /** Where the back button goes when there is no browser history. */
+  fallbackHref?: string;
 }
 
 function BackArrow() {
@@ -26,7 +28,12 @@ function BackArrow() {
   );
 }
 
-export default function HotelGallery({ images, alt, shareTitle }: HotelGalleryProps) {
+export default function HotelGallery({
+  images,
+  alt,
+  shareTitle,
+  fallbackHref = '/hotels',
+}: HotelGalleryProps) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -62,7 +69,7 @@ export default function HotelGallery({ images, alt, shareTitle }: HotelGalleryPr
 
   function handleBack() {
     if (window.history.length > 1) router.back();
-    else router.push('/hotels');
+    else router.push(fallbackHref);
   }
 
   async function handleShare() {
