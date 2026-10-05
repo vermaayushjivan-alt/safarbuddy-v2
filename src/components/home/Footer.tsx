@@ -11,8 +11,16 @@ import {
   footerContact,
   footerContent,
   popularSearches,
-  footerAppLinks,
 } from "@/data/home";
+
+// Only render links that point somewhere real. Entries with href "#"
+// are placeholders for features that do not exist yet (see DOC_DEBT.md).
+const isLive = (href: string) => href !== "#";
+const liveSocials = footerSocialLinks.filter((s) => isLive(s.href));
+const liveSearches = popularSearches.filter((s) => isLive(s.href));
+const liveColumns = footerLinkColumns
+  .map((c) => ({ ...c, links: c.links.filter((l) => isLive(l.href)) }))
+  .filter((c) => c.links.length > 0);
 
 export default function Footer() {
   function scrollToTop() {
@@ -21,6 +29,8 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-deep/10 bg-deep text-cream">
+      {liveSearches.length > 0 && (
+        <>
       {/* Popular searches (SEO footer) */}
       <div className="mx-auto max-w-7xl px-6 py-8">
         <h3 className="font-heading text-[12px] font-semibold uppercase tracking-wide text-cream/50">
@@ -30,7 +40,7 @@ export default function Footer() {
           aria-label={footerContent.popularSearchesLabel}
           className="mt-3 flex flex-wrap gap-x-5 gap-y-2"
         >
-          {popularSearches.map((item) => (
+          {liveSearches.map((item) => (
             <Link
               key={item.label}
               href={item.href}
@@ -43,6 +53,9 @@ export default function Footer() {
       </div>
 
       <div className="mx-auto h-px max-w-7xl bg-cream/10" />
+
+        </>
+      )}
 
       {/* Trust badges */}
       <div className="mx-auto max-w-7xl px-6 py-8">
@@ -110,8 +123,9 @@ export default function Footer() {
               </span>
             </address>
 
+            {liveSocials.length > 0 && (
             <ul className="mt-5 flex items-center gap-3">
-              {footerSocialLinks.map((social) => (
+              {liveSocials.map((social) => (
                 <li key={social.id}>
                   <a
                     href={social.href}
@@ -123,10 +137,11 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+            )}
           </div>
 
           {/* Columns 2-5: link groups */}
-          {footerLinkColumns.map((column) => (
+          {liveColumns.map((column) => (
             <nav key={column.id} aria-label={column.title}>
               <h3 className="font-heading text-[13px] font-semibold text-cream">
                 {column.title}
@@ -150,7 +165,7 @@ export default function Footer() {
 
       <div className="mx-auto h-px max-w-7xl bg-cream/10" />
 
-      {/* Payments + app links */}
+      {/* Payments */}
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -170,21 +185,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-cream/45 sm:text-right">
-              Get the app
-            </p>
-            <div className="mt-3 flex gap-2.5 sm:justify-end">
-              {footerAppLinks.map((badge) => (
-                <span
-                  key={badge.id}
-                  className="rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-medium text-cream/80"
-                >
-                  {badge.label}
-                </span>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
