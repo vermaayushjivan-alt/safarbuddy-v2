@@ -6,6 +6,7 @@
 // project-owner requirement (a small hotel owner shouldn't have to
 // navigate between separate pages/sections to list a property).
 
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -139,6 +140,8 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
       : emptyForm
   );
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [success, setSuccess] = useState(false);
   const [accountWasCreated, setAccountWasCreated] = useState(false);
   const [sameAsOwnerContact, setSameAsOwnerContact] = useState(true);
@@ -286,11 +289,14 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
           panFile: kycFiles.pan,
           passbookFile: kycFiles.passbook,
         },
-        roomImages
+        roomImages,
+        captchaToken
       );
 
       if (!result.success) {
         setError(result.error);
+        // Turnstile tokens are single-use — force a fresh challenge.
+        setCaptchaReset((n) => n + 1);
         return;
       }
 
@@ -874,6 +880,8 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
           />
         </div>
       </Section>
+
+      <TurnstileWidget onToken={setCaptchaToken} resetKey={captchaReset} />
 
       <button
         type="submit"
