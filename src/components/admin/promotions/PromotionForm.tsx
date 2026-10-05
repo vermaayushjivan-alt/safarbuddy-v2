@@ -19,9 +19,9 @@ interface PromotionFormProps {
 }
 
 const SLOT_LABELS: Record<(typeof PROMOTION_SLOT_VALUES)[number], string> = {
-  after_hero: "After Hero / before Offers",
-  between_destinations_trending: "Between Destinations and Trending",
-  between_packages_testimonials: "Between Packages and Testimonials",
+  after_hero: "Banner 1 — Top (after search/hero, before Offers)",
+  between_destinations_trending: "Banner 2 — Middle (between Destinations and Trending Hotels)",
+  between_packages_testimonials: "Banner 3 — Bottom (after Holiday Packages, before footer)",
 };
 
 function PromotionForm({ mode, promotion }: PromotionFormProps) {
@@ -164,7 +164,7 @@ function PromotionForm({ mode, promotion }: PromotionFormProps) {
         <p className="mt-1 text-[12px] text-ink/45">
           {isUploading
             ? "Uploading..."
-            : "jpg, jpeg, png, or webp. Max 5MB. Wide images (e.g. 1200×500) look best in the big banner slot."}
+            : "jpg, jpeg, png, or webp. Max 5MB. This image IS the ad — put the headline and button (e.g. \"Apply Now\") inside it. Use ~1200×600. Keep all banners in one slot the same size."}
         </p>
         <input
           type="text"
