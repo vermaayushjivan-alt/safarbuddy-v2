@@ -28,7 +28,7 @@ export default function Footer() {
   }
 
   return (
-    <footer className="border-t border-deep/10 bg-deep text-cream">
+    <footer className="hidden border-t border-deep/10 bg-deep text-cream lg:block">
       {liveSearches.length > 0 && (
         <>
       {/* Popular searches (SEO footer) */}
