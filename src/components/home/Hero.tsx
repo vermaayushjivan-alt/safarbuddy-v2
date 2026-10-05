@@ -1,3 +1,4 @@
+// ROOT PATH: src/components/home/Hero.tsx
 "use client";
 
 // HOME-HOTEL-SEARCH-01: Hotels is now the primary/default tab and the
