@@ -8,6 +8,10 @@ const PUBLIC_ROUTES = [
   "/forgot-password",
   "/auth/callback",
 
+  // MOBILE-01: PWA manifest must be readable without a session,
+  // otherwise logged-out visitors get redirected to /login for it.
+  "/manifest.webmanifest",
+
   // AUTH-06 Public Marketing Pages
   "/hotels",
   "/destinations",
