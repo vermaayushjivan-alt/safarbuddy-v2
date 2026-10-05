@@ -4,6 +4,41 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-05 — MOBILE-02 (side menu replaces mobile footer, language + settings)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run — no node_modules in
+sandbox; not tested on a real phone). Additive UI only: no DB, auth, booking or payment
+logic changed. On phones/tablets (< lg): website footer hidden (hidden lg:block; desktop
+footer unchanged), hamburger opens a slide-in side menu (user card, Explore, My Account
+with role-aware links via getMyNavAccess, Settings: language English/Hindi + Install app
++ Share, Help & Support, About & Legal, Logout). Bottom bar now has a raised centre
+Search button (hotels). Language covers the app shell only (tabs + menu) — page content
+is NOT translated; preference saved in localStorage key sb_lang.
+New: src/components/layout/MobileDrawer.tsx, src/components/layout/nav-icons.tsx,
+src/contexts/LanguageContext.tsx, src/lib/i18n/messages.ts. Modified:
+src/components/layout/MobileBottomNav.tsx, src/components/layout/ProfileMenu.tsx
+(getInitials exported), src/components/home/Navbar.tsx, src/components/home/Footer.tsx,
+src/components/providers/RootProvider.tsx, middleware.ts (/offers made public: the
+page has no auth check and the footer/menu link to it, but guests were redirected to
+login).
+
+2026-10-05 — MOBILE-01 (app-style mobile experience)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run — no node_modules in
+sandbox; not tested on a real phone). Additive only: no routes, DB, auth or
+business logic changed. New: src/components/layout/MobileBottomNav.tsx (bottom tab
+bar Home/Hotels/Packages/Bookings/Account, phones+tablets only via lg:hidden,
+hidden on admin/vendor/hotel-owner/travel-agent/auth/invoice pages),
+src/app/manifest.ts (installable PWA, standalone). Modified: src/app/layout.tsx
+(viewport export, viewport-fit=cover, themeColor, appleWebApp, renders the tab bar),
+src/app/globals.css (tap highlight, touch-action, 16px inputs on phones to stop iOS
+focus-zoom, hover-lift only on hover devices), src/components/home/Navbar.tsx
+(safe-area top padding), src/components/home/HomeAiChatWidget.tsx (lifted above tab
+bar on mobile), middleware.ts (/manifest.webmanifest made public).
+NOTE: public/icon-192.png and public/icon-512.png were 1-byte (empty) files in the
+uploaded project; manifest uses the valid icon-192-2.png / icon-512-2.png instead.
+layout.tsx still references the empty icon-192.png / icon-512.png.
+
 2026-10-05 — CHAT-03 (homepage AI assistant -> Google Gemini + public catalog knowledge)
 
 Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run; no live call made —
