@@ -16,6 +16,7 @@ const PUBLIC_ROUTES = [
   "/hotels",
   "/destinations",
   "/packages",
+  "/offers",
   "/about",
   "/contact",
 
