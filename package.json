@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "safarbuddy-v2",
   "private": true,
   "scripts": {
     "dev": "next dev",
