@@ -23,8 +23,6 @@ import {
   trackPromotionImpression,
   trackPromotionClick,
 } from '@/app/actions/promotion.actions';
-import { demoAds, SHOW_HOME_DEMO } from '@/data/home-demo';
-import DemoAdCarousel from '@/components/home/DemoAdCarousel';
 import type {
   PromotionRecord,
   PromotionSlot,
@@ -70,13 +68,11 @@ export default function PromoBanner({ slot }: { slot: PromotionSlot }) {
 
   if (!promotions) return null;
 
-  // HOME-REDESIGN-01: no real campaign in this slot yet -> show a SAMPLE ad
-  // so the layout looks full. Real promotions (admin) always win; set
-  // SHOW_HOME_DEMO=false in src/data/home-demo.ts to render nothing instead.
-  if (promotions.length === 0) {
-    if (!SHOW_HOME_DEMO) return null;
-    return <DemoAdCarousel ads={demoAds[slot]} />;
-  }
+  // LAUNCH-04: a slot with no active promotion renders nothing (no sample /
+  // fake ad). The demo carousel it used to fall back to was never committed
+  // (src/components/home/DemoAdCarousel.tsx is missing -> Vercel build
+  // failed) and showed invented content on a live site.
+  if (promotions.length === 0) return null;
 
   const current = promotions[activeIndex];
 
