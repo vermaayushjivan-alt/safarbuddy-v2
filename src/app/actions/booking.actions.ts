@@ -575,6 +575,9 @@ export async function createBooking(
       code: parsed.coupon_code,
       vendorId,
       subtotal: priceSnapshot,
+      // REFERRAL-01: lets a personal/single-use coupon be checked
+      // against the actual booking customer (null for a guest).
+      userId: customerId,
     });
 
     if (!couponResult.valid) {
