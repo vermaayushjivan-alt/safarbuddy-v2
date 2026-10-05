@@ -49,6 +49,8 @@ declare namespace NodeJS {
 
     // AI
     OPENAI_API_KEY?: string;
+    GEMINI_API_KEY?: string;
+    GEMINI_MODEL?: string;
 
     // Maps
     NEXT_PUBLIC_GOOGLE_MAPS_KEY?: string;
