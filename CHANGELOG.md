@@ -4,6 +4,46 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-06 — LAUNCH-04 (Vercel build fix: missing demo components)
+
+Status: CODE COMPLETE, NOT VERIFIED (cannot run next build in the sandbox).
+Vercel build (commit 8d26b6c) failed: PromoBanner.tsx imported
+@/components/home/DemoAdCarousel, and CouponStrip.tsx + PartnersStrip.tsx
+imported @/components/home/SceneArt — neither file was ever committed
+(HOME-REDESIGN-01 was only partly pushed; CouponStrip also read a `scene`
+field that DemoCoupon in src/data/home-demo.ts does not have, which would
+have been the next build error). Fix: PromoBanner no longer falls back to a
+demo ad (empty slot renders nothing); CouponStrip and PartnersStrip removed
+from src/app/page.tsx and deleted; SHOW_HOME_DEMO set to false (the demo
+data invented coupon codes like SAFAR10 and partner names — must not be
+live). A full import-resolution scan of src/ now reports 0 missing modules.
+Also: globals.css — the Google Fonts @import moved above
+@import "tailwindcss" (a late @import is ignored by browsers, so Fraunces /
+Space Grotesk were likely not loading in production).
+
+
+2026-10-05 — LAUNCH-03 (404 / dead-link fixes, mobile-first)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run — no
+node_modules in sandbox; only a syntax-level parse). Owner sign-off in chat.
+Found by a static link audit (every internal href vs the real route list):
+ 1. /offers/[id] did not exist — "Book now" on every offer card (homepage
+    Offers strip + /offers) led to a 404. NEW src/app/offers/[id]/page.tsx
+    (uses existing getActiveOfferWithHotels + HotelGrid; non-uuid id -> 404;
+    empty-hotels state; no extra sticky bar — MobileBottomNav owns the
+    bottom edge on phones). middleware.ts: "/offers/" prefix is now public.
+ 2. Navbar links Flights/Bus/Train/Holiday/Visa/Forex/Offers were all "#".
+    Now only real pages: Hotels, Packages, Destinations, Offers.
+ 3. /destinations/[slug] was a dead end (no link to that destination's
+    hotels). Now: full-width "Hotels in {name}" button -> /hotels?city=name,
+    plus a "Stays in {name}" preview (4 hotels via searchPublishedHotels,
+    failure-tolerant) and an empty state.
+Mobile-first tweaks on the touched pages (px-4 on phones, pb-24 to clear
+the bottom tab bar): offers/[id], destinations/[slug], /offers, Navbar.
+Not changed: Hero tabs still show a "coming soon" message for
+Flights/Bus/Train/Holiday/Visa/Forex (not dead, but unpolished).
+
+
 2026-10-05 — HOME-REDESIGN-01 (mobile-first homepage, demo ads/sponsors) + ROOM page restyle
 
 Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run). No DB/auth/booking/payment change.
