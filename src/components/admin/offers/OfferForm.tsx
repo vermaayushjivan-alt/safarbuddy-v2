@@ -1,5 +1,6 @@
 "use client";
 
+import OfferMedia from "@/components/public/OfferMedia";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -206,16 +207,17 @@ function OfferForm({
 
       <Field label="Banner Image">
         {form.banner_image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={form.banner_image}
-            alt="Offer banner preview"
-            className="mb-2 h-24 w-full rounded-xl border border-deep/15 object-cover"
-          />
+          <div className="relative mb-2 h-24 w-full overflow-hidden rounded-xl border border-deep/15">
+            <OfferMedia
+              src={form.banner_image}
+              alt="Offer banner preview"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          </div>
         ) : null}
         <input
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp"
+          accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm"
           onChange={handleImageUpload}
           disabled={isUploading}
           className="block w-full text-[13px] text-ink/70"
@@ -223,7 +225,7 @@ function OfferForm({
         <p className="mt-1 text-[12px] text-ink/45">
           {isUploading
             ? "Uploading..."
-            : "jpg, jpeg, png, or webp. Max 5MB. Wide images look best in the card's top banner."}
+            : "Image (jpg, png, webp) or a short looping video (mp4 / webm, no sound, 5-8 sec). Max 5MB. Wide banners look best."}
         </p>
         <input
           type="text"
