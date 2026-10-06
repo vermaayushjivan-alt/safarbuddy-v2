@@ -18,6 +18,7 @@
 // a different spot. Dropped both rather than fake them; everything
 // else (banner height, card width, spacing, buttons) is unchanged.
 
+import OfferMedia from "@/components/public/OfferMedia";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Tag, Clock, ArrowRight } from "lucide-react";
@@ -146,8 +147,7 @@ export default function Offers() {
                   } p-4`}
                 >
                   {o.banner_image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <OfferMedia
                       src={o.banner_image}
                       alt={o.title}
                       className="absolute inset-0 h-full w-full object-cover"
