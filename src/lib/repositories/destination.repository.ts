@@ -31,16 +31,82 @@ export class DestinationRepository extends BaseRepository<DestinationRecord> {
 
   // --- HOME-03 ---
 
+  // DEST-IMG-01: the destinations table has no thumbnail/banner columns.
+  // Both are filled here, at read time, from the destination's primary
+  // photo in destination_images (same approach as hotels). If the table
+  // is missing or a query fails, the destinations are returned unchanged
+  // (thumbnail/banner null -> gradient fallback) so public pages never
+  // break because of photos.
+  private async withImages(
+    rows: DestinationRecord[]
+  ): Promise<DestinationRecord[]> {
+    if (rows.length === 0) return rows;
+
+    const { data, error } = await this.supabase
+      .from('destination_images')
+      .select('destination_id, storage_path, is_primary, sort_order')
+      .in('destination_id', rows.map((row) => row.id))
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      console.error('[destinations] withImages failed', error.message);
+      return rows.map((row) => ({
+        ...row,
+        thumbnail: row.thumbnail ?? null,
+        banner: row.banner ?? null,
+      }));
+    }
+
+    const pathByDestination = new Map<string, string>();
+    for (const img of (data ?? []) as {
+      destination_id: string;
+      storage_path: string;
+      is_primary: boolean;
+    }[]) {
+      // First image by sort order wins, unless a primary image exists.
+      if (!pathByDestination.has(img.destination_id) || img.is_primary) {
+        pathByDestination.set(img.destination_id, img.storage_path);
+      }
+    }
+
+    return rows.map((row) => {
+      const storagePath = pathByDestination.get(row.id);
+      if (!storagePath) {
+        return {
+          ...row,
+          thumbnail: row.thumbnail ?? null,
+          banner: row.banner ?? null,
+        };
+      }
+
+      const normalizedPath = storagePath.startsWith('destination-images/')
+        ? storagePath.slice('destination-images/'.length)
+        : storagePath;
+
+      const { data: publicUrlData } = this.supabase.storage
+        .from('destination-images')
+        .getPublicUrl(normalizedPath);
+
+      return {
+        ...row,
+        thumbnail: publicUrlData.publicUrl,
+        banner: publicUrlData.publicUrl,
+      };
+    });
+  }
+
   async getFeaturedDestinations(
     limit: number = 8
   ): Promise<DestinationRecord[]> {
-    return this.findMany({
+    const rows = await this.findMany({
       filters: [
         { column: 'is_featured', operator: 'eq', value: true },
       ],
       sort: { column: 'name', ascending: true },
       pagination: { page: 1, limit },
     });
+
+    return this.withImages(rows);
   }
 
 
@@ -77,7 +143,8 @@ export class DestinationRepository extends BaseRepository<DestinationRecord> {
       );
     }
 
-    return data as DestinationRecord;
+    const [withImage] = await this.withImages([data as DestinationRecord]);
+    return withImage;
   }
 
 
@@ -87,10 +154,12 @@ export class DestinationRepository extends BaseRepository<DestinationRecord> {
     page: number = 1,
     limit: number = 20
   ) {
-    return this.findWithPagination({
+    const result = await this.findWithPagination({
       sort: { column: 'created_at', ascending: false },
       pagination: { page, limit },
     });
+
+    return { ...result, data: await this.withImages(result.data) };
   }
 
 
