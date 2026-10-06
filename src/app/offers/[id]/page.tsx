@@ -9,6 +9,8 @@ import { HotelGrid } from "@/components/public/HotelGrid";
 import { formatValidTill } from "@/components/public/OfferGrid";
 import { getActiveOfferWithHotels } from "@/app/actions/offer.actions";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
+import OfferMedia from "@/components/public/OfferMedia";
+import { isVideoUrl } from "@/lib/utils/media";
 
 // LAUNCH-03 — public detail page for /offers/[id]. Every "Book now" on the
 // homepage Offers strip and on /offers already linked here, but the page
@@ -59,7 +61,10 @@ export async function generateMetadata({
       url: absoluteUrl(path),
       siteName: SITE_NAME,
       type: "website",
-      images: offer.banner_image ? [{ url: offer.banner_image }] : undefined,
+      images:
+        offer.banner_image && !isVideoUrl(offer.banner_image)
+          ? [{ url: offer.banner_image }]
+          : undefined,
     },
   };
 }
@@ -96,7 +101,13 @@ export default async function OfferDetailPage({
 
         {/* Banner */}
         <div className="relative mt-2 aspect-[16/10] overflow-hidden rounded-2xl sm:aspect-[21/9]">
-          {hasImage ? (
+          {hasImage && isVideoUrl(offer.banner_image) ? (
+            <OfferMedia
+              src={offer.banner_image as string}
+              alt={offer.title}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : hasImage ? (
             <Image
               src={offer.banner_image as string}
               alt={offer.title}
