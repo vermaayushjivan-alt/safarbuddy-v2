@@ -1,4 +1,3 @@
-import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -6,6 +5,7 @@ import { ArrowRight, MapPin } from "lucide-react";
 import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { HotelGrid } from "@/components/public/HotelGrid";
+import { SafeImage } from "@/components/public/SafeImage";
 import { getDestinationBySlug } from "@/app/actions/destination.actions";
 import { searchPublishedHotels } from "@/app/actions/hotel.actions";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
@@ -26,7 +26,12 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const destination = await getDestinationBySlug(slug);
+  let destination = null;
+  try {
+    destination = await getDestinationBySlug(slug);
+  } catch (error) {
+    console.error("[destinations/[slug]] metadata lookup failed", error);
+  }
 
   if (!destination) {
     return { title: `Destination not found | ${SITE_NAME}` };
@@ -74,6 +79,8 @@ export default async function DestinationDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  // Errors here are rethrown to the route's error.tsx, which now shows
+  // the real message instead of a blank "Something went wrong".
   const destination = await getDestinationBySlug(slug);
 
   if (!destination) {
@@ -152,18 +159,12 @@ export default async function DestinationDetailPage({
 
       <section className="mx-auto max-w-5xl px-4 pb-24 pt-4 sm:px-6 sm:py-12 lg:pb-12">
         <div className="relative h-56 overflow-hidden rounded-2xl sm:h-96">
-          {hasImage ? (
-            <Image
-              src={heroImage as string}
-              alt={destination.name}
-              fill
-              sizes="(max-width: 1024px) 100vw, 960px"
-              className="object-cover"
-              priority
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-orange to-orange-2" aria-hidden />
-          )}
+          <SafeImage
+            src={heroImage}
+            alt={destination.name}
+            sizes="(max-width: 1024px) 100vw, 960px"
+            priority
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/0 to-black/0" />
 
           <div className="absolute bottom-4 left-4 right-4 text-white sm:bottom-5 sm:left-6 sm:right-6">
