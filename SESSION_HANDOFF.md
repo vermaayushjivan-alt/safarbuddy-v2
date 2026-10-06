@@ -4,6 +4,22 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+LAUNCH-06 (2026-10-06) — restored src/app/admin/offers/[id]/edit/page.tsx (it
+had been overwritten by the public offer-detail page; see CHANGELOG).
+IMPORTANT: make sure BOTH files exist in the repo: the admin edit page above
+AND src/app/offers/[id]/page.tsx (public). Lesson: always check the
+"ROOT PATH:" header before pasting a file. Functional check NOT DONE:
+admin -> Offers -> Edit opens the form with the saved banner and hotels.
+
+
+LAUNCH-05 (2026-10-06) — video banners for offers (see CHANGELOG). Owner must
+run migration 029 in Supabase before uploading a video. Functional check
+NOT DONE: upload a ~5MB mp4 in /admin/offers, confirm it autoplays muted on
+a real phone (home strip, /offers, /offers/[id]). Also: owner reported
+/offers/[id] still 404 — cause is that no deploy containing that page had
+succeeded yet (the Vercel build was red: LAUNCH-04). Re-test after a green build.
+
+
 LAUNCH-04 (2026-10-06) — Vercel build was red because two HOME-REDESIGN-01
 components (DemoAdCarousel, SceneArt) were never committed. Removed the
 demo-only homepage pieces instead of recreating them (see CHANGELOG).
