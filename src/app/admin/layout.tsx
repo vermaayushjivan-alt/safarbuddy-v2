@@ -32,5 +32,8 @@ export default async function AdminLayout({
     throw err;
   }
 
-  return <>{children}</>;
+  // ADMIN-MOBILE-02: `admin-root` scopes the phone-only fixes in
+  // globals.css (scrolling tables, sticky Actions column, stacked forms)
+  // to the admin area, so no public page is affected.
+  return <div className="admin-root">{children}</div>;
 }
