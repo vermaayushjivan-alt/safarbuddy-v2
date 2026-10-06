@@ -4,6 +4,58 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-06 — DEST-IMG-01 (destination photos: table missing + never reached the site)
+
+Status: CODE COMPLETE, NOT VERIFIED. Migration 030 NOT YET RUN. Admin > Destinations >
+Images showed "An error occurred in the Server Components render". Live check
+(information_schema): public.destination_images did NOT exist; bucket destination-images
+existed; destinations has NO thumbnail/banner columns. So (1) the images page failed on load,
+and (2) even uploaded photos could never reach the homepage circles/cards or the
+/destinations pages (they read destination.thumbnail / .banner). Fixes: NEW
+src/db/sql/030_destination_images.sql (table + RLS public-read/admin-all via is_admin() +
+bucket public + admin storage insert/delete policies); destination.repository.ts fills
+thumbnail AND banner at read time from the primary image (withImages(): one query, applied
+in getFeaturedDestinations / getAllDestinations / getDestinationBySlug; any failure returns
+the rows unchanged so public pages never break); destination.actions.ts image actions now
+use runAction (same as PACKAGE-IMG-01; they threw raw errors, hiding the real message in
+production) and DestinationImageManager.tsx unwraps ActionResult. No new destinations
+columns. Banner and thumbnail are the same photo (only one image set exists). A separate
+vertical "poster"/story image would need a new column (not built).
+Also: 028 and 029 were run and verified by the owner on 2026-10-06.
+
+2026-10-06 — HOME-REDESIGN-02 Phase 2 / Step 01 (destinations: story circles + portrait cards)
+
+Status: CODE COMPLETE, NOT VERIFIED on a phone (tsc diff clean apart from the
+no-node_modules noise; build not run). One file: src/components/home/Destinations.tsx.
+Phones (<sm): round "story" circles (gradient ring, name under) + swipeable rail of
+portrait 3:4 "Where to go" cards + "View all destinations" button. sm+: same 2/4-column
+card grid as before. Data unchanged (getFeaturedDestinations()). REMOVED the made-up
+star rating, "Starting from ₹…" price and "… booked" count (they were cycled from a
+hardcoded array, no such columns exist — HOMEPAGE_BIBLE §7). Each image has its own
+broken-image fallback gradient. Remaining Phase 2 steps: 02 date chips (Tonight /
+Weekend / Next week) in HotelSearchBar (inspect its props first), 03 recently viewed
+hotels (localStorage), 04 polish Offers/Trending cards for phones.
+
+2026-10-06 — ADMIN-MOBILE-02 (admin panel on phones — CSS only, 2 files)
+
+Status: CODE COMPLETE, NOT VERIFIED on a real phone. Cause of cut-off Edit/Delete
+buttons: every admin list table sat inside `overflow-hidden`, so on a phone the Actions
+column was clipped. Fix: src/app/admin/layout.tsx wraps the admin area in
+`<div className="admin-root">`; src/app/globals.css has a phone-only (<640px) block
+scoped to `.admin-root`: table wrappers scroll sideways (min-width 640px), the last
+(Actions) column is sticky on the right, page padding shrinks, header button groups
+wrap, 2/3-column grids become 1 column, tall modals start at the top. Needs CSS
+`:has()` (Android Chrome 105+). Desktop and public pages untouched. (A 43-file
+class-by-class version was prepared first and deliberately NOT adopted.)
+
+2026-10-06 — CHAT-03 follow-up (Gemini model fallback)
+
+Google answered 404 "gemini-2.5-flash is no longer available to new users". In
+src/app/actions/ai-assistant.actions.ts the model list is now GEMINI_MODEL (if set),
+then gemini-3.8-flash, 3.6, 3.5, 3-flash-preview; only a 404 moves to the next model,
+the working one is remembered, and each failure is logged as
+"[AI ASSISTANT] Gemini API error model=… status=…". Not verified live yet.
+
 2026-10-06 — LAUNCH-06 (admin "Edit offer" opened a booking page)
 
 Root cause: src/app/admin/offers/[id]/edit/page.tsx contained the PUBLIC
