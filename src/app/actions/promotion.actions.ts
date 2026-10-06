@@ -72,6 +72,9 @@ const PROMOTION_LOGO_ALLOWED_TYPES = [
   'image/jpg',
   'image/png',
   'image/webp',
+  // PROMO-03: short looping banner videos (see OfferMedia / PromoBanner)
+  'video/mp4',
+  'video/webm',
 ];
 
 const PROMOTION_LOGO_MAX_SIZE_BYTES = 5 * 1024 * 1024;
@@ -85,6 +88,10 @@ function promotionLogoExtensionFromMimeType(mimeType: string): string {
       return 'png';
     case 'image/webp':
       return 'webp';
+    case 'video/mp4':
+      return 'mp4';
+    case 'video/webm':
+      return 'webm';
     default:
       return 'webp';
   }
@@ -97,11 +104,13 @@ export async function uploadPromotionLogoAdmin(
     await requireRole(['admin', 'super_admin']);
 
     if (!PROMOTION_LOGO_ALLOWED_TYPES.includes(file.type)) {
-      throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+      throw new Error(
+        'Only jpg, jpeg, png, webp images or mp4, webm videos are allowed.'
+      );
     }
 
     if (file.size > PROMOTION_LOGO_MAX_SIZE_BYTES) {
-      throw new Error('Image must be 5MB or smaller.');
+      throw new Error('File must be 5MB or smaller.');
     }
 
     // Service role, not the session client — an admin uploading a
