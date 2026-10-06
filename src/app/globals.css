@@ -196,3 +196,54 @@ body {
   .sb-drift,
   .sb-shine::after { animation: none; }
 }
+
+/* ADMIN-MOBILE-02 — admin panel on phones only (<640px); desktop untouched.
+   Scoped by .admin-root (set in src/app/admin/layout.tsx).
+   1. Table wrappers scroll sideways instead of clipping Edit/Delete.
+   2. The last column (Actions) stays pinned to the right edge.
+   3. Page padding, headers and 2/3-column grids fit a small screen. */
+@media (max-width: 639px) {
+  .admin-root div:has(> table) {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-root div > table {
+    min-width: 640px;
+  }
+  .admin-root div > table th:last-child,
+  .admin-root div > table td:last-child {
+    position: sticky;
+    right: 0;
+    white-space: nowrap;
+  }
+  .admin-root div > table td:last-child {
+    background: #fff;
+    box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.15);
+  }
+  .admin-root div > table th:last-child {
+    background: #e7eef7;
+    box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.15);
+  }
+  .admin-root .mx-auto.px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .admin-root .mx-auto.py-12 {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+  .admin-root .mb-8.flex.justify-between {
+    flex-wrap: wrap;
+  }
+  .admin-root .mb-8.flex.justify-between > div:last-child {
+    flex-wrap: wrap;
+  }
+  .admin-root .grid.grid-cols-2,
+  .admin-root .grid.grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-root .fixed.inset-0.overflow-y-auto {
+    align-items: flex-start;
+  }
+}
+
