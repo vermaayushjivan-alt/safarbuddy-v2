@@ -4,6 +4,23 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+DEST-IMG-01 (2026-10-06): destination_images table did not exist in the live DB -> admin images page error;
+destinations also has no thumbnail/banner columns. Run src/db/sql/030_destination_images.sql, then upload a photo in
+/admin/destinations/<id>/images and confirm it shows on the homepage destination circle/card and /destinations/<slug>.
+Files: src/db/sql/030_destination_images.sql, src/lib/repositories/destination.repository.ts,
+src/app/actions/destination.actions.ts, src/components/admin/destinations/DestinationImageManager.tsx.
+028 + 029 were run and verified (2026-10-06).
+
+HOME-REDESIGN-02 Phase 2 Step 01 + ADMIN-MOBILE-02 + CHAT-03 follow-up (2026-10-06) — see CHANGELOG.
+Files: src/components/home/Destinations.tsx (story circles + portrait cards); src/app/admin/layout.tsx
++ src/app/globals.css (admin phone CSS); src/app/actions/ai-assistant.actions.ts (Gemini model fallback).
+NOT VERIFIED: build/tsc/eslint never run; check "/" and /admin/hotels on a real phone; chatbot reply after
+GEMINI_API_KEY (+ optional GEMINI_MODEL) in Vercel and a redeploy.
+NEXT: Phase 2 Step 02 = quick date chips in HotelSearchBar (inspect its props first), then 03 recently
+viewed hotels, 04 Offers/Trending phone polish. Owner to-do: move 028_referral01_referrals.sql from the repo
+root into src/db/sql/ and run it, plus 029_offers_video_banner.sql, in Supabase. Biggest business risk still
+open: NO refund flow in code (refunds are manual, 7-day promise).
+
 LAUNCH-06 (2026-10-06) — restored src/app/admin/offers/[id]/edit/page.tsx (it
 had been overwritten by the public offer-detail page; see CHANGELOG).
 IMPORTANT: make sure BOTH files exist in the repo: the admin edit page above
