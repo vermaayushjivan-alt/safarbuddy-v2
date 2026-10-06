@@ -1,5 +1,6 @@
 
 // ROOT PATH: src/components/public/OfferGrid.tsx
+import OfferMedia from "@/components/public/OfferMedia";
 import Link from "next/link";
 import { Tag, Clock, ArrowRight } from "lucide-react";
 import type { OfferRecord } from "@/lib/repositories/offer.repository";
@@ -68,8 +69,7 @@ export function OfferGrid({ offers }: { offers: OfferRecord[] }) {
               }`}
             >
               {o.banner_image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <OfferMedia
                   src={o.banner_image}
                   alt={o.title}
                   className="absolute inset-0 h-full w-full object-cover"
