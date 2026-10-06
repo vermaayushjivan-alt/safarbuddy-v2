@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import OfferMedia from "@/components/public/OfferMedia";
 import { useRouter } from "next/navigation";
 import {
   createPromotionAdmin,
@@ -145,18 +146,19 @@ function PromotionForm({ mode, promotion }: PromotionFormProps) {
         />
       </Field>
 
-      <Field label="Logo / Banner Image">
+      <Field label="Banner Image / Looping Video">
         {form.logo_image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={form.logo_image}
-            alt="Logo preview"
-            className="mb-2 h-24 w-full rounded-xl border border-deep/15 object-cover"
-          />
+          <div className="mb-2 overflow-hidden rounded-xl border border-deep/15">
+            <OfferMedia
+              src={form.logo_image}
+              alt="Banner preview"
+              className="block h-auto max-h-48 w-full object-contain"
+            />
+          </div>
         ) : null}
         <input
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp"
+          accept="image/jpeg,image/jpg,image/png,image/webp,video/mp4,video/webm"
           onChange={handleLogoUpload}
           disabled={isUploading}
           className="block w-full text-[13px] text-ink/70"
@@ -164,11 +166,11 @@ function PromotionForm({ mode, promotion }: PromotionFormProps) {
         <p className="mt-1 text-[12px] text-ink/45">
           {isUploading
             ? "Uploading..."
-            : "jpg, jpeg, png, or webp. Max 5MB. This image IS the ad — put the headline and button (e.g. \"Apply Now\") inside it. Use ~1200×600. Keep all banners in one slot the same size."}
+            : "Image (jpg, png, webp) ya short looping video (mp4 / webm, bina sound, 5-8 sec). Max 5MB. Yeh image/video HI ad hai — headline aur button (e.g. \"Apply Now\") isi ke andar rakho. ~1200×600 use karo. Ek slot ke saare banners same size ke rakho."}
         </p>
         <input
           type="text"
-          placeholder="Or paste an image URL directly"
+          placeholder="Ya image / video (.mp4, .webm) ka URL yahan paste karo"
           value={form.logo_image ?? ""}
           onChange={(e) => handleChange("logo_image", e.target.value)}
           className={`${inputClass} mt-2`}
