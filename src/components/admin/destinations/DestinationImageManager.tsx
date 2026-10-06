@@ -21,16 +21,29 @@ export function DestinationImageManager({ destinationId }: DestinationImageManag
   const [isPending, startTransition] = useTransition();
 
   async function refresh() {
-    const data = await getDestinationImagesAdmin(destinationId);
-    setImages(data.sort((a, b) => a.sort_order - b.sort_order));
+    const result = await getDestinationImagesAdmin(destinationId);
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
+    setImages([...result.data].sort((a, b) => a.sort_order - b.sort_order));
   }
 
   useEffect(() => {
     let active = true;
     async function load() {
       try {
-        const data = await getDestinationImagesAdmin(destinationId);
-        if (active) setImages(data.sort((a, b) => a.sort_order - b.sort_order));
+        const result = await getDestinationImagesAdmin(destinationId);
+
+        if (!active) return;
+
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+
+        setImages([...result.data].sort((a, b) => a.sort_order - b.sort_order));
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : "Failed to load images");
       } finally {
@@ -50,7 +63,12 @@ export function DestinationImageManager({ destinationId }: DestinationImageManag
 
     startTransition(async () => {
       try {
-        await uploadDestinationImageAdmin(destinationId, file, images.length === 0);
+        const result = await uploadDestinationImageAdmin(destinationId, file, images.length === 0);
+
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+
         await refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -64,7 +82,12 @@ export function DestinationImageManager({ destinationId }: DestinationImageManag
     setError(null);
     startTransition(async () => {
       try {
-        await setPrimaryDestinationImageAdmin(destinationId, imageId);
+        const result = await setPrimaryDestinationImageAdmin(destinationId, imageId);
+
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+
         await refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to set primary");
@@ -76,7 +99,12 @@ export function DestinationImageManager({ destinationId }: DestinationImageManag
     setError(null);
     startTransition(async () => {
       try {
-        await reorderDestinationImageAdmin(imageId, sortOrder);
+        const result = await reorderDestinationImageAdmin(imageId, sortOrder);
+
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+
         await refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to update sort order");
@@ -88,7 +116,12 @@ export function DestinationImageManager({ destinationId }: DestinationImageManag
     setError(null);
     startTransition(async () => {
       try {
-        await deleteDestinationImageAdmin(imageId);
+        const result = await deleteDestinationImageAdmin(imageId);
+
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+
         await refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to delete image");
