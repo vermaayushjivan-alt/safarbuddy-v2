@@ -40,6 +40,21 @@ export class DestinationRepository extends BaseRepository<DestinationRecord> {
   private async withImages(
     rows: DestinationRecord[]
   ): Promise<DestinationRecord[]> {
+    try {
+      return await this.withImagesUnsafe(rows);
+    } catch (err) {
+      console.error('[destinations] withImages threw', err);
+      return rows.map((row) => ({
+        ...row,
+        thumbnail: row.thumbnail ?? null,
+        banner: row.banner ?? null,
+      }));
+    }
+  }
+
+  private async withImagesUnsafe(
+    rows: DestinationRecord[]
+  ): Promise<DestinationRecord[]> {
     if (rows.length === 0) return rows;
 
     const { data, error } = await this.supabase
@@ -126,24 +141,53 @@ export class DestinationRepository extends BaseRepository<DestinationRecord> {
   async getDestinationBySlug(
     slug: string
   ): Promise<DestinationRecord | null> {
+    const cleaned = decodeURIComponent(slug).trim();
+    if (!cleaned) return null;
 
-    const { data, error } = await this.supabase
+    // Exact match first, then case-insensitive, then by id (the home page
+    // links to /destinations/{id} when a destination has no slug).
+    // limit(1) + no .single(): duplicate slugs must not throw.
+    let row: DestinationRecord | null = null;
+
+    const exact = await this.supabase
       .from('destinations')
       .select('*')
-      .eq('slug', slug)
-      .single();
+      .eq('slug', cleaned)
+      .limit(1);
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null;
-      }
-
+    if (exact.error) {
       throw new Error(
-        `Failed to get destination by slug: ${error.message}`
+        `Failed to get destination by slug: ${exact.error.message}`
       );
     }
+    row = ((exact.data ?? [])[0] as DestinationRecord | undefined) ?? null;
 
-    const [withImage] = await this.withImages([data as DestinationRecord]);
+    if (!row) {
+      const loose = await this.supabase
+        .from('destinations')
+        .select('*')
+        .ilike('slug', cleaned.replace(/[%_]/g, ''))
+        .limit(1);
+      row = ((loose.data ?? [])[0] as DestinationRecord | undefined) ?? null;
+    }
+
+    if (
+      !row &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        cleaned
+      )
+    ) {
+      const byId = await this.supabase
+        .from('destinations')
+        .select('*')
+        .eq('id', cleaned)
+        .limit(1);
+      row = ((byId.data ?? [])[0] as DestinationRecord | undefined) ?? null;
+    }
+
+    if (!row) return null;
+
+    const [withImage] = await this.withImages([row]);
     return withImage;
   }
 
