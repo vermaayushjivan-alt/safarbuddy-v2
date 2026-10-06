@@ -4,6 +4,37 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-06 — LAUNCH-06 (admin "Edit offer" opened a booking page)
+
+Root cause: src/app/admin/offers/[id]/edit/page.tsx contained the PUBLIC
+offer-detail page (hotels + booking cards; its own header comment said
+"ROOT PATH: src/app/offers/[id]/page.tsx"), i.e. the OFFER-HOTELS-01 detail
+page had been saved at the wrong path and overwrote the real admin edit page.
+That is also why /offers/[id] returned 404 (the file was not at its own path).
+Fix: restored the admin edit page (loads getOfferByIdAdmin,
+getOfferHotelIdsAdmin, getHotelOptionsAdmin and renders <OfferForm
+mode="edit">). The public page lives at src/app/offers/[id]/page.tsx
+(LAUNCH-03). A scan of every "ROOT PATH:" header against its real location
+found no other mismatch. tsc/build NOT RUN.
+
+
+2026-10-06 — LAUNCH-05 (moving / video banners for offers)
+
+Status: CODE COMPLETE, NOT VERIFIED (tsc/eslint/build not run; syntax parse
+and import scan only). Offers can now use a short looping video (mp4/webm)
+as the banner, like a GIF: muted, looping, inline, respects "reduce motion",
+falls back to a plain block if it cannot play. Detection is by file
+extension (src/lib/utils/media.ts), so no schema change: offers.banner_image
+simply holds the video URL. New: src/components/public/OfferMedia.tsx,
+src/lib/utils/media.ts, src/db/sql/029_offers_video_banner.sql (RUN IN
+SUPABASE: widens bucket offer-images allowed mime types). Modified:
+src/components/home/Offers.tsx, src/components/public/OfferGrid.tsx,
+src/app/offers/[id]/page.tsx, src/app/actions/offer.actions.ts
+(uploadOfferImageAdmin accepts video/mp4 + video/webm, still 5MB because the
+server-action body limit is 6mb), src/components/admin/offers/OfferForm.tsx
+(video accepted + preview). Animated WebP images also already animate.
+
+
 2026-10-06 — LAUNCH-04 (Vercel build fix: missing demo components)
 
 Status: CODE COMPLETE, NOT VERIFIED (cannot run next build in the sandbox).
