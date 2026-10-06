@@ -18,6 +18,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
+import OfferMedia from '@/components/public/OfferMedia';
 import {
   getActivePromotionsForSlot,
   trackPromotionImpression,
@@ -87,8 +88,11 @@ export default function PromoBanner({ slot }: { slot: PromotionSlot }) {
         className="focus-ring group relative block w-full overflow-hidden rounded-3xl bg-deep shadow-[0_12px_30px_-14px_rgba(11,47,92,0.45)] transition hover:-translate-y-0.5"
       >
         {current.logo_image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          // PROMO-03: image OR muted looping video (mp4/webm), same
+          // natural-size, no-crop look. `key` remounts the element when
+          // the carousel moves to the next ad so a video restarts.
+          <OfferMedia
+            key={current.id}
             src={current.logo_image}
             alt={current.company_name}
             className="block h-auto w-full"
