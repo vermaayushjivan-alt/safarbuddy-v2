@@ -1,3 +1,4 @@
+// ROOT PATH: src/components/public/OfferMedia.tsx
 'use client';
 
 // LAUNCH-05 — one component for an offer's banner: a normal image OR a short
@@ -5,6 +6,8 @@
 // inline (no fullscreen takeover on iPhone), no controls. They respect the
 // phone's "reduce motion" setting (shows the first frame instead) and
 // fall back to a plain coloured block if the file cannot play.
+//
+// PROMO-03: plays only while on screen (see effect below).
 //
 // Place inside a `relative overflow-hidden` parent and pass
 // className="absolute inset-0 h-full w-full object-cover".
@@ -42,9 +45,47 @@ export default function OfferMedia({
       return;
     }
 
-    video.play().catch(() => {
-      // Autoplay blocked (e.g. data-saver mode): the first frame stays visible.
-    });
+    // PROMO-03 FIX: banners far down the page (e.g. the 3rd promo slot) used
+    // to call play() once while still off-screen; phones then refused or
+    // paused it and never resumed. Now play when the video scrolls into
+    // view and pause when it leaves, so every slot behaves the same.
+    let visible = false;
+    const tryPlay = () => {
+      if (!visible) return;
+      video.muted = true;
+      video.play().catch(() => {
+        // Autoplay blocked (e.g. data-saver): first frame stays visible,
+        // we retry on the next canplay / scroll-into-view.
+      });
+    };
+
+    const observer =
+      typeof IntersectionObserver !== 'undefined'
+        ? new IntersectionObserver(
+            (entries) => {
+              visible = entries.some((e) => e.isIntersecting);
+              if (visible) tryPlay();
+              else video.pause();
+            },
+            { threshold: 0.25 }
+          )
+        : null;
+
+    if (observer) {
+      observer.observe(video);
+    } else {
+      visible = true;
+      tryPlay();
+    }
+
+    video.addEventListener('loadeddata', tryPlay);
+    video.addEventListener('canplay', tryPlay);
+
+    return () => {
+      observer?.disconnect();
+      video.removeEventListener('loadeddata', tryPlay);
+      video.removeEventListener('canplay', tryPlay);
+    };
   }, [src]);
 
   if (!isVideo) {
@@ -53,7 +94,7 @@ export default function OfferMedia({
   }
 
   if (failed) {
-    return <div className={`${className} bg-deep`} aria-hidden />;
+    return <div className={`${className} min-h-40 bg-deep`} aria-hidden />;
   }
 
   return (
@@ -65,7 +106,7 @@ export default function OfferMedia({
       loop
       muted
       playsInline
-      preload="metadata"
+      preload="auto"
       disablePictureInPicture
       aria-label={alt}
       onError={() => setFailed(true)}
