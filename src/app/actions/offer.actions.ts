@@ -58,6 +58,9 @@ const OFFER_IMAGE_ALLOWED_TYPES = [
   'image/jpg',
   'image/png',
   'image/webp',
+  // LAUNCH-05: short looping banner videos (see OfferMedia)
+  'video/mp4',
+  'video/webm',
 ];
 
 const OFFER_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
@@ -71,6 +74,10 @@ function offerImageExtensionFromMimeType(mimeType: string): string {
       return 'png';
     case 'image/webp':
       return 'webp';
+    case 'video/mp4':
+      return 'mp4';
+    case 'video/webm':
+      return 'webm';
     default:
       return 'webp';
   }
@@ -83,11 +90,13 @@ export async function uploadOfferImageAdmin(
     await requireRole(['admin', 'super_admin']);
 
     if (!OFFER_IMAGE_ALLOWED_TYPES.includes(file.type)) {
-      throw new Error('Only jpg, jpeg, png, and webp files are allowed.');
+      throw new Error(
+        'Only jpg, jpeg, png, webp images or mp4, webm videos are allowed.'
+      );
     }
 
     if (file.size > OFFER_IMAGE_MAX_SIZE_BYTES) {
-      throw new Error('Image must be 5MB or smaller.');
+      throw new Error('File must be 5MB or smaller.');
     }
 
     const supabase = await createClient();
