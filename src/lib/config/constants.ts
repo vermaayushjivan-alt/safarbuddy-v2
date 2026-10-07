@@ -70,6 +70,10 @@ export const PAYMENT = {
   MAX_AMOUNT: 10000000, // ₹1 crore
   CONVENIENCE_FEE_PERCENTAGE: 0, // Currently free
   GST_PERCENTAGE: 18,
+  // GOLIVE-01: how long a Cashfree order stays payable. Sent as
+  // order_expiry_time so an abandoned order cannot be paid hours later.
+  // GOLIVE-05 (pending-booking expiry) must use a window >= this value.
+  ORDER_EXPIRY_MINUTES: 30,
 } as const;
 
 /**
