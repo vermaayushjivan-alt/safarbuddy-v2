@@ -4,6 +4,136 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+BUILD-FIX-01 (2026-10-07): the owner's Vercel build (commit 89d3fdd) failed at "Running TypeScript": verify/vitest.config.ts cannot
+find 'vitest'. Cause: tsconfig.json include **/*.ts picks up the test folder. Fix = tsconfig.json exclude ["node_modules","verify","_verify"]
+(only file changed). Useful fact: the same log shows "Compiled successfully in 19.9s", so the Turbopack compile of GOLIVE-01/02/03 and the
+earlier work passed on Vercel; only the type-check step was blocked by the tests. NOT yet confirmed: a full green Vercel build after the fix.
+
+UPDATE (later the same day, 2026-10-07): owner reports PROMO-03, PARTNER-TERMS-01, GOLIVE-01 and GOLIVE-02 are working in their
+environment. Not written down as a sandbox walkthrough, so they are still not Frozen (RULE 22).
+
+GOLIVE-03 (2026-10-07) — payment reconciliation cron + real /api/health. CODE COMPLETE, NOT VERIFIED.
+Plan/rules: DEVELOPMENT_BIBLE.md Section L. New: src/lib/payments/finalize-payment.ts, src/lib/payments/reconcile.ts,
+src/app/api/public/cron/reconcile-payments/route.ts. Replaced: src/app/api/health/route.ts. Modified: webhook/route.ts (shared logic
+moved out, behaviour unchanged), src/lib/cashfree/cashfree.client.ts, payment.repository.ts, booking.repository.ts,
+src/lib/config/constants.ts, src/lib/config/env.ts, middleware.ts (repo root), .env.example. Delivered as vercel.json.example.
+Migrations: none. NEW ENV VAR: CRON_SECRET (16+ random chars; endpoint returns 503 and does nothing while unset).
+tsc PASS and ESLint PASS on changed files (real runs). Simulated tests: 14 new + 20 old = 34/34 PASS (in-memory DB). They cover: lost
+webhook recovered (PAID -> success + booking confirmed, side effects once, commission set); idempotent re-run; PAID with wrong amount NOT
+confirmed; EXPIRED/TERMINATED closed as failed; ACTIVE and unreachable left alone; age window 10 min..3 days; paid-but-pending booking
+healed; DB error counted not thrown; cron route 503 unset / 401 bad token / 200 good token; health 200 and 503 with no details.
+Not verified: real sandbox lost-webhook test; `next build`; cron firing on the host; Cashfree order response field names order_amount /
+order_currency / order_status against the live sandbox (documented fields, unconfirmed here).
+DECISION NEEDED (D8): Vercel plan. Pro -> rename vercel.json.example to vercel.json. Hobby -> do NOT add it (deploy would fail); call
+GET /api/public/cron/reconcile-payments every 5 min from cron-job.org with header `Authorization: Bearer <CRON_SECRET>`.
+Still open from the audit: no alerting yet (TODO markers only, Sentry is GOLIVE-18); stale root files; migration number clash 030/031.
+NEXT: set CRON_SECRET, run the lost-webhook test (pay in sandbox, block/ignore the webhook, wait for the cron, confirm the booking
+confirms and exactly one email goes out), then GOLIVE-04 (inventory reservation).
+
+=====================================================================
+SESSION SUMMARY — 2026-10-07 (READ THIS FIRST). Detail per milestone below it.
+=====================================================================
+This session did five things, in this order. Nothing is Frozen; nothing was run against real Supabase / Cashfree.
+
+1) PROMO-03 — images AND looping video (mp4 / webm) in the homepage promotion banners. CODE COMPLETE, NOT VERIFIED.
+   Files modified: src/components/home/PromoBanner.tsx, src/components/admin/promotions/PromotionForm.tsx,
+   src/app/actions/promotion.actions.ts, src/components/public/OfferMedia.tsx.
+   Created: src/db/sql/030_promo03_video_banner.sql (widens allowed mime types of the promotion-logos bucket).
+   Banner-3 fix: videos were only play()-ed once at page load while still off-screen, so the lowest banner never played.
+   OfferMedia now plays when >=25% visible and pauses when not (IntersectionObserver), retries on canplay, preload="auto".
+   Reuses OfferMedia (RULE 1/9). Limit stays 5MB. tsc PASS (whole project, later run). ESLint NOT run on these four files.
+   Not verified: uploading an mp4 in /admin/promotions; playback on a real phone for slot 3; migration run.
+
+2) TECH DUE-DILIGENCE AUDIT + Bible Section L (documentation only, no code). Report (published page):
+   https://claude.ai/artifact/SmompUqo7n9gtvTqDu4FjM  — verdict ~55% launch ready; 17 critical items.
+   DEVELOPMENT_BIBLE.md now has Section L = GO-LIVE roadmap GOLIVE-00 .. GOLIVE-21, owner decisions D1-D7, a go/no-go table.
+   (Section K already existed = CONTACT-03, so the new one is L.)
+
+3) PARTNER-TERMS-01 — hotel Partner Terms + 20% commission agreement. CODE COMPLETE, NOT VERIFIED.
+   Created: src/app/partner-terms/page.tsx, src/lib/repositories/partner-terms.repository.ts,
+   src/db/sql/031_partner_terms_acceptances.sql (table partner_terms_acceptances, RLS on, no policy).
+   Modified: src/lib/payments/commission.ts (+PLATFORM_COMMISSION_PERCENT, +PARTNER_TERMS_VERSION; the 20% rate and the webhook
+   split are unchanged), src/app/actions/property-listing.actions.ts (agreedToPartnerTerms must be true, checked on the server;
+   acceptance row written BEFORE the vendor is created, then linked), src/components/public/PropertyListingForm.tsx (required
+   tick-box), middleware.ts (/partner-terms public), src/app/sitemap.ts, src/data/home.ts (footer link).
+   tsc PASS; ESLint PASS on changed files except ONE PRE-EXISTING error (PropertyListingForm.tsx ~line 369, unescaped
+   apostrophe in "you're") which was left alone. Not verified: next build; browser test (untick -> blocked, tick -> row saved);
+   migration 031 NOT run. The page text is a DRAFT and needs lawyer review. Existing hotel owners have NO acceptance row
+   (see GOLIVE-13 step 6b).
+
+4) GOLIVE-01 — payment creation order + expiry.   CODE COMPLETE, NOT VERIFIED (entry below).
+5) GOLIVE-02 — Cashfree webhook state machine.    CODE COMPLETE, NOT VERIFIED (entry below).
+
+OPEN QUESTIONS / WARNINGS FOR THE NEXT SESSION
+ a) MIGRATION NUMBER CLASH. This file already records 030_destination_images.sql (DEST-IMG-01). This session also created
+    030_promo03_video_banner.sql and 031_partner_terms_acceptances.sql. Look at src/db/sql/ in the REAL repo, renumber the two
+    newer files to the next free numbers, then run them (both are idempotent, independent of each other). RULE 32/35.
+ b) middleware.ts sits at the repo root while the app uses src/app. Next.js looks for middleware next to app, so it may be
+    IGNORED (SESSION_HANDOFF already lists this as "LAUNCH-01 risk A"). Test on the live site: open /dashboard logged out; it
+    must redirect to /login. If not, move the file to src/middleware.ts (or src/proxy.ts on Next 16). Bible GOLIVE-00 step 5.
+ c) CHANGELOG says LAUNCH-02 added a Grievance Officer block to LegalPage.tsx; it was NOT in the audited ZIP
+    (grep -i grievance src returned nothing) and GRIEVANCE_OFFICER_NAME is unset. Check GitHub; re-apply if missing.
+ d) Stale root files still in the ZIP (home.ts, root lib/ and components/, "next.config (2).ts", gitignore, root .env which is
+    only a copy of env.ts, src/lib/data/home.ts, "hotel.repository.ts ts"): git rm them (already an open item above).
+ e) Money-path facts the audit proved and the Bible plans to fix (Section L): no inventory reservation (overbooking possible),
+    no refund flow, guest checkout cannot pay, RLS not provable from the repo (only 8 of 22 SQL files enable it), no account
+    deletion, no rate limiting, no reconciliation cron, stale src/app/api/health/route.ts (an old copy of the webhook).
+ f) OWNER DECISIONS STILL NEEDED (Bible L.0): D1 guest checkout keep/remove; D2 rate limiting on AI chat + booking + contact;
+    D3 email provider timing; D4 refund mode (admin-initiated); D5 Grievance Officer name/phone; D6 WhatsApp/SMS provider;
+    D7 PWA-only or Play Store at launch. Also ask the CA about GST/TCS/TDS on commission and payouts (GOLIVE-14), and a lawyer to
+    review /partner-terms, /privacy, /terms, /refund-policy.
+ g) Commission clause assumptions to confirm: commission is on the amount the guest actually PAID (after coupon); bookings must
+    not be taken outside the platform; payout dates are not promised anywhere.
+
+FILES TO REPLACE / ADD IN THE REPO (everything delivered this session)
+  Docs (repo root):  DEVELOPMENT_BIBLE.md, PROJECT_STATUS.md, CHANGELOG.md, SESSION_HANDOFF.md
+  PROMO-03:          src/components/home/PromoBanner.tsx, src/components/admin/promotions/PromotionForm.tsx,
+                     src/app/actions/promotion.actions.ts, src/components/public/OfferMedia.tsx,
+                     src/db/sql/030_promo03_video_banner.sql (renumber, see (a))
+  PARTNER-TERMS-01:  src/app/partner-terms/page.tsx (delivered as PartnerTermsPage.tsx), src/lib/repositories/partner-terms.repository.ts,
+                     src/db/sql/031_partner_terms_acceptances.sql (renumber, see (a)), src/lib/payments/commission.ts,
+                     src/app/actions/property-listing.actions.ts, src/components/public/PropertyListingForm.tsx,
+                     middleware.ts (repo root), src/app/sitemap.ts, src/data/home.ts (delivered as data_home.ts)
+  GOLIVE-01/02:      src/app/api/public/cashfree/webhook/route.ts (delivered as webhook-route.ts), src/lib/payments/post-payment.ts (new),
+                     src/lib/repositories/payment.repository.ts, src/lib/repositories/booking.repository.ts,
+                     src/lib/actions/payment.actions.ts, src/lib/cashfree/cashfree.client.ts, src/lib/config/constants.ts
+  Optional tests:    _verify/ (4 files, not part of the app, not wired into package.json)
+  NOTE: no file was edited by two different milestones this session, so the files above can be replaced independently.
+
+NEXT ACTIONS, IN ORDER
+  1. Renumber + run the two migrations (a). Replace the files above. Run `npm run typecheck`, `npm run lint`, `next build` for real.
+  2. Cashfree SANDBOX walkthrough (RULE 22): normal pay; fail then success on ONE order; duplicate webhook; amount mismatch;
+     confirm exactly one email + one invoice and that the booking is confirmed. Then Frozen-mark GOLIVE-01/02.
+  3. Browser check: /partner-terms; /list-your-property untick (blocked) and tick (a row appears in partner_terms_acceptances).
+  4. Admin -> Promotions: upload an mp4 and an image; check all three slots, especially the bottom one, on a real phone.
+  5. Test middleware (b). Resolve (c) and (d).
+  6. Then Bible Section L in order: GOLIVE-03 (reconciliation cron + real /api/health) -> 04 inventory -> 05 expiry -> 06 guest
+     checkout (needs D1) -> 07 refunds -> 08 RLS audit -> ... -> 21. One milestone at a time (RULE 11).
+=====================================================================
+
+GOLIVE-01 + GOLIVE-02 (2026-10-07) — payment-creation order and webhook state machine. CODE COMPLETE, NOT VERIFIED.
+Plan/rules: DEVELOPMENT_BIBLE.md Section L. Touches Frozen PAY-02 to fix confirmed defects (RULE 10).
+Files modified: src/lib/actions/payment.actions.ts, src/lib/cashfree/cashfree.client.ts, src/lib/config/constants.ts,
+src/app/api/public/cashfree/webhook/route.ts (rewritten), src/lib/repositories/payment.repository.ts (+transitionPaymentStatus),
+src/lib/repositories/booking.repository.ts (+confirmBookingIfPending). Files created: src/lib/payments/post-payment.ts.
+Migrations: none. New env vars: none. New tables: none.
+tsc --noEmit: PASS (real run). ESLint on the changed files: PASS (real run).
+Functional walkthrough = SIMULATED ONLY (vitest, in-memory DB with conditional-update semantics, mocked Cashfree/Supabase; files in
+_verify/, not part of the app). 20/20 pass: order is payments-row THEN Cashfree order; Cashfree failure closes the row as failed; DB
+failure creates no order; retry refused only when earlier order is PAID; FAILED then SUCCESS confirms (P1); USER_DROPPED then SUCCESS
+confirms; confirm fails once -> 500 -> retry heals, side effects once (P2); duplicate and simultaneous SUCCESS -> side effects once; late
+FAILED cannot overwrite SUCCESS; amount mismatch rejected; FLAGGED stays pending; paid-but-booking-cancelled logs REFUND OR MANUAL REVIEW;
+double payment logged; numeric cf_payment_id stored; unknown order 200; bad signature 400; Cashfree call times out at 15 s; error log
+carries only code/type/message.
+Not verified: (1) a real sandbox payment end to end (RULE 22) incl. fail-then-success on one order; (2) that Cashfree accepts the
+order_expiry_time value (ISO string, 30 min); (3) `next build` (this sandbox blocks fonts.googleapis.com); (4) that after() runs the
+confirmation email / invoice PDF on Vercel; (5) the new conditional UPDATEs against the real Supabase (PostgREST .in()/.maybeSingle()).
+Pending issues: no refund flow (GOLIVE-07); no reconciliation cron, so a webhook that never arrives still needs GOLIVE-03; stale
+src/app/api/health/route.ts still present (GOLIVE-03); an older ACTIVE Cashfree order is not terminated when a customer retries.
+Migration numbers: this thread also added 030_promo03_video_banner.sql and 031_partner_terms_acceptances.sql, but this file already
+records 030_destination_images.sql — check src/db/sql/ in the real repo and renumber before running (RULE 32/35).
+NEXT: run the sandbox walkthrough above, then GOLIVE-03.
+
 DEST-IMG-01 (2026-10-06): destination_images table did not exist in the live DB -> admin images page error;
 destinations also has no thumbnail/banner columns. Run src/db/sql/030_destination_images.sql, then upload a photo in
 /admin/destinations/<id>/images and confirm it shows on the homepage destination circle/card and /destinations/<slug>.
@@ -1228,39 +1358,4 @@ Audited against the live schema per RULE 13/15 (user ran information_schema.colu
 
 Fixed:
 - New public (no-auth) action getBookableRoomsForHotel() in room-type.actions.ts.
-- src/app/hotels/[slug]/page.tsx now renders rooms + resolved per-night price.
-- src/app/hotels/[slug]/book/page.tsx + BookingForm.tsx: room selection UI, room_id passed through, price computed from the selected room's room_prices/base_price instead of always using hotel.starting_price.
-- booking.actions.ts: room_id added to createBookingSchema (optional, hotel-only), price_snapshot now resolved per-room when one is selected.
-
-Claimed but not delivered this session (see DOC_DEBT.md item 2 and BOOKING-02): src/db/sql/008_room05_booking_room_linkage.sql was reported as "created for real this time" but does not actually exist in the repo. This was only discovered in the 2026-08-27 session above.
-
-No ROOM-01–04 admin code touched. No repository method signatures changed except the new getBookableRoomsForHotel addition.
-
-Verified: TypeScript (tsc --noEmit) clean, ESLint clean on all changed files. Production build not run to completion — same sandbox Google Fonts network restriction as every prior session (unrelated to this change).
-
-Hotfix previous session (2026-08-16 — PACKAGE-IMG-01)
-
-Production bug: POST /admin/packages/[id]/images returned a 500 ("An error occurred in the Server Components render") — reported against deployment dpl_HfD7ephHYjsLPT84oj1V7G3cBLWQ.
-
-Root cause found by comparing ADMIN-05 (package images) against the working ADMIN-03 (hotel images) implementation: the five package image Server Actions in package.actions.ts threw raw errors instead of returning the ActionResult<T> safe-result contract used everywhere else in hotel.actions.ts. An uncaught throw across a client-invoked Server Action boundary produces exactly this generic production 500 instead of a catchable client-side error.
-
-Fix: wrapped all five functions (getPackageImagesAdmin, uploadPackageImageAdmin, setPrimaryPackageImageAdmin, reorderPackageImageAdmin, deletePackageImageAdmin) in runAction(), and updated PackageImageManager.tsx to unwrap ActionResult, matching HotelImageManager.tsx exactly. Files changed: src/app/actions/package.actions.ts, src/components/admin/packages/PackageImageManager.tsx. No repository/schema/RLS/Storage config changes.
-
-Not verified: the specific underlying trigger of the original 500 (e.g. package_images table/RLS state in production) — no migration file for package_images exists in this repo to check against, and I have no production DB or Vercel log access.
-
-Room milestone status (as of this session, 2026-08-27)
-
-ROOM-01 room type CRUD — COMPLETE — Frozen.
-ROOM-02 room images — COMPLETE — Frozen.
-ROOM-03 room rates/pricing — COMPLETE — Frozen.
-ROOM-04 room inventory/availability — COMPLETE — Frozen.
-ROOM-05 booking-room linkage — COMPLETE — Frozen. Migration gap tracked separately as BOOKING-02 (this does not reopen ROOM-05 itself — the room-linkage code is correct; only the standalone migration file is missing).
-No ROOM-06 in scope.
-
-Next action
-
-src/db/sql/010_vendor02_payout_kyc.sql — RUN 2026-09-03, confirmed live (see VENDOR-02 above). Done.
-
-src/db/sql/011_vendor03_hotel_facilities.sql — RUN 2026-09-05 (this session), confirmed live via information_schema.columns: both public.hotel_facilities and public.hotel_facility_links exist with all expected columns and correct types (hotel_facilities: id uuid, code/label/category text, display_order integer, is_active boolean, created_at/updated_at timestamptz; hotel_facility_links: id/hotel_id/facility_id uuid, created_at timestamptz). VENDOR-03 M1 is now DEPLOYMENT READY per RULE 13/35 — the live "List Your Property" flow (M2) can now be functionally tested end-to-end for the first time. Done.
-
-P0.3 Steps 2-5 (onboarding wizard page, post-submit session redirect, first-login smart redirect, submitted-for-review screen) — CODE COMPLETE this session (2026-09-05, see Current milestone above). NOT
+- 
