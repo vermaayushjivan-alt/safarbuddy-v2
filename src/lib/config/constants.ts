@@ -74,6 +74,13 @@ export const PAYMENT = {
   // order_expiry_time so an abandoned order cannot be paid hours later.
   // GOLIVE-05 (pending-booking expiry) must use a window >= this value.
   ORDER_EXPIRY_MINUTES: 30,
+  // GOLIVE-03: reconciliation job windows.
+  // A payment still "pending" this long has had time for its webhook.
+  RECONCILE_MIN_AGE_MINUTES: 10,
+  // ...but older than this is no longer worth asking Cashfree about.
+  RECONCILE_MAX_AGE_DAYS: 3,
+  // Successful payments looked back over when checking for unconfirmed bookings.
+  RECONCILE_SUCCESS_LOOKBACK_DAYS: 7,
 } as const;
 
 /**
