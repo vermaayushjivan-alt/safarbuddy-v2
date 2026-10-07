@@ -7,6 +7,7 @@
 // navigate between separate pages/sections to list a property).
 
 import TurnstileWidget from "@/components/security/TurnstileWidget";
+import { PLATFORM_COMMISSION_PERCENT } from "@/lib/payments/commission";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -120,6 +121,7 @@ const emptyForm: PropertyListingInput = {
   contactPhone: "",
   contactEmail: "",
   website: "",
+  agreedToPartnerTerms: false,
 };
 
 export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth }) {
@@ -881,11 +883,47 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
         </div>
       </Section>
 
+      {/* PARTNER-TERMS-01: owner must agree to the partner terms and the
+          platform commission. Checked again on the server. */}
+      <div className="rounded-2xl border border-[var(--color-ink)]/10 bg-white p-5">
+        <p className="text-[14px] font-semibold text-[var(--color-ink)]">
+          Hotel Partner Terms &amp; Commission
+        </p>
+        <p className="mt-1 text-[13px] leading-relaxed text-[var(--color-ink)]/60">
+          SafarBuddy keeps a {PLATFORM_COMMISSION_PERCENT}% commission on every
+          booking paid through the platform. The remaining{" "}
+          {100 - PLATFORM_COMMISSION_PERCENT}% is paid out to you.
+        </p>
+        <label className="mt-3 flex items-start gap-3 text-[14px] text-[var(--color-ink)]/80">
+          <input
+            id="agreedToPartnerTerms"
+            type="checkbox"
+            required
+            checked={form.agreedToPartnerTerms}
+            onChange={(e) => handleChange("agreedToPartnerTerms", e.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0"
+          />
+          <span>
+            I have read and agree to the{" "}
+            <a
+              href="/partner-terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-[var(--color-sky)] underline"
+            >
+              Hotel Partner Terms
+            </a>
+            , and I agree that SafarBuddy will receive a {PLATFORM_COMMISSION_PERCENT}%
+            commission on every booking for my property.
+          </span>
+        </label>
+      </div>
+
       <TurnstileWidget onToken={setCaptchaToken} resetKey={captchaReset} />
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || !form.agreedToPartnerTerms}
         className="w-full rounded-full bg-[var(--color-sky)] py-3.5 text-[15px] font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
       >
         {isPending ? "Submitting…" : "Submit property for review"}
