@@ -18,6 +18,7 @@ import {
   getCashfreeOrderStatus,
   CashfreeOrderPayload,
 } from "@/lib/cashfree/cashfree.client";
+import { PAYMENT } from "@/lib/config/constants";
 
 const PAYMENT_STATUSES = [
   "pending",
@@ -131,6 +132,26 @@ async function createNewPayment(
     throw new Error("Invalid booking currency");
   }
 
+  // GOLIVE-01: if an earlier order for this booking is still "pending" here
+  // but Cashfree already reports it PAID, the success webhook has simply not
+  // landed yet (or was lost). Opening a second order now would let the
+  // customer pay twice, so stop and let the webhook / reconciliation confirm
+  // the first payment. A failed or unreachable status lookup returns null
+  // and does NOT block a legitimate retry.
+  for (const earlier of existingPayments) {
+    if (earlier.status !== "pending") continue;
+    const earlierStatus = await getCashfreeOrderStatus(earlier.gateway_order_id);
+    if (earlierStatus === "PAID") {
+      console.warn(
+        `[payments] retry blocked: order ${earlier.gateway_order_id} is PAID at Cashfree but payment ${earlier.id} is still pending`
+      );
+      // TODO: alerting — a PAID order with a pending local payment means a lost webhook.
+      throw new Error(
+        "Your payment was received and is being confirmed. Please check My Bookings in a minute instead of paying again."
+      );
+    }
+  }
+
   const gatewayOrderId =
     `SF-${validatedBookingId.split("-")[0]}-${Date.now()}`;
 
@@ -159,12 +180,20 @@ async function createNewPayment(
       notify_url:
         `${siteUrl}/api/public/cashfree/webhook`,
     },
+
+    // GOLIVE-01: an abandoned order can no longer be paid later.
+    order_expiry_time: new Date(
+      Date.now() + PAYMENT.ORDER_EXPIRY_MINUTES * 60_000
+    ).toISOString(),
   };
 
-  const cashfreeOrder =
-    await createCashfreeOrder(cashfreePayload);
-
-  await paymentRepo.createPayment({
+  // GOLIVE-01 (fixes Bug P3): the local payments row is written BEFORE the
+  // Cashfree order exists. Before, the order was created first, so a failed
+  // insert left a live Cashfree order with no local record — the webhook
+  // then logged "No payment found" and returned 200, and the customer's
+  // money was taken with nothing recorded. Now the worst case is a local
+  // "pending" row with no Cashfree order, which is harmless.
+  const paymentRow = await paymentRepo.createPayment({
     booking_id: booking.id,
     user_id: userRowId,
 
@@ -187,6 +216,30 @@ async function createNewPayment(
     created_by: userRowId,
     updated_by: userRowId,
   } as Parameters<PaymentRepository["createPayment"]>[0]);
+
+  let cashfreeOrder: Awaited<ReturnType<typeof createCashfreeOrder>>;
+
+  try {
+    cashfreeOrder = await createCashfreeOrder(cashfreePayload);
+  } catch (orderError) {
+    // The customer never received a payment_session_id, so this order can
+    // never be paid — safe to close the local row as failed.
+    try {
+      await paymentRepo.updatePaymentStatus(paymentRow.id, {
+        status: "failed",
+        failure_reason: "Could not create the Cashfree payment order.",
+        completed_at: new Date().toISOString(),
+      });
+    } catch (closeError) {
+      // RULE 38: do not swallow silently.
+      console.error(
+        `[payments] could not mark payment ${paymentRow.id} (order ${gatewayOrderId}) as failed after order creation error`,
+        closeError
+      );
+      // TODO: alerting — orphan pending payment row.
+    }
+    throw orderError;
+  }
 
   return {
     paymentSessionId:
