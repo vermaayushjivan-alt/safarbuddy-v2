@@ -139,6 +139,64 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     return this.update(id, updateData);
   }
 
+  // GOLIVE-02 — atomic, conditional status change.
+  //
+  // Updates the row ONLY IF its current status is one of `fromStatuses`,
+  // in a single SQL statement, and returns the updated row — or null when
+  // the row was not in an allowed state (someone else already moved it).
+  // This replaces "read the row, decide in JS, then update" in the webhook,
+  // which let two concurrent webhooks both think they were first, and let a
+  // late FAILED webhook overwrite a SUCCESS written a moment earlier.
+  // updatePaymentStatus() above is kept for non-racing callers.
+  async transitionPaymentStatus(
+    id: string,
+    fromStatuses: PaymentStatus[],
+    data: UpdatePaymentStatusData
+  ): Promise<PaymentRecord | null> {
+    const updateData: Record<string, unknown> = {
+      status: data.status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (data.gateway_payment_id !== undefined) {
+      updateData.gateway_payment_id = data.gateway_payment_id;
+    }
+    if (data.gateway_payment_status !== undefined) {
+      updateData.gateway_payment_status = data.gateway_payment_status;
+    }
+    if (data.payment_method !== undefined) {
+      updateData.payment_method = data.payment_method;
+    }
+    if (data.failure_reason !== undefined) {
+      updateData.failure_reason = data.failure_reason;
+    }
+    if (data.completed_at !== undefined) {
+      updateData.completed_at = data.completed_at;
+    }
+    if (data.platform_commission_amount !== undefined) {
+      updateData.platform_commission_amount = data.platform_commission_amount;
+    }
+    if (data.vendor_payout_amount !== undefined) {
+      updateData.vendor_payout_amount = data.vendor_payout_amount;
+    }
+
+    const { data: row, error } = await this.supabase
+      .from("payments")
+      .update(updateData)
+      .eq("id", id)
+      .in("status", fromStatuses)
+      .is("deleted_at", null)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error("[payments] transitionPaymentStatus failed", { id, error });
+      throw error;
+    }
+
+    return (row as PaymentRecord) ?? null;
+  }
+
   async getAllPayments(
     page: number = 1,
     limit: number = 20,
