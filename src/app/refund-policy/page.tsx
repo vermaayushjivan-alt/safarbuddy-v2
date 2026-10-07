@@ -4,8 +4,9 @@ import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 // LAUNCH-01 — DRAFT. Intentionally contains NO invented refund windows,
 // percentages or timelines (RULE 12/7): the product stores no per-property
 // cancellation policy and refunds are handled manually (PAY-01: refunds
-// out of scope). The owner must decide the real terms — see
-// SESSION_HANDOFF.md "Owner decisions needed". Lawyer review required.
+// out of scope). Owner confirmed (2026-10-05): refunds are made within
+// 7 days of an approved cancellation. Other terms (percentages/windows)
+// are still owner decisions. Lawyer review recommended.
 export const metadata: Metadata = {
   title: "Cancellation & Refund Policy | SafarBuddy",
   description: "How cancellations and refunds work for bookings made on SafarBuddy.",
@@ -41,10 +42,11 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          If a refund is due, it is reviewed and processed by our team to the
-          original payment method through our payment gateway, Cashfree. The
-          time taken for the amount to reflect depends on your bank or payment
-          provider.
+          If a refund is due, it is reviewed by our team and refunded to the
+          original payment method through our payment gateway, Cashfree,
+          within 7 days of the cancellation being approved. After we process
+          it, the time taken for the amount to show in your account depends on
+          your bank or payment provider.
         </p>
         <p>
           Payment gateway or processing charges, where applicable, may not be
@@ -79,9 +81,9 @@ const sections: LegalSection[] = [
     body: (
       <p>
         If you are unhappy with how a cancellation or refund was handled, write
-        to us using the details below with your booking reference. We aim to
-        acknowledge complaints promptly and resolve them within a reasonable
-        time.
+        to the Grievance Officer using the details below, with your booking
+        reference. We acknowledge every complaint within 48 hours of receiving
+        it and resolve it within one month.
       </p>
     ),
   },
