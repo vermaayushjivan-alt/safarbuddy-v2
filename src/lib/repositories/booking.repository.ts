@@ -1080,6 +1080,24 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
   // CONFIRM
   // -------------------------------------------------------------------------
 
+  // GOLIVE-03 — which of these bookings are still "pending"? One query.
+  async getPendingBookingIds(ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+
+    const { data, error } = await this.supabase
+      .from("bookings")
+      .select("id")
+      .in("id", ids)
+      .eq("booking_status", "pending")
+      .is("deleted_at", null);
+
+    if (error) {
+      console.error("[bookings] getPendingBookingIds failed", error);
+      throw error;
+    }
+    return new Set((data ?? []).map((row) => (row as { id: string }).id));
+  }
+
   // GOLIVE-02 — atomic "confirm only if still pending".
   //
   // confirmBooking() below updates unconditionally, so two concurrent
