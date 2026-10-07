@@ -1,3 +1,4 @@
+// ROOT PATH: src/data/home.ts  (rename this file back to home.ts)
 // Shared homepage data layer.
 // Dummy data lives here for now — swap the arrays/fetchers below for
 // Supabase queries later without touching the components that consume them.
@@ -290,6 +291,7 @@ export const footerLinkColumns: FooterLinkColumn[] = [
       { label: "Help Center", href: "#" },
       { label: "Contact Us", href: "/contact" },
       { label: "Cancellation & Refund Policy", href: "/refund-policy" },
+      { label: "Hotel Partner Terms", href: "/partner-terms" },
       { label: "FAQ", href: "#" },
       { label: "Customer Support", href: "#" },
     ],
