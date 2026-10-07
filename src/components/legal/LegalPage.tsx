@@ -14,6 +14,11 @@ export type LegalSection = {
 
 export const LEGAL_LAST_UPDATED = "5 October 2026";
 
+// Consumer Protection (E-Commerce) Rules, 2020 require the Grievance
+// Officer's name and contact to be displayed. Put the officer's full name
+// here; while empty, the name line is simply not shown.
+export const GRIEVANCE_OFFICER_NAME = "";
+
 export default function LegalPage({
   title,
   intro,
@@ -52,7 +57,14 @@ export default function LegalPage({
 
         <div className="mt-12 rounded-2xl border border-deep/10 bg-white p-5 text-[13px] text-ink/70">
           <p className="font-heading font-semibold text-deep">
-            Questions or complaints?
+            Grievance Officer
+          </p>
+          {GRIEVANCE_OFFICER_NAME && (
+            <p className="mt-1">Name: {GRIEVANCE_OFFICER_NAME}</p>
+          )}
+          <p className="mt-1">
+            Complaints are acknowledged within 48 hours and resolved within
+            one month of receipt.
           </p>
           <p className="mt-1">
             Email{" "}
