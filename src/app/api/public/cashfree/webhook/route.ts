@@ -28,17 +28,19 @@
 // outage. Replay is harmless here anyway: signature + amount check +
 // idempotent transitions. Revisit once confirmed against Cashfree docs.
 
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyWebhookSignature } from "@/lib/cashfree/cashfree.client";
 import {
   PaymentRepository,
   type PaymentRecord,
-  type PaymentStatus,
 } from "@/lib/repositories/payment.repository";
-import { BookingRepository } from "@/lib/repositories/booking.repository";
-import { computeCommissionSplit } from "@/lib/payments/commission";
-import { runPostConfirmationSideEffects } from "@/lib/payments/post-payment";
+import {
+  CAN_BECOME_SUCCESS,
+  claimPaymentSuccess,
+  confirmBookingForSuccessfulPayment,
+  paymentAmountMismatch,
+} from "@/lib/payments/finalize-payment";
 import type { SupabaseClientType } from "@/lib/repositories/types";
 
 export const runtime = "nodejs";
@@ -63,10 +65,6 @@ const CF_STATUS_MAP: Record<
   FLAGGED: "pending",
 };
 
-// States from which a payment may still move to "success". A FAILED or
-// CANCELLED attempt must NOT block a later successful attempt (P1).
-const CAN_BECOME_SUCCESS: PaymentStatus[] = ["pending", "failed", "cancelled"];
-
 function ok() {
   return NextResponse.json({ success: true }, { status: 200 });
 }
@@ -78,67 +76,6 @@ function badRequest(reason: string) {
 
 function serverError() {
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
-}
-
-// Runs `fn` after the response has been sent. If after() is unavailable for
-// any reason, falls back to running it inline so the work is never lost.
-async function runAfterResponse(label: string, fn: () => Promise<void>) {
-  const safe = async () => {
-    try {
-      await fn();
-    } catch (error) {
-      // RULE 38 — never swallow silently.
-      console.error(`[Cashfree Webhook] background task failed: ${label}`, error);
-      // TODO: alerting — post-payment side effects (email / invoice) failed.
-    }
-  };
-
-  try {
-    after(safe);
-  } catch {
-    await safe();
-  }
-}
-
-// Idempotent: confirms the booking behind a SUCCESSFUL payment if (and only
-// if) it is still pending, then schedules the one-time side effects.
-//   - returns normally when the booking is confirmed (now or earlier) or
-//     cannot be confirmed for a non-retryable reason (logged);
-//   - THROWS on a database error, so the caller answers 500 and Cashfree
-//     retries — and the retry works because this is safe to repeat (P2).
-async function confirmBookingForSuccessfulPayment(
-  supabase: SupabaseClientType,
-  payment: PaymentRecord
-): Promise<void> {
-  const bookingRepo = new BookingRepository(supabase);
-
-  const confirmed = await bookingRepo.confirmBookingIfPending(payment.booking_id);
-
-  if (confirmed) {
-    await runAfterResponse(`post-payment side effects for booking ${confirmed.id}`, () =>
-      runPostConfirmationSideEffects(supabase, payment, confirmed)
-    );
-    return;
-  }
-
-  // Not transitioned by this call. Either it was confirmed earlier (normal
-  // duplicate / retry — nothing to do) or it is in a state that needs a human.
-  const booking = await bookingRepo.getBookingById(payment.booking_id);
-
-  if (!booking) {
-    console.error(
-      `[Cashfree Webhook] payment ${payment.id} succeeded but booking ${payment.booking_id} was not found`
-    );
-    // TODO: alerting — money received for a missing booking.
-    return;
-  }
-
-  if (booking.status !== "confirmed" && booking.status !== "completed") {
-    console.error(
-      `[Cashfree Webhook] payment ${payment.id} succeeded but booking ${booking.id} is "${booking.status}" — REFUND OR MANUAL REVIEW NEEDED`
-    );
-    // TODO: alerting — customer paid for a booking that is not payable (e.g. cancelled).
-  }
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -295,28 +232,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // ---- SUCCESS event on a payment that is not yet successful -----------
-    const storedAmount = Number(payment.amount);
     const receivedAmount =
       typeof paymentAmount === "number"
         ? paymentAmount
         : typeof paymentAmount === "string"
           ? Number(paymentAmount)
           : null;
-    const storedCurrency = String(payment.currency_code || "").toUpperCase();
     const receivedCurrency =
       typeof paymentCurrency === "string" ? paymentCurrency.toUpperCase() : null;
 
-    const amountMismatch =
-      receivedAmount === null ||
-      !Number.isFinite(receivedAmount) ||
-      Math.abs(receivedAmount - storedAmount) > 0.001;
-    const currencyMismatch =
-      receivedCurrency === null || receivedCurrency !== storedCurrency;
-
-    if (amountMismatch || currencyMismatch) {
+    if (paymentAmountMismatch(payment, receivedAmount, receivedCurrency)) {
       console.error(
         `[Cashfree Webhook] Payment mismatch: payment=${payment.id}, ` +
-          `stored=${storedAmount} ${storedCurrency}, ` +
+          `stored=${Number(payment.amount)} ${String(payment.currency_code || "").toUpperCase()}, ` +
           `received=${receivedAmount} ${receivedCurrency}`
       );
       // TODO: alerting — Cashfree reports a success for a different amount.
@@ -334,38 +262,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return ok();
     }
 
-    // PAY-04 — Manual Settlement Tracking. Commission split is computed
-    // once, here, from the verified payment amount. Snapshot only: never
-    // recalculated if the platform commission rate changes later.
-    const commissionSplit = computeCommissionSplit(storedAmount);
+    // Atomic claim (exactly one webhook flips the row to "success"; the
+    // commission split snapshot is written in the same UPDATE). Whether we
+    // won the claim or lost it to a concurrent webhook, the payment is now
+    // "success": run the idempotent confirmation either way so the booking
+    // is never left pending. Only one caller gets to run the side effects.
+    const latest = await claimPaymentSuccess(supabase, payment, {
+      gatewayPaymentId,
+      rawStatus,
+      paymentMethod: typeof paymentMethod === "string" ? paymentMethod : undefined,
+    });
 
-    // Atomic claim: exactly one webhook flips the row to "success".
-    const claimed = await paymentRepo.transitionPaymentStatus(
-      payment.id,
-      CAN_BECOME_SUCCESS,
-      {
-        status: "success",
-        gateway_payment_id: gatewayPaymentId ?? undefined,
-        gateway_payment_status: rawStatus,
-        payment_method:
-          typeof paymentMethod === "string" ? paymentMethod : undefined,
-        failure_reason: null,
-        completed_at: new Date().toISOString(),
-        platform_commission_amount: commissionSplit.platformCommissionAmount,
-        vendor_payout_amount: commissionSplit.vendorPayoutAmount,
-      }
-    );
-
-    // Whether we won the claim or lost it to a concurrent webhook, the
-    // payment is now "success". Run the idempotent confirmation either way
-    // so the booking is never left pending (only one caller will run the
-    // side effects; the other gets null from confirmBookingIfPending).
-    const latest = claimed ?? (await paymentRepo.getPaymentByOrderId(merchantOrderId));
-
-    if (!latest || latest.status !== "success") {
-      console.error(
-        `[Cashfree Webhook] success claim for payment ${payment.id} did not stick (status now ${latest?.status ?? "missing"})`
-      );
+    if (!latest) {
       return serverError();
     }
 
