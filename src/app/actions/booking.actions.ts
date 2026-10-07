@@ -25,6 +25,12 @@ import { PackageRepository } from "@/lib/repositories/package.repository";
 import { RoomTypeRepository } from "@/lib/repositories/room-type.repository";
 import { RoomPriceRepository } from "@/lib/repositories/room-price.repository";
 import { resolveCouponForBooking } from "@/app/actions/coupon.actions";
+import {
+  RoomHoldError,
+  abandonBookingAfterHoldFailure,
+  holdRoomForBooking,
+  releaseRoomForBooking,
+} from "@/lib/inventory/room-reservation";
 
 // -----------------------------------------------------------------------------
 // VALIDATION
@@ -706,6 +712,36 @@ export async function createBooking(
       }
     );
 
+  // GOLIVE-04: reserve the room for every night BEFORE the guest is sent to
+  // pay. The DB function is atomic (all nights or none) and locks rows, so two
+  // people can never take the last room. Hotel bookings without a specific
+  // room, and package bookings, have nothing to reserve (returns false).
+  // Fails closed: if the hold is refused the just-inserted row is closed and
+  // the guest gets a clear message instead of a payment page.
+  if (
+    parsed.booking_type === "hotel" &&
+    parsed.room_id
+  ) {
+    try {
+      await holdRoomForBooking(created.id);
+    } catch (err) {
+      const holdError =
+        err instanceof RoomHoldError
+          ? err
+          : new RoomHoldError(
+              "UNKNOWN",
+              "We could not reserve this room right now. Please try again in a moment."
+            );
+
+      await abandonBookingAfterHoldFailure(
+        created.id,
+        `Room not reserved at checkout (${holdError.code})`
+      );
+
+      throw new Error(holdError.message);
+    }
+  }
+
   // CONTACT-02 (this session): notifyBookingCreated() used to fire
   // right here, at booking-creation time — before any payment exists.
   // Every hotel/vendor contact was alerted for every checkout attempt,
@@ -901,10 +937,18 @@ export async function cancelMyBooking(
     );
   }
 
-  return repo.cancelBooking(
-    parsed.id,
-    parsed.reason
+  const cancelled =
+    await repo.cancelBooking(
+      parsed.id,
+      parsed.reason
+    );
+
+  // GOLIVE-04: give the room back (idempotent, never throws).
+  await releaseRoomForBooking(
+    parsed.id
   );
+
+  return cancelled;
 }
 
 // -----------------------------------------------------------------------------
@@ -1058,10 +1102,18 @@ export async function cancelBookingAdmin(
     );
   }
 
-  return repo.cancelBooking(
-    parsed.id,
-    parsed.reason
+  const cancelled =
+    await repo.cancelBooking(
+      parsed.id,
+      parsed.reason
+    );
+
+  // GOLIVE-04: give the room back (idempotent, never throws).
+  await releaseRoomForBooking(
+    parsed.id
   );
+
+  return cancelled;
 }
 
 // -----------------------------------------------------------------------------
