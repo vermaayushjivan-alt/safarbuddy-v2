@@ -4,6 +4,115 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-07 — PROMO-03 (video banners in homepage promotions + banner-3 playback fix)
+
+Status: CODE COMPLETE, NOT VERIFIED. tsc PASS (whole project, later run); ESLint not run on these files.
+A promotion banner can now be an image OR a short muted looping video (mp4 / webm), in all three slots.
+Reuses the OfferMedia component from LAUNCH-05 (RULE 1/9). OfferMedia now plays only while on screen
+(IntersectionObserver) and retries on canplay: before, play() ran once at load, so the lowest banner (still
+off-screen) never started. Fallback block when a video cannot play now has a minimum height.
+Modified: src/components/home/PromoBanner.tsx, src/components/admin/promotions/PromotionForm.tsx,
+src/app/actions/promotion.actions.ts, src/components/public/OfferMedia.tsx.
+New: src/db/sql/030_promo03_video_banner.sql (adds video/mp4 and video/webm to the promotion-logos bucket;
+NOT yet run; the number clashes with 030_destination_images.sql, renumber). Size limit unchanged at 5MB.
+Not verified: mp4 upload from admin; real-phone playback for slot 3.
+
+2026-10-07 — AUDIT-01 (technical due diligence; documentation only)
+
+Full code audit of the ZIP: verdict about 55% launch ready. Findings and the ordered fix plan are in
+DEVELOPMENT_BIBLE.md Section L (GOLIVE-00..21). No source file was changed by the audit itself.
+
+2026-10-07 — BUILD-FIX-01 (Vercel build failed on the test folder)
+
+Vercel `next build` compiled the app fine ("Compiled successfully") but failed type-checking: tsconfig.json includes
+**/*.ts, so the optional test folder (verify/, delivered as _verify/) was type-checked and `vitest` is not installed
+on Vercel. Fix: tsconfig.json "exclude" now lists "verify" and "_verify". Reproduced locally with vitest removed
+(errors), then re-ran tsc with the exclude (clean). The tests are NOT part of the app and still run locally with
+`npx vitest run --config verify/vitest.config.ts` after `npm i -D vitest@2`. Only tsconfig.json changed.
+
+2026-10-07 — GOLIVE-03 (payment reconciliation cron + real health endpoint) — payment safety
+
+Status: CODE COMPLETE, NOT VERIFIED. tsc PASS, ESLint PASS on the changed files (real runs). 14 new simulated
+tests PASS, and the 20 GOLIVE-01/02 tests still PASS after the refactor (34/34). NOT verified: a real sandbox
+"lost webhook" recovery, `next build`, the cron actually firing on the host.
+New job (every ~5 min): payments still "pending" 10 min to 3 days old are checked against Cashfree: PAID with a
+matching amount -> confirmed exactly like the webhook; EXPIRED/TERMINATED -> closed as failed; still ACTIVE or
+Cashfree unreachable -> left alone. Second pass: successful payments whose booking is still pending are healed.
+Safe alongside the webhook (conditional UPDATEs, idempotent confirmation). /api/health is now a real GET (200/503,
+no details) and is public in middleware; the stale 412-line webhook copy that lived there is gone.
+REFACTOR: the webhook's claim/confirm code moved verbatim into src/lib/payments/finalize-payment.ts so webhook and
+cron share it. New: finalize-payment.ts, reconcile.ts, src/app/api/public/cron/reconcile-payments/route.ts.
+Modified: webhook/route.ts, health/route.ts (replaced), cashfree.client.ts (+getCashfreeOrderDetails),
+payment.repository.ts, booking.repository.ts, constants.ts (+RECONCILE_*), env.ts (+CRON_SECRET), middleware.ts,
+.env.example (+CRON_SECRET). Delivered as vercel.json.example, not vercel.json (Hobby plan limit, see Bible D8).
+Needs: env var CRON_SECRET set in Vercel; a scheduler. No migration.
+
+2026-10-07 — GOLIVE-02 (Cashfree webhook state machine) — payment safety
+
+Status: CODE COMPLETE, NOT VERIFIED. Fixes confirmed defects in a Frozen
+milestone (PAY-02), allowed under RULE 10. tsc PASS, ESLint PASS on the changed
+files (real runs). 12 simulated scenario tests PASS (in-memory DB, see
+SESSION_HANDOFF). NOT verified: real Cashfree sandbox walkthrough, `next build`.
+Fixed: P1 a FAILED / USER_DROPPED attempt no longer blocks a later SUCCESS on the
+same order; P2 a success whose booking-confirm threw is now healed by Cashfree's
+retry (confirm is idempotent); RACE two simultaneous webhooks can no longer both
+confirm / both send emails (conditional UPDATEs); a late FAILED can no longer
+overwrite a SUCCESS. Added: loud logs for "paid but booking not payable" and
+"customer paid twice" (both marked TODO alerting). Emails, invoice PDF and
+referral reward now run after the 200 response via after() instead of making
+Cashfree wait. cf_payment_id sent as a number is now stored. maxDuration = 30.
+Files: src/app/api/public/cashfree/webhook/route.ts (rewritten), NEW
+src/lib/payments/post-payment.ts (old side-effects block moved verbatim),
+src/lib/repositories/payment.repository.ts (+transitionPaymentStatus),
+src/lib/repositories/booking.repository.ts (+confirmBookingIfPending).
+Commission split (20%) logic unchanged. Timestamp-age check deliberately NOT
+added (Cashfree retry timestamps unconfirmed). No migration, no env var.
+
+2026-10-07 — GOLIVE-01 (payment creation order + expiry) — payment safety
+
+Status: CODE COMPLETE, NOT VERIFIED. Fixes a confirmed defect in a Frozen
+milestone (PAY-02), RULE 10. tsc PASS, ESLint PASS on changed files, 8 simulated
+tests PASS. NOT verified: real Cashfree sandbox order (esp. that order_expiry_time
+is accepted).
+The payments row is now written BEFORE the Cashfree order is created (no more
+orphan paid orders with no local record); if Cashfree fails the row is closed as
+failed; orders expire after 30 min (PAYMENT.ORDER_EXPIRY_MINUTES); every Cashfree
+call has a 15 s timeout; the TEMP DEBUG line that logged the whole error body now
+logs only code/type/message; a retry is refused only when Cashfree already shows
+the earlier order as PAID. Files: src/lib/actions/payment.actions.ts,
+src/lib/cashfree/cashfree.client.ts, src/lib/config/constants.ts.
+
+2026-10-07 — PARTNER-TERMS-01 (hotel partner terms + 20% commission agreement)
+
+Status: CODE COMPLETE, NOT FULLY VERIFIED. `tsc --noEmit` PASS (real run, deps
+installed). ESLint on changed files: 1 error, PRE-EXISTING and not touched
+(PropertyListingForm.tsx line 369, unescaped apostrophe in "you're"). Not
+verified: `next build`, and the browser walkthrough (open /partner-terms; try
+submitting /list-your-property with the box unticked, then ticked; confirm a row
+in partner_terms_acceptances). Migration 031 NOT yet run in production.
+New: src/app/partner-terms/page.tsx (public page, DRAFT, lawyer review needed),
+src/db/sql/031_partner_terms_acceptances.sql (new table, RLS on, no policy),
+src/lib/repositories/partner-terms.repository.ts.
+Modified: src/lib/payments/commission.ts (adds PLATFORM_COMMISSION_PERCENT, derived
+from the existing 20% rate, and PARTNER_TERMS_VERSION; the rate itself and the
+webhook split are UNCHANGED), src/app/actions/property-listing.actions.ts
+(agreedToPartnerTerms must be true, enforced server-side; acceptance row written
+BEFORE the vendor is created, then linked), src/components/public/PropertyListingForm.tsx
+(required tick-box + link, submit disabled until ticked), middleware.ts
+("/partner-terms" public), src/app/sitemap.ts, src/data/home.ts (footer link).
+Stored per acceptance: terms version, commission percent shown, time, IP, device.
+Existing hotel owners (listed before this) have NO acceptance row yet; see
+DEVELOPMENT_BIBLE.md Section L, GOLIVE-13.
+
+2026-10-07 — GO-LIVE-PLAN (documentation only, no code change)
+
+Status: PLANNED. Added DEVELOPMENT_BIBLE.md Section L (GOLIVE-00 to
+GOLIVE-21, go/no-go gate, owner decisions D1-D7) from a full technical
+due-diligence audit. PROJECT_STATUS.md got a pointer entry. No source
+file, migration or env var was touched. Also recorded: LAUNCH-01's stray
+file deletions and LAUNCH-02's Grievance Officer block are not present in the
+audited ZIP (see GOLIVE-00).
+
 2026-10-06 — DEST-IMG-01 (destination photos: table missing + never reached the site)
 
 Status: CODE COMPLETE, NOT VERIFIED. Migration 030 NOT YET RUN. Admin > Destinations >
