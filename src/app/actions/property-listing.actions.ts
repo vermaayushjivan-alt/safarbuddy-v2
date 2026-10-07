@@ -44,6 +44,12 @@ import { sendEmail } from '@/lib/notifications/email.client';
 import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 import { slugify } from '@/lib/utils/format';
 import { verifyCaptcha } from '@/lib/security/turnstile';
+import { headers } from 'next/headers';
+import { PartnerTermsRepository } from '@/lib/repositories/partner-terms.repository';
+import {
+  PLATFORM_COMMISSION_PERCENT,
+  PARTNER_TERMS_VERSION,
+} from '@/lib/payments/commission';
 
 /* -------------------------------------------------------------------------- */
 /* Validation                                                                 */
@@ -212,6 +218,12 @@ const propertyListingSchema = z
       emptyToNull,
       z.string().trim().url('Enter a valid URL, e.g. https://example.com').nullable().optional()
     ),
+
+    // PARTNER-TERMS-01: must be explicitly true. Enforced here (server),
+    // not only by the disabled button, so it cannot be bypassed.
+    agreedToPartnerTerms: z.boolean().refine((v) => v === true, {
+      message: `You must agree to the Hotel Partner Terms and the ${PLATFORM_COMMISSION_PERCENT}% commission to list your property.`,
+    }),
   })
   .refine((data) => Boolean(data.bankAccountNumber && data.bankIfsc) || Boolean(data.upiId), {
     message: 'Provide either bank account + IFSC, or a UPI ID.',
@@ -606,6 +618,28 @@ export async function submitPropertyListing(
       );
     }
 
+    // PARTNER-TERMS-01: record the agreement BEFORE creating the vendor,
+    // so if this insert fails (e.g. migration 031 not run) nothing is
+    // half-created and the owner can simply retry. The row is linked to the
+    // vendor right after it exists. Evidence kept: terms version, the
+    // commission percent that was shown, time, IP and device.
+    const requestHeaders = await headers();
+    const forwardedFor = requestHeaders.get('x-forwarded-for');
+    const ipAddress =
+      forwardedFor?.split(',')[0]?.trim() ||
+      requestHeaders.get('x-real-ip') ||
+      null;
+    const userAgent = requestHeaders.get('user-agent');
+
+    const termsRepo = new PartnerTermsRepository(admin);
+    const acceptance = await termsRepo.recordAcceptance({
+      user_id: ownerUserId,
+      terms_version: PARTNER_TERMS_VERSION,
+      commission_percent: PLATFORM_COMMISSION_PERCENT,
+      ip_address: ipAddress,
+      user_agent: userAgent ? userAgent.slice(0, 500) : null,
+    });
+
     const vendor = await vendorRepo.createVendor({
       vendor_name: parsed.hotelName,
       // Confirmed live via pg_get_constraintdef(vendors_vendor_type_check):
@@ -625,6 +659,19 @@ export async function submitPropertyListing(
       // the vendor and the hotel together in M4's review queue.
       status: 'pending',
     });
+
+    // Best-effort link: the acceptance already exists with user_id as proof,
+    // so a failure here must not fail the whole listing.
+    try {
+      await termsRepo.linkVendor(acceptance.id, vendor.id);
+    } catch (linkError) {
+      console.error(
+        '[submitPropertyListing] could not link partner-terms acceptance to vendor',
+        acceptance.id,
+        vendor.id,
+        linkError
+      );
+    }
 
     const hotel = await hotelRepo.createHotel({
       hotel_name: parsed.hotelName,
