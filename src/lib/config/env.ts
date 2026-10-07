@@ -37,6 +37,10 @@ const serverEnvSchema = z.object({
   CASHFREE_APP_ID: z.string().optional(),
   CASHFREE_SECRET_KEY: z.string().optional(),
   CASHFREE_API_VERSION: z.string().default('2023-08-01'),
+
+  // GOLIVE-03: shared secret for /api/public/cron/reconcile-payments.
+  // Optional: if unset, that endpoint stays switched off (RULE 30).
+  CRON_SECRET: z.string().min(16).optional(),
   
   // Email
   RESEND_API_KEY: z.string().optional(),
