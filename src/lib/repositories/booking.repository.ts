@@ -1080,6 +1080,54 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
   // CONFIRM
   // -------------------------------------------------------------------------
 
+  // GOLIVE-02 — atomic "confirm only if still pending".
+  //
+  // confirmBooking() below updates unconditionally, so two concurrent
+  // webhooks (or a webhook plus a retry) could both "confirm" the same
+  // booking and both fire the confirmation emails / invoice / referral
+  // reward. This version adds `booking_status = 'pending'` to the UPDATE
+  // itself, so exactly ONE caller gets the row back; everyone else gets
+  // null and must not run any side effects. It also never revives a
+  // cancelled booking.
+  async confirmBookingIfPending(
+    id: string
+  ): Promise<BookingRecord | null> {
+    const {
+      data,
+      error,
+    } = await this.supabase
+      .from("bookings")
+      .update({
+        booking_status: "confirmed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("booking_status", "pending")
+      .is("deleted_at", null)
+      .select(`
+        *,
+        currency_record:currencies!bookings_currency_id_fkey(
+          code,
+          symbol,
+          name
+        )
+      `)
+      .maybeSingle();
+
+    if (error) {
+      console.error(
+        "[bookings] confirmBookingIfPending failed",
+        { id, error }
+      );
+
+      throw error;
+    }
+
+    return data
+      ? mapBooking(data as unknown as DatabaseBookingRow)
+      : null;
+  }
+
   async confirmBooking(
     id: string
   ): Promise<BookingRecord> {
