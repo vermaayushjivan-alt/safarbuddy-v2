@@ -5,7 +5,7 @@
 // All credentials read from environment variables — never hardcoded.
 
 import 'server-only';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
 // ---------------------------------------------------------------------------
 // Environment helpers
@@ -26,6 +26,27 @@ function getCashfreeBaseUrl(): string {
   }
   // Default to sandbox — fail safe per approved design.
   return 'https://sandbox.cashfree.com/pg';
+}
+
+// GOLIVE-01: every Cashfree call gets a hard timeout. Without one, a hung
+// connection ties up the serverless function until the platform kills it.
+// Note for callers: a timeout on order CREATION does not prove Cashfree did
+// not create the order. That is safe here because the customer only receives
+// payment_session_id from our response, so an order we never answered about
+// can never be paid.
+const CASHFREE_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CASHFREE_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function getCashfreeHeaders(): Record<string, string> {
@@ -65,6 +86,8 @@ export interface CashfreeOrderPayload {
     return_url: string;
     notify_url: string;
   };
+  // GOLIVE-01: ISO 8601 timestamp after which Cashfree refuses payment.
+  order_expiry_time?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,30 +115,42 @@ export async function createCashfreeOrder(
   let response: Response;
 
   try {
-    response = await fetch(`${baseUrl}/orders`, {
+    response = await fetchWithTimeout(`${baseUrl}/orders`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
     });
   } catch (networkError) {
-    // Network-level failure — do not expose raw error to caller.
+    // Network-level failure or timeout — do not expose raw error to caller.
+    console.error('[Cashfree] Order creation request failed (network/timeout)', networkError);
+    // TODO: alerting — repeated order-creation failures mean checkout is down.
     throw new Error(
       'Failed to create payment order. Please try again.'
     );
   }
 
   if (!response.ok) {
-    // Non-2xx from Cashfree — do not forward raw Cashfree error body
-    // to the client. Log status + body server-side only, for debugging.
-    // TEMP DEBUG (PAY-01): remove this .text() + errorBody log line
-    // once the 401 root cause is confirmed — Cashfree's error body can
-    // contain account-identifying details and should not sit in logs
-    // long-term.
-    const errorBody = await response.text();
+    // Non-2xx from Cashfree — never forward the raw body to the client.
+    // GOLIVE-01: the old TEMP DEBUG line logged the WHOLE error body, which
+    // can carry account-identifying details. Only the documented error
+    // fields (code / type / message) are logged now — enough to diagnose a
+    // 401 or a validation error (RULE 38) without leaking account data.
+    let errorDetail: Record<string, unknown> = {};
+    try {
+      const parsed = (await response.json()) as Record<string, unknown>;
+      errorDetail = {
+        code: parsed['code'],
+        type: parsed['type'],
+        message: parsed['message'],
+      };
+    } catch {
+      // Body was not JSON — status alone is logged below.
+    }
     console.error(
       `[Cashfree] Order creation failed: HTTP ${response.status}`,
-      errorBody
+      errorDetail
     );
+    // TODO: alerting — a non-2xx on order creation blocks every payment.
     throw new Error(
       'Failed to create payment order. Please try again.'
     );
@@ -188,7 +223,7 @@ export async function getCashfreeOrderStatus(
   let response: Response;
 
   try {
-    response = await fetch(
+    response = await fetchWithTimeout(
       `${baseUrl}/orders/${encodeURIComponent(orderId)}`,
       { method: 'GET', headers }
     );
@@ -241,7 +276,7 @@ export function verifyWebhookSignature(
     }
 
     return (
-      require('crypto').timingSafeEqual(computedBuffer, receivedBuffer)
+      timingSafeEqual(computedBuffer, receivedBuffer)
     );
   } catch {
     console.error('[Cashfree] Webhook signature verification error');
