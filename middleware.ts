@@ -32,6 +32,8 @@ const PUBLIC_ROUTES = [
   "/privacy",
   "/terms",
   "/refund-policy",
+  // PARTNER-TERMS-01: public so owners can read it before signing up
+  "/partner-terms",
 
   // BOOKING-03: guest checkout. A guest must be able to reach a
   // package's booking page (previously only /hotels/ had the prefix
