@@ -214,9 +214,18 @@ export async function createCashfreeOrder(
 // webhook has landed.
 // ---------------------------------------------------------------------------
 
-export async function getCashfreeOrderStatus(
+// GOLIVE-03: the order as Cashfree sees it. The reconciliation job needs the
+// amount and currency (not just the status) so it can verify a PAID order
+// against our stored payment before confirming a booking.
+export interface CashfreeOrderDetails {
+  status: string;
+  amount: number | null;
+  currency: string | null;
+}
+
+export async function getCashfreeOrderDetails(
   orderId: string
-): Promise<string | null> {
+): Promise<CashfreeOrderDetails | null> {
   const baseUrl = getCashfreeBaseUrl();
   const headers = getCashfreeHeaders();
 
@@ -242,10 +251,33 @@ export async function getCashfreeOrderStatus(
   try {
     const body = (await response.json()) as Record<string, unknown>;
     const orderStatus = body['order_status'];
-    return typeof orderStatus === 'string' ? orderStatus : null;
+    if (typeof orderStatus !== 'string') return null;
+
+    const rawAmount = body['order_amount'];
+    const amount =
+      typeof rawAmount === 'number'
+        ? rawAmount
+        : typeof rawAmount === 'string' && rawAmount !== ''
+          ? Number(rawAmount)
+          : null;
+    const rawCurrency = body['order_currency'];
+
+    return {
+      status: orderStatus,
+      amount: amount !== null && Number.isFinite(amount) ? amount : null,
+      currency: typeof rawCurrency === 'string' ? rawCurrency : null,
+    };
   } catch {
     return null;
   }
+}
+
+// Status only (existing callers). Same behaviour as before GOLIVE-03.
+export async function getCashfreeOrderStatus(
+  orderId: string
+): Promise<string | null> {
+  const details = await getCashfreeOrderDetails(orderId);
+  return details ? details.status : null;
 }
 
 export function verifyWebhookSignature(
