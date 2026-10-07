@@ -11,6 +11,9 @@ Changelog of this file itself:
   undocumented milestone (CONTACT-01) shipped with a build-breaking
   missing dependency and an undocumented required env var, none of
   which v1 had any rule to catch.
+- v2.1 (2026-10-07) — appended Section L, the GO-LIVE roadmap
+  (GOLIVE-00 to GOLIVE-21 plus go/no-go gate), derived from the full
+  technical due-diligence audit. No existing rule changed.
 
 ---
 
@@ -514,3 +517,380 @@ touching `public.notifications`, and `notification.repository.ts`'s
 `DATABASE_BIBLE.md`'s Migration Registry were both annotated to flag
 009 as superseded/do-not-run. Not yet run/confirmed in production
 after this correction.
+
+---
+
+## L. GO-LIVE Roadmap — Path to 100% Launch Ready (added 2026-10-07)
+
+Source: full technical due-diligence audit of the codebase on 2026-10-07
+(report: SafarBuddy_Technical_Due_Diligence_Report.md). This section is
+the single ordered checklist for taking SafarBuddy from "feature complete,
+not verified" to "safe to take real money". Recorded here per RULE 15
+BEFORE any of it is built.
+
+Status of every item below is **PLANNED — NOT STARTED** until a
+SESSION_HANDOFF.md entry says otherwise. RULE 11 applies: one milestone at
+a time, in the order given. RULE 10 applies: touching a Frozen milestone
+is allowed only where the item below says it fixes a confirmed defect.
+Every milestone must meet Section F2 (Definition of Done). Milestones that
+touch payments/bookings (GOLIVE-01 to 07) must also meet RULE 22.
+
+Audit verdict at time of writing: ~55% launch ready. Code structure is
+sound (strict TS, 0 `any`, clean repository/action layering). The blockers
+are money-path edge cases, inventory, refunds, RLS proof, and store/legal
+compliance. Everything is fixable; nothing needs a rewrite.
+
+### L.0 Owner decisions needed BEFORE the milestone that depends on them (RULE 12)
+
+| # | Decision | Needed by | Recommendation |
+|---|---|---|---|
+| D1 | Guest checkout: keep or remove? Today a guest can create a booking but cannot pay (payment requires login). | GOLIVE-06 | Launch with **login required to book**. Re-add guest pay later with a signed pay-link. |
+| D2 | Rate limiting beyond CAPTCHA was deliberately NOT built (LAUNCH-02). This roadmap proposes limits on 3 endpoints only (AI chat, booking create, contact) to stop cost abuse and inventory spam. | GOLIVE-10 | Approve. Small scope, DB or Upstash based. |
+| D3 | Gmail SMTP stays until ~200 bookings/month (owner, LAUNCH-02). Gmail caps ~500/day and sends from a personal-looking address. | GOLIVE-15 | Keep for soft launch; move to a domain email before any paid marketing. |
+| D4 | Refund mode: refund is admin-initiated (policy: 7 days after approved cancellation). | GOLIVE-07 | Keep admin-initiated. No auto-refund at launch. |
+| D5 | Grievance Officer name/phone/email (block still empty). | GOLIVE-13 | Owner supplies. |
+| D6 | WhatsApp provider (AiSensy/other, paid) or SMS (DLT registered). | GOLIVE-16 | Choose one. If none, launch email-only and state it in the Terms. |
+| D7 | Native app (Play Store) at launch, or PWA-only? | GOLIVE-12/13 | PWA-only at launch removes store deletion deadlines but keep deletion anyway (DPDP). |
+| D8 | Which Vercel plan? Vercel Cron on Hobby runs once a day at most; a `*/5` schedule fails the deploy. | GOLIVE-03 | Pro: copy `vercel.json.example` to `vercel.json`. Hobby: skip it and call the endpoint every 5 min from a free scheduler (cron-job.org) with header `Authorization: Bearer <CRON_SECRET>`. |
+
+### L.1 PHASE 0 — Baseline and truth (do first, 1-2 days)
+
+#### GOLIVE-00 — Sync repo with documented state
+
+**Why:** The audited ZIP contradicts our own docs. CHANGELOG LAUNCH-01 says
+these were deleted, but they are still in the ZIP: root `.env` (it is a stale
+copy of `env.ts`, not secrets), `home.ts`, `next.config (2).ts`, `gitignore`,
+root `components/`, root `lib/`, `src/lib/data/home.ts`, and
+`src/lib/repositories/hotel.repository.ts ts`. CHANGELOG LAUNCH-02 says a
+Grievance Officer block was added to `LegalPage.tsx`; no such code exists
+(`grep -i grievance src` returns nothing).
+
+**Steps:**
+1. In GitHub, confirm which state `main` really has. If GitHub is correct and only the ZIP is stale, record that and skip deletions.
+2. Delete the stray files listed above. Add `028_referral01_referrals.sql` to `src/db/sql/` (it sits in the repo root).
+3. Run `npm ci`, `npm run typecheck`, `npm run lint`, `npm run build`. Fix whatever fails. Record real results (RULE 21).
+4. Re-apply the LAUNCH-02 Grievance block if it is genuinely missing.
+5. Resolve the open `middleware.ts` location question (SESSION_HANDOFF, LAUNCH-01 risk A): the project uses `src/app`, and Next.js looks for middleware next to `app`, so the file at the repo root may be IGNORED, which would disable the login redirect and session refresh in it. Test on the deployed site: open `/dashboard` logged out and confirm it redirects to `/login`. If it does not, move the file to `src/middleware.ts` (or `src/proxy.ts` on Next 16).
+
+**Done when:** `tsc`, `eslint`, `next build` all PASS on a clean clone, and the repo root contains only intended files.
+
+#### GOLIVE-00b — Reproducible database baseline
+
+**Why:** Only 12 tables are created by `src/db/sql/*`; the app uses 22+
+(`hotels`, `hotel_rooms`, `room_inventory`, `room_prices`, `users`, `vendors`,
+`packages`, `destinations`, `offers`, `referrals`, `booking_messages`, ...).
+Migrations 005 and 017-023 are missing from the repo. The schema cannot be
+rebuilt from code (breaks RULE 32 and disaster recovery).
+
+**Steps:**
+1. `pg_dump --schema-only --no-owner` the production DB. Save as `src/db/sql/000_baseline.sql`.
+2. Recover or re-create 005 and 017-023 from SESSION_HANDOFF / the live DB. Mark any lost one in DATABASE_BIBLE.md Migration Registry.
+3. Confirm 028, 029 production-run status (RULE 35). MIGRATION NUMBER CLASH: SESSION_HANDOFF records `030_destination_images.sql` (DEST-IMG-01), but two files added on 2026-10-07 also use numbers 030 (`030_promo03_video_banner.sql`) and 031 (`031_partner_terms_acceptances.sql`). Check `src/db/sql/` in the real repo and renumber the newer two to the next free numbers before running them. Their SQL is independent of each other and idempotent.
+4. Test: create an empty Supabase project, run baseline + migrations, run the app against it.
+
+**Done when:** an empty project can be brought to production schema using only the repo.
+
+### L.2 PHASE 1 — Money safety (the real launch blockers)
+
+Do these strictly in order. Each is a RULE 22 milestone: sandbox walkthrough required.
+
+#### GOLIVE-01 — Payment creation order and expiry (fixes Bug P3) — CODE COMPLETE, NOT VERIFIED (2026-10-07)
+
+**Built as:** steps 1-5 as written. Step 6 was deliberately changed (see below). Files: `payment.actions.ts`, `cashfree.client.ts`, `constants.ts` (`PAYMENT.ORDER_EXPIRY_MINUTES = 30`). Pending: real Cashfree sandbox walkthrough (RULE 22) and confirming Cashfree accepts the `order_expiry_time` format.
+
+**Defect:** `createNewPayment` (`src/lib/actions/payment.actions.ts`) calls
+`createCashfreeOrder` BEFORE inserting the `payments` row. If the insert
+fails, a live Cashfree order exists with no local record; the webhook then
+logs "No payment found" and returns 200. Money taken, nothing recorded.
+
+**Steps:**
+1. Insert the `payments` row first (`status='pending'`, `gateway_order_id` generated locally).
+2. Then create the Cashfree order. On failure, mark the row `failed` with the reason.
+3. Send `order_expiry_time` (about 30 min) in the order payload.
+4. Add a fetch timeout (AbortController, 10-15 s) to every call in `cashfree.client.ts`.
+5. Remove the `TEMP DEBUG` error-body log in `createCashfreeOrder` (it logs account details).
+6. Guard double-pay. CHANGED while building: refusing every retry while an earlier order is `pending` would block a customer who simply closed the payment page and tried again. Built instead: before opening a new order, ask Cashfree about each earlier `pending` order of the booking; refuse ONLY if one is already `PAID` (webhook not landed yet). A failed lookup does not block a retry. Terminating the older ACTIVE order at Cashfree is NOT built (needs sandbox confirmation) and remains an open improvement.
+
+**Done when:** a forced DB failure after order creation leaves no orphan; a forced Cashfree failure leaves a `failed` row.
+
+#### GOLIVE-02 — Webhook state machine (fixes Bugs P1 and P2) — CODE COMPLETE, NOT VERIFIED (2026-10-07)
+
+**Built as:** steps 1-3, 5, 6. Step 4 deliberately NOT built (see below). Files: `webhook/route.ts` (rewritten), NEW `src/lib/payments/post-payment.ts` (the old side-effects block moved verbatim), `payment.repository.ts` (+`transitionPaymentStatus`), `booking.repository.ts` (+`confirmBookingIfPending`). The idempotent confirm lives in the route as `confirmBookingForSuccessfulPayment`. No migration, no new env var. Pending: real Cashfree sandbox walkthrough (RULE 22), `next build`, and a check that `after()` runs the emails on Vercel.
+
+**Files:** `src/app/api/public/cashfree/webhook/route.ts`, `src/lib/cashfree/cashfree.client.ts`.
+
+**Defects:**
+- P1: Cashfree sends one webhook per payment ATTEMPT. A `FAILED`/`USER_DROPPED` attempt followed by a `SUCCESS` on the same order is ignored, because `failed`/`cancelled` are treated as terminal (route.ts about L236-244). Customer charged, booking stays `pending`.
+- P2: payment is written `success` first, then `confirmBooking` runs. If it throws, the webhook returns 500, Cashfree retries, and the retry returns early because the payment is already `success`. Paid, never confirmed.
+- Also: read-then-write race, no replay window, notifications and PDF rendering run inside the webhook request.
+
+**Steps:**
+1. Only `success`, `refunded`, `partially_refunded` are final. `failed`/`cancelled` can still be overwritten by a later `SUCCESS`.
+2. Atomic claim: `update payments set status='success' ... where id=$1 and status <> 'success' returning *`. Only the webhook that gets a row back runs side effects.
+3. Extract an idempotent `finalizeBookingIfPending(supabase, payment)` (confirm booking, referral reward, invoice, notifications). Call it for a fresh success AND when a webhook arrives for an already-`success` payment whose booking is still `pending` (self-heal).
+4. NOT BUILT, on purpose (RULE 12): rejecting webhooks by `x-webhook-timestamp` age. Whether Cashfree re-signs retries with a fresh timestamp is unconfirmed, and a wrong window would reject legitimate retries after an outage. Replay is already harmless (signature + amount check + idempotent transitions). Revisit after reading Cashfree's retry documentation.
+5. Move emails/PDF out of the request (`after()` or a queue); set `export const maxDuration = 30`.
+6. Return 500 only for retry-worthy failures; make every step safe to repeat.
+
+**Done when (sandbox):** (a) fail then success on one order confirms the booking; (b) a duplicate success webhook sends exactly one email and one invoice; (c) an amount mismatch is rejected; (d) a forced `confirmBooking` failure self-heals on retry.
+
+#### GOLIVE-03 — Reconciliation job and real health endpoint — CODE COMPLETE, NOT VERIFIED (2026-10-07)
+
+**Built as:** steps 2-5. Step 1 (`vercel.json`) is delivered as `vercel.json.example` on purpose: Vercel Hobby only allows daily crons, and a 5-minute schedule makes a Hobby deploy FAIL (owner decision D8 below). Alerting (step 5) is `console.error` plus `// TODO: alerting` markers until GOLIVE-18 adds Sentry. New files: `src/lib/payments/finalize-payment.ts` (the webhook's claim/confirm logic moved out so webhook and cron share it), `src/lib/payments/reconcile.ts`, `src/app/api/public/cron/reconcile-payments/route.ts`; `src/app/api/health/route.ts` replaced; `getCashfreeOrderDetails` (amount + currency) added to the Cashfree client; read-only queries added to both repositories; `/api/health` added to middleware PUBLIC_ROUTES (it was NOT public, so a monitor got a redirect to /login). New env var `CRON_SECRET` (RULE 29/30: in `.env.example` and `env.ts`; endpoint is OFF with 503 when unset). Pending: owner decision D8, deploy with `CRON_SECRET` set, real sandbox test of a lost webhook.
+
+**Why:** Webhooks can be lost. Nothing re-checks Cashfree today. There is no `vercel.json` and no cron.
+
+**Steps:**
+1. Add `vercel.json` with a cron every 5 minutes calling a protected route (`CRON_SECRET`).
+2. Job A: payments `pending` older than 10 min -> `getCashfreeOrderStatus` -> apply the same transition as the webhook.
+3. Job B: payments `success` whose booking is still `pending` -> `finalizeBookingIfPending`.
+4. Delete `src/app/api/health/route.ts` (it is a stale 412-line copy of an old webhook, POST only). Add a real `GET /api/health` returning `{ok:true}` plus a cheap DB ping.
+5. Alert (Sentry/email) whenever Job B finds anything: it means a webhook failed.
+
+**Done when:** killing a webhook delivery in sandbox still ends with a confirmed booking within 10 minutes.
+
+#### GOLIVE-04 — Inventory reservation (fixes overbooking)
+
+**Defect:** `createBooking` never checks or consumes `room_inventory`.
+`booked_rooms` is documented as "owned by the booking system" but nothing
+writes it. Two customers can book the last room for the same night.
+
+**Steps (RULE 7: inspect the live `room_inventory` columns first):**
+1. Add an atomic DB function (service-role only) that locks and decrements every night in the range and rolls back everything if one night is sold out:
+```sql
+create or replace function public.reserve_room(p_room uuid, p_in date, p_out date, p_qty int default 1)
+returns void language plpgsql security definer set search_path = public as $$
+declare d date;
+begin
+  for d in select generate_series(p_in, p_out - 1, interval '1 day')::date loop
+    update room_inventory
+       set booked_rooms = booked_rooms + p_qty,
+           available_rooms = available_rooms - p_qty
+     where room_id = p_room and inventory_date = d and available_rooms >= p_qty;
+    if not found then raise exception 'SOLD_OUT'; end if;
+  end loop;
+end $$;
+revoke execute on function public.reserve_room from public, anon, authenticated;
+grant  execute on function public.reserve_room to service_role;
+```
+2. Add the mirror `release_room(...)` (same shape, reverse sign).
+3. Call `reserve_room` inside `createBooking` for hotel bookings with a room; map `SOLD_OUT` to a friendly error. Decide behaviour when no inventory rows exist for a date (block, or treat as unlimited) and document it.
+4. Call `release_room` on cancel, on payment `failed` terminal, and on pending expiry (GOLIVE-05).
+5. Add a CHECK `available_rooms >= 0` if absent.
+
+**Done when:** two simultaneous bookings for the last room: exactly one succeeds. Cancel returns the room.
+
+#### GOLIVE-05 — Pending-booking expiry
+
+**Steps:** extend the GOLIVE-03 cron: bookings `pending` for more than 30-45 min with no `pending` payment still within its expiry -> status cancelled (reason "payment not completed"), `release_room`. Make the window a constant in `lib/config/constants.ts`.
+
+**Done when:** an abandoned booking frees its room automatically.
+
+#### GOLIVE-06 — Guest checkout (needs owner decision D1)
+
+**Defect:** a guest can create a booking (service-role insert) but `initiatePayment` requires login and `booking.user_id`; guest rows have `user_id = null`. Guest bookings sit unpaid forever, holding inventory once GOLIVE-04 lands.
+
+**Option A (recommended for launch):** require login for booking. Redirect guests to `/login?redirectTo=...` from `BookingForm`; remove the service-role guest insert path in `createBooking`.
+**Option B:** keep guests; issue a signed, expiring pay-token tied to the booking and email, add a guest pay route that uses it. More work (about 16-32 h).
+
+**Done when:** no code path creates a booking that cannot be paid.
+
+#### GOLIVE-07 — Refunds (RULE 22)
+
+**Defect:** no refund API call, no refund webhook, no admin refund screen. `004_payment_schema.sql` states refunds were out of scope. `cancelMyBooking` only flips status; the customer's money is not returned.
+
+**Steps (decision D4: admin-initiated, 7 days after approved cancellation):**
+1. `createCashfreeRefund(orderId, refundId, amount, note)` in `cashfree.client.ts` (POST `/orders/{id}/refunds`) with timeout and idempotent `refund_id`.
+2. New `payment_refunds` table (RLS on, service-role only; RULE 24): payment_id, refund_id, amount, status, reason, requested_by, timestamps.
+3. Webhook branch for refund events (`REFUND_STATUS_WEBHOOK`) updating the refund row and payment status (`refunded` / `partially_refunded`).
+4. Admin UI on `/admin/payments/[id]`: full or partial refund with reason; show status.
+5. Cancellation policy helper (uses `FULL_REFUND_WINDOW` and each hotel's `cancellation_policy`) to suggest the refund amount. Admin confirms; never auto-refund.
+6. Cancelling a confirmed booking calls `release_room`, notifies the customer, and flags it "refund due" for admin.
+7. Commission and vendor payout snapshots must be adjusted on refund (settlement stays correct).
+
+**Done when (sandbox):** cancel -> admin refund -> webhook -> statuses, customer email and settlement amounts all consistent.
+
+### L.3 PHASE 2 — Security hardening
+
+#### GOLIVE-08 — RLS audit (RULE 24 / DATABASE_BIBLE)
+
+**Why:** only 8 of 22 SQL files enable RLS and there are 7 policies in total. DATABASE_BIBLE already marks several tables "RLS UNVERIFIED". The Supabase anon key is public by design; a table without RLS is readable via REST.
+
+**Steps:**
+1. In SQL: `select tablename, rowsecurity from pg_tables where schemaname='public';` List every table with `rowsecurity=false`.
+2. Enable RLS on all of them. Add explicit policies only where the browser client legitimately reads (public listings: published hotels, rooms, packages, destinations, offers). Everything else: no policy = service-role only.
+3. Run the Supabase Security Advisor and fix every ERROR/WARN.
+4. Test with the anon key from curl: `bookings`, `payments`, `users`, `invoices`, `vendor_payout_details`, `vendor_kyc_documents`, `booking_messages` must return nothing or 401.
+5. Review the `024` SECURITY DEFINER counters: anyone can call them (inflates impressions/clicks that advertisers may be billed on). Add per-IP/day throttling or move to a server action with dedup.
+6. Document results in DATABASE_BIBLE.md (replace every "UNVERIFIED" with the measured state).
+
+**Done when:** an anon-key curl matrix shows no private data readable.
+
+#### GOLIVE-09 — Guest booking and invoice data exposure
+
+**Defect:** `getGuestBookingConfirmation` (`booking.actions.ts` about L734), `getGuestInvoiceByBookingId` (`invoice.actions.ts` about L72) and `/api/public/invoices/[bookingId]/pdf` use the service role and need only a booking UUID. They are exported from `"use server"` files, so they are directly callable, and they return the full record (name, email, phone, amount).
+
+**Steps:**
+1. If D1 = Option A: delete the guest paths, require login and ownership (`booking.customer_id`).
+2. If any public access remains: require a signed, expiring token (HMAC of bookingId + email) in the link; return only a minimal DTO (booking number, dates, status), never the raw row.
+3. Move non-action helpers out of `"use server"` files so they are not callable remotely.
+4. `getPaymentOutcomeForResult` should check ownership or a signed token, not just an order id.
+
+**Done when:** a random UUID returns 404 and a valid token returns only the minimal DTO.
+
+#### GOLIVE-10 — Abuse protection (needs owner decision D2)
+
+**Steps:**
+1. Add a small rate limiter (Upstash Redis or a DB table) keyed by IP and user.
+2. Apply to: AI assistant (`ai-assistant.actions.ts`, protects Gemini quota/cost), `createBooking`, contact form, login and password reset.
+3. Add Turnstile to contact and AI chat (it is currently only on register and list-your-property).
+4. Cap AI input size and history server-side (partly done already) and add a daily global ceiling.
+5. Fix the Gemini model fallback list (`gemini-3.8-flash` etc. are not real model names); use one configured model plus one known fallback.
+
+**Done when:** 20 rapid AI calls from one IP are throttled; booking spam is blocked.
+
+#### GOLIVE-11 — Infrastructure and config hardening
+
+**Steps:**
+1. `lib/db/index.ts` and `db/index.ts`: remove the duplicate; replace `ssl: { rejectUnauthorized: false }` with proper CA verification; set pool `max: 1` on serverless; use the Supabase pooler URL.
+2. `next.config.ts`: add security headers (HSTS, X-Content-Type-Options, Referrer-Policy, frame-ancestors, a report-only CSP first). Remove `dangerouslyAllowSVG` unless needed.
+3. Make `lib/config/env.ts` match reality (RULE 29/30): add `GEMINI_API_KEY`, `GMAIL_*`, `TURNSTILE_*`, `CRON_SECRET`, `NEXT_PUBLIC_SITE_URL`; remove `OPENAI_API_KEY`; fail the production build when payment/Supabase secrets are missing; replace direct `process.env` reads with `env`.
+4. Production flags: `NEXT_PUBLIC_CASHFREE_ENV=production`, `NEXT_PUBLIC_SITE_URL` set. (The webhook `notify_url` and the Cashfree base URL both depend on these.)
+5. Remove `drizzle.config.json`'s hardcoded `postgres:postgres` URL (read from env).
+6. Set `maxDuration` on the webhook, invoice PDF and cron routes.
+
+**Done when:** build fails without production secrets; DB connection verifies TLS.
+
+### L.4 PHASE 3 — Legal and store compliance
+
+#### GOLIVE-12 — Account deletion (store + DPDP mandatory)
+
+**Defect:** no deletion endpoint or UI. Only an unused `softDeleteUser` exists in `lib/repository/UserRepository.ts`.
+
+**Steps:**
+1. Server action `deleteMyAccount()` with re-authentication (password or email OTP).
+2. Anonymise PII on `users` (name, email, phone), remove saved addresses/KYC files in Storage, revoke sessions, delete the Supabase Auth user.
+3. Keep legally required records (bookings, invoices, payments) with PII replaced by "Deleted user"; state the retention reason and period in the Privacy Policy.
+4. Block deletion while there is an active/upcoming booking or an open settlement; show why.
+5. UI under `/profile` ("Delete my account") plus a public web page explaining how to request deletion without logging in (Play Store requires it).
+6. Vendors/hotel owners: separate flow (listings go offline, payouts settle first).
+
+**Done when:** a test account is deleted end to end, cannot log in, and booking history survives anonymised.
+
+#### GOLIVE-13 — Privacy, DPDP and consumer-law package
+
+**Steps:**
+1. Privacy Policy: name the Data Fiduciary (legal entity, address), purposes, retention periods, user rights (access, correction, erasure, grievance, nominee), breach process.
+2. Name every processor: Supabase (hosting/DB/storage), Cashfree (payments), Google (Gemini AI, Google sign-in), Gmail/email provider, Cloudflare (Turnstile), Vercel. Say that AI chat text is sent to Google.
+3. Consent at signup (checkbox plus timestamp stored) and on the property-listing form; link Terms/Privacy.
+4. Grievance Officer block (decision D5): name, email, phone, 48 h acknowledge / 1 month resolve (E-Commerce Rules 2020). Footer link on every page.
+5. Terms: marketplace role (platform vs vendor responsibility), cancellation/refund link, jurisdiction, AI-assistant disclaimer.
+6. Lawyer review of all three pages (they are marked DRAFT today) plus the new `/partner-terms` page (PARTNER-TERMS-01, built 2026-10-07; migration 031 must be run).
+6b. Existing hotel owners (listed before PARTNER-TERMS-01) have no row in `partner_terms_acceptances`. Add a one-time "Accept Partner Terms" card to `/hotel-owner` and `/vendor` that writes a new row, and block new bookings for that vendor until accepted (needs owner decision). Also re-prompt whenever `PARTNER_TERMS_VERSION` changes.
+7. Verify nothing untrue is shown publicly: delete the unmounted fake content (Testimonials, homeStats, TrendingFlights, Newsletter, AppDownload components/data and the 28 `href: "#"` footer entries) so it can never be remounted by mistake.
+
+**Done when:** pages reviewed by counsel, officer details live, consent stored.
+
+#### GOLIVE-14 — Tax and accounting sign-off (external, CA)
+
+**Steps:** get a CA to confirm (a) invoice format: GSTIN, HSN/SAC, GST slab by room tariff; (b) whether platform commission and the vendor's room charge need separate invoices; (c) TCS under GST and TDS u/s 194-O on vendor payouts, and how manual settlement (`vendor-settlement.actions.ts`) records them; (d) the fixed 20% `PLATFORM_COMMISSION_RATE`. Implement whatever changes result.
+
+**Done when:** CA signs off a sample invoice and a sample settlement statement.
+
+### L.5 PHASE 4 — Customer communication
+
+#### GOLIVE-15 — Reliable transactional email (decision D3)
+
+**Steps:** register a sending domain; set SPF, DKIM, DMARC; move from Gmail SMTP to Resend/SES/Postmark (the file comment says swapping the client is a rewrite of `email.client.ts` only); keep `dispatch.ts` unchanged. Test inbox placement (Gmail, Outlook, Yahoo). Until then keep Gmail but monitor the 500/day cap.
+
+**Done when:** booking confirmation with PDF lands in the inbox, not spam, from your own domain.
+
+#### GOLIVE-16 — WhatsApp or SMS confirmation (decision D6)
+
+**Steps:** implement `whatsapp.client.ts` for the chosen provider (signature must not change, per its header); add the env var to `.env.example` and `env.ts`; approved template: booking number, dates, hotel, amount, invoice link; fall back to email if sending fails. SMS needs DLT registration.
+
+**Done when:** a real booking triggers WhatsApp/SMS to the customer and WhatsApp/SMS to the hotel.
+
+### L.6 PHASE 5 — Verification, quality, operations
+
+#### GOLIVE-17 — Payment end-to-end matrix (sandbox, then live)
+
+Run and record each in SESSION_HANDOFF.md (RULE 21/22):
+success; fail then success on one order; user dropped; duplicate webhook; out-of-order webhook; amount mismatch; webhook lost (cron heals); two tabs paying one booking; sold-out race; abandoned booking expiry; cancel then refund; vendor settlement after refund; invoice PDF opens with the logo (the `sharp` conversion path is still marked never run); customer email with PDF attached.
+
+**Done when:** every row passes and is written down.
+
+#### GOLIVE-18 — CI, tests, observability
+
+**Steps:**
+1. GitHub Actions: `npm ci`, `typecheck`, `lint`, `build` on every PR; block merge on failure.
+2. Vitest unit tests for pure logic: `computeCommissionSplit`, coupon discount, price resolution, cancellation-refund helper, `verifyWebhookSignature`, `isVideoUrl`.
+3. One Playwright test: search -> book -> pay (sandbox) -> confirmation.
+4. Sentry (server and client) and a structured logger replacing the 178 `console.*` calls (RULE 38/39: payment and webhook failures must alert, not just log).
+5. Uptime monitor on `/api/health`.
+
+**Done when:** CI is green, and a forced webhook error produces an alert.
+
+#### GOLIVE-19 — UX states and mobile pass
+
+**Steps:** add `loading.tsx` / `error.tsx` per route group (only 2 of each exist for 81 pages); empty states for dashboard bookings, vendor lists, search results; test `/`, `/hotels`, `/hotels/[slug]`, `/book`, `/dashboard/bookings`, `/payment/success` on a mid-range Android and iPhone Safari; Lighthouse (performance and accessibility) at or above 85 on mobile; check promo image/video banners on slow 3G; failed-payment page offers a clear Retry. Fill the empty `Testimonials` slot only with verified reviews from completed bookings (future).
+
+**Done when:** no blank screens, every error has a recovery action, Lighthouse targets met.
+
+#### GOLIVE-20 — SEO and discoverability
+
+**Steps:** metadata on all public pages (14 of 81 today); JSON-LD (`Hotel`, `Offer`, `BreadcrumbList`, `Organization`); public `/packages/[id]` detail pages added to the sitemap; `revalidate` (for example 300 s) plus `revalidateTag` on admin edits; landing pages for pilgrimage cities (Varanasi, Ayodhya, Haridwar, Tirupati, etc.); Hindi strings completed in `lib/i18n/messages.ts`; Search Console and sitemap submitted.
+
+**Done when:** rich-result test passes and indexed pages appear in Search Console.
+
+### L.7 PHASE 6 — Launch cutover
+
+#### GOLIVE-21 — Production switch and go/no-go
+
+**Steps:**
+1. Cashfree: production keys in Vercel; webhook URL `https://<domain>/api/public/cashfree/webhook` set and tested from the dashboard; confirm `NEXT_PUBLIC_CASHFREE_ENV=production`.
+2. All migrations (baseline plus 028-030 and the new GOLIVE ones) confirmed in production via `information_schema` (RULE 35).
+3. Real money test: book a low-priced room, pay a real small amount, confirm booking, email, invoice, WhatsApp/SMS, admin alert, vendor view; then cancel and refund it and see the money return.
+4. Backups: Supabase PITR or daily backups enabled; restore tested once.
+5. Rollback plan written (previous Vercel deployment, feature flag to disable booking).
+6. Support: contact email/phone live, Grievance Officer reachable, 9 AM-9 PM hours consistent everywhere.
+7. Soft launch: invite-only for the first 20-50 bookings; watch Sentry, cron alerts and Cashfree dashboard daily.
+
+**Go/No-Go gate (all must be YES):**
+
+| Gate | Yes/No |
+|---|---|
+| `tsc`, `eslint`, `next build`, CI green (GOLIVE-00, 18) | |
+| Webhook matrix passed incl. fail-then-success and self-heal (GOLIVE-02, 17) | |
+| Reconciliation cron running and alerting (GOLIVE-03) | |
+| Overbooking impossible; cancel/expiry release rooms (GOLIVE-04, 05) | |
+| No unpayable bookings (GOLIVE-06) | |
+| Refund tested with real money (GOLIVE-07, 21) | |
+| RLS verified with anon-key curl matrix (GOLIVE-08) | |
+| No public booking/invoice data without a token (GOLIVE-09) | |
+| Rate limits live on AI, booking, contact (GOLIVE-10) | |
+| TLS to DB verified, production env validated (GOLIVE-11) | |
+| Account deletion works (GOLIVE-12) | |
+| Privacy/Terms/Refund reviewed, Grievance Officer live (GOLIVE-13) | |
+| CA sign-off on invoices and settlements (GOLIVE-14) | |
+| Email deliverability proven; WhatsApp/SMS live or disclosed as absent (GOLIVE-15, 16) | |
+| Backups enabled and restore tested (GOLIVE-21) | |
+
+### L.8 POST-LAUNCH (weeks 2-4, MEDIUM)
+
+- Split oversized files: `booking.repository.ts` (1,213 lines), `booking.actions.ts` (1,111), `base.repository.ts` (1,060), `PropertyListingForm.tsx` (989), `property-listing.actions.ts` (854), `hotel.actions.ts` (834).
+- Merge the two repository layers (`lib/repository/` vs `lib/repositories/`) and the two DB access paths (Drizzle plus `pg` vs supabase-js) where practical.
+- Make commission configurable per vendor (today fixed 20%).
+- Build real vendor and travel-agent dashboards (today 11-line and 27-line placeholders); decide the role of `/super-admin`.
+- Verified-review system tied to completed bookings.
+- Move notifications to a queue with retries (Inngest/QStash).
+- Add `GET` public REST endpoints needed for a native app (Server Actions are not a public API).
+- Play Store wrapper (TWA/Capacitor) and Data Safety form, if D7 chose native.
+
+### L.9 FUTURE (LOW)
+
+Seasonal/dynamic pricing; channel manager and iCal sync; automated vendor payouts (`cashfree-payouts.client.ts` is stubbed); multi-vendor packages with split payments; loyalty program; search ranking (pgvector/Algolia); media transcoding/CDN; admin analytics; multi-currency.
+
+### L.10 Rules reminder for every GOLIVE milestone
+
+RULE 7/13: inspect live schema before any SQL. RULE 22: payment/booking changes need a sandbox walkthrough. RULE 24: new table means RLS plus documented policy. RULE 29/30: new env var goes in `.env.example` and `env.ts`, and the integration is gated off if unset. RULE 32/35: migrations exist on disk and their production-run status is recorded. Section F2: DoD, including PROJECT_STATUS.md and CHANGELOG.md updated in the same session.
