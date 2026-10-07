@@ -13,6 +13,20 @@
 
 export const PLATFORM_COMMISSION_RATE = 0.2;
 
+// PARTNER-TERMS-01: the same rate expressed as a whole-number percentage
+// for display (partner terms page, listing-form checkbox) and for the
+// acceptance record. Derived, never typed twice (RULE 1) — change the rate
+// above and every screen plus every NEW acceptance row follows. Existing
+// acceptance rows keep the percentage the owner actually agreed to.
+export const PLATFORM_COMMISSION_PERCENT = Math.round(
+  PLATFORM_COMMISSION_RATE * 100
+);
+
+// PARTNER-TERMS-01: bump this string whenever the wording of
+// /partner-terms changes in a way owners must re-accept. It is stored on
+// every acceptance row as proof of WHICH text was agreed to.
+export const PARTNER_TERMS_VERSION = '2026-10-07-v1';
+
 export interface CommissionSplit {
   platformCommissionAmount: number;
   vendorPayoutAmount: number;
