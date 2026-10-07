@@ -35,6 +35,9 @@ const PUBLIC_ROUTES = [
   // PARTNER-TERMS-01: public so owners can read it before signing up
   "/partner-terms",
 
+  // GOLIVE-03: uptime monitors have no session
+  "/api/health",
+
   // BOOKING-03: guest checkout. A guest must be able to reach a
   // package's booking page (previously only /hotels/ had the prefix
   // match below — /packages/[id] and /packages/[id]/book were
