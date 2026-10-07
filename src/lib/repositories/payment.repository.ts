@@ -197,6 +197,55 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     return (row as PaymentRecord) ?? null;
   }
 
+  // GOLIVE-03 — reconciliation queries (read-only).
+  //
+  // Payments still "pending" that were started between `newerThanIso` and
+  // `olderThanIso`: old enough that a webhook should have arrived, recent
+  // enough to be worth asking Cashfree about. Oldest first.
+  async getStalePendingPayments(
+    olderThanIso: string,
+    newerThanIso: string,
+    limit: number
+  ): Promise<PaymentRecord[]> {
+    const { data, error } = await this.supabase
+      .from("payments")
+      .select("*")
+      .eq("status", "pending")
+      .lt("initiated_at", olderThanIso)
+      .gt("initiated_at", newerThanIso)
+      .is("deleted_at", null)
+      .order("initiated_at", { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      console.error("[payments] getStalePendingPayments failed", error);
+      throw error;
+    }
+    return (data ?? []) as PaymentRecord[];
+  }
+
+  // Successful payments completed since `sinceIso`; the job checks whether
+  // each one's booking is still pending. Newest first.
+  async getRecentSuccessfulPayments(
+    sinceIso: string,
+    limit: number
+  ): Promise<PaymentRecord[]> {
+    const { data, error } = await this.supabase
+      .from("payments")
+      .select("*")
+      .eq("status", "success")
+      .gte("completed_at", sinceIso)
+      .is("deleted_at", null)
+      .order("completed_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("[payments] getRecentSuccessfulPayments failed", error);
+      throw error;
+    }
+    return (data ?? []) as PaymentRecord[];
+  }
+
   async getAllPayments(
     page: number = 1,
     limit: number = 20,
