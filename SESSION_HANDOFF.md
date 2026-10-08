@@ -4,6 +4,17 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+GOLIVE-07a (2026-10-08) — refund backend. CODE COMPLETE, NOT VERIFIED (no tsc/vitest/Postgres/Cashfree in the sandbox; syntax check only).
+New: src/db/sql/033_golive07_refunds.sql (NOT run), src/lib/payments/refund.ts, refund-status.ts, src/lib/repositories/payment-refund.repository.ts,
+src/app/actions/payment-refund.actions.ts, verify/golive07.test.ts. Modified: cashfree.client.ts, webhook route.ts, cron route.ts, booking.repository.ts,
+booking.actions.ts, finalize-payment.ts, payment.repository.ts, vendor-settlement.actions.ts. No new env var.
+Order to deploy: (1) check live payments columns + payments_status_check, (2) run 033, (3) deploy code, (4) enable the Refund webhook in the Cashfree dashboard
+(same URL as the payment webhook) — without it refunds still resolve through the sync job, only slower. Walkthrough: pay in sandbox -> cancel -> admin requestRefundAdmin
+-> refund shows pending -> webhook/sync -> success; payment becomes refunded, booking refund_due clears, vendor due drops by the vendor share.
+Also changed: vendor "earned" query now uses an !inner join (see CHANGELOG 2026-10-08) — verify with two vendors.
+NEXT: GOLIVE-07b — admin UI on /admin/payments/[id] (full/partial refund, status, refund-due list), cancellation-policy helper (FULL_REFUND_WINDOW + hotel
+cancellation_policy; suggestion only, admin confirms), customer refund email. Then GOLIVE-08 (RLS audit).
+
 SEC-REDIRECT-01 (2026-10-07, after GOLIVE-06) — the open-redirect finding below is FIXED. src/lib/auth/safe-redirect.ts (new), src/actions/auth.ts,
 src/app/auth/callback/route.ts, verify/safe-redirect.test.ts (new). tsc PASS, ESLint clean, vitest 85/85. Walkthrough: open /login?redirectTo=https://example.com ,
 log in -> must land on your normal dashboard, NOT example.com; open /login?redirectTo=/profile -> lands on /profile; Google login too.
@@ -1356,10 +1367,4 @@ VENDOR-03 (M1) — Self-Service "List Your Property" schema foundation. CODE COM
 
 PAY-04 — Automated Split Settlement via Cashfree Easy Split. NOT STARTED. Depends on VENDOR-02 (code complete, see below) and on Cashfree Payout API credentials, which have not been provided yet. No RULE 15 pre-coding audit exists yet — perform one before writing any code.
 
-VENDOR-02 — Hotel Owner Payout KYC Capture. CODE COMPLETE 2026-08-28. Migration RUN AND CONFIRMED IN PRODUCTION 2026-09-03: public.vendor_payout_details verified live via information_schema.columns — all 12 expected columns present with correct types (bank_account_number/bank_ifsc/upi_id/cashfree_beneficiary_id text nullable, payout_status text NOT NULL default 'pending', id/vendor_id/created_at/updated_at NOT NULL, created_by/updated_by/deleted_at nullable), per RULE 13/35. RULE 15 audit performed (see PROJECT_STATUS.md v14): admin-only capture form at /admin/vendors/[id]/payout now safe to rely on in production. Cashfree beneficiary creation left as an inert stub pending separate Payout credentials. Admin-managed rather than owner self-service, since src/app/vendor/ has no actual page yet (layout-only role guard) — building owner-facing UI/auth was out of scope for this milestone.
-
-BOOKING-02 — CLOSED 2026-08-28. Live schema confirmed via information_schema.columns and pg_attribute/pg_attrdef/pg_constraint: public.bookings.room_id exists (uuid, nullable, no default, FK → hotel_rooms(id)). This resolved the DATABASE_BIBLE.md-vs-audit contradiction in DATABASE_BIBLE.md's favor. Migration src/db/sql/008_room05_booking_room_linkage.sql created (idempotent) to close the RULE 32 disk-gap. No application code changed — booking.repository.ts already handled room_id correctly. Bookings were never actually broken by this in production. See PROJECT_STATUS.md v13 and CHANGELOG.md 2026-08-28.
-
-Completed this session (2026-08-28 — documentation backfill + BOOKING-02 resolution + VENDOR-02 implementation)
-
-User confirmed PROJECT_STATUS.md/CHANGELOG.md had not been updated for the 2026-08-23 (ROOM-05) and 2026-08-27 (build-stability/planning) sessions. Both files backfilled from this file's own record of those sessions, cross-checked against the actual repo contents. Also 
+VENDOR-02 — Hotel Owner Payout KYC Capture. CODE COMPLETE 2026-08-28. Migration RUN AND CONFIRMED IN PRODUCTION 2026-09-03: public.vendor_payout_details verified live via information_schema.columns — all 12 expected columns present with correct types (bank_account_number/bank_ifsc/upi_id/cashfree_beneficiary_id text nullable, payout_status text NOT NULL default 'pending', id/vendor_id/created_at/updated_at NOT NULL, created_by/updated_by/deleted_at nullable), per RULE 13/35. RULE 15 au
