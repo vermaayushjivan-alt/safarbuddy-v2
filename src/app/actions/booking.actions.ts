@@ -31,6 +31,7 @@ import {
   holdRoomForBooking,
   releaseRoomForBooking,
 } from "@/lib/inventory/room-reservation";
+import { flagRefundDueIfPaid } from "@/lib/payments/refund";
 
 // -----------------------------------------------------------------------------
 // VALIDATION
@@ -897,6 +898,13 @@ export async function cancelMyBooking(
     parsed.id
   );
 
+  // GOLIVE-07: if the customer already paid, show it in the admin "refund
+  // due" list. Does NOT refund anything (owner decision D4). Never throws.
+  await flagRefundDueIfPaid(
+    createServiceRoleClient(),
+    parsed.id
+  );
+
   return cancelled;
 }
 
@@ -1059,6 +1067,13 @@ export async function cancelBookingAdmin(
 
   // GOLIVE-04: give the room back (idempotent, never throws).
   await releaseRoomForBooking(
+    parsed.id
+  );
+
+  // GOLIVE-07: if the customer already paid, show it in the admin "refund
+  // due" list. Does NOT refund anything (owner decision D4). Never throws.
+  await flagRefundDueIfPaid(
+    createServiceRoleClient(),
     parsed.id
   );
 
