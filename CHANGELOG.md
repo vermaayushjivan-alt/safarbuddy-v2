@@ -4,6 +4,82 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-07 — SEC-REDIRECT-01 (open-redirect fix) — security
+
+Status: CODE COMPLETE. tsc PASS (whole project), ESLint clean, vitest 85/85 (31 new + 54 old). NOT verified in a browser.
+Defect: /login?redirectTo=https://evil.example sent the user to that site right after a successful login (src/actions/auth.ts
+redirect(redirectTo) took any string); /auth/callback did `${origin}${next}` with an unchecked value, so next="@evil.com" or ".evil.com"
+changed the host. Found while building GOLIVE-06 (which makes redirectTo carry real booking URLs).
+Fix: new src/lib/auth/safe-redirect.ts safeRedirectPath() accepts ONLY a same-site absolute path ("/x?y=z"); rejects full URLs,
+"//host", "/\host", backslashes, control characters, "@"/"." host tricks, over-long values. Used in loginAction, googleLoginAction
+(before the value is put into the OAuth callback URL) and /auth/callback (both redirectTo and next). Unsafe value -> login falls back to the
+existing role-based smart default; callback falls back to "/". Booking return links (/hotels/<slug>/book?room=...&checkin=...) still work.
+Files: src/lib/auth/safe-redirect.ts (new), src/actions/auth.ts, src/app/auth/callback/route.ts, verify/safe-redirect.test.ts (new).
+No migration, no env var. Not changed: src/lib/auth/redirect.ts redirectToLogin() uses a `returnUrl` param that nothing reads (dead, harmless).
+
+2026-10-07 — GOLIVE-06 (login required to book, D1 = Option A) + GOLIVE-09 step 1 (guest data exposure removed) — booking safety
+
+Status: CODE COMPLETE. tsc --noEmit PASS (whole project), ESLint PASS on changed files, vitest 54/54 (9 new + 45 old; simulated/static tests).
+NOT verified in a browser or on Vercel.
+Decision (owner, 2026-10-07): professional, low-maintenance launch -> Option A. Guests can browse; booking requires an account.
+Defect fixed: guests could create a booking but never pay it (payment needs a session), leaving unpayable bookings that, since GOLIVE-04,
+also held a room until expiry.
+Changed: createBooking() throws UNAUTHENTICATED without a session, always uses the session client (service-role guest insert removed);
+hotel + package book pages redirect signed-out visitors to /login?redirectTo=<path + room/dates/guests> and return them to the same
+page after login; BookingForm lost the guest mode (no isAuthenticated prop, no email field, always goes to /dashboard/bookings?created=,
+and an expired session mid-form sends the user to login and back); middleware no longer treats /booking-confirmation/ as public.
+Removed (GOLIVE-09 step 1, same deletion — guest read paths would otherwise dangle and stay publicly callable): getGuestBookingConfirmation,
+getGuestInvoiceByBookingId, src/app/booking-confirmation/[id]/page.tsx, src/app/booking-confirmation/[id]/invoice/page.tsx,
+src/app/api/public/invoices/[bookingId]/pdf/route.ts. Logged-in invoice route src/app/api/invoices/[bookingId]/pdf is untouched.
+Deliberately NOT changed: DB (bookings.customer_id still nullable, guest_* columns and migration 012 stay — no migration, nothing destructive);
+guest_name/guest_phone are still collected as the booking contact (CONTACT-03). GOLIVE-09 steps 3 (move helpers out of "use server") and 4
+(getPaymentOutcomeForResult ownership) remain open.
+Files: src/app/actions/booking.actions.ts, src/app/actions/invoice.actions.ts, middleware.ts, src/components/booking/BookingForm.tsx,
+src/app/hotels/[slug]/book/page.tsx, src/app/packages/[id]/book/page.tsx, verify/golive06.test.ts.
+
+2026-10-07 — GOLIVE-05 (pending-booking expiry) — booking safety
+
+Status: CODE COMPLETE. Simulated tests only (in-memory DB, mocked repositories): 11 new + 34 old = 45/45 PASS. tsc --noEmit PASS
+(whole project), ESLint PASS on changed files. NOT verified against real Supabase / Cashfree; depends on migration 032 (GOLIVE-04).
+What it does: the existing GOLIVE-03 cron route now, AFTER payment reconciliation, closes bookings that are still "pending" after
+BOOKING.PENDING_EXPIRY_MINUTES (45, must stay > PAYMENT.ORDER_EXPIRY_MINUTES = 30): status cancelled, reason "Payment not completed
+in time", then release_booking_room (idempotent) gives the room back.
+Safety rules: a booking with ANY payment that is pending / success / refunded is never expired (a pending payment stops blocking only
+after reconciliation has asked Cashfree and closed it, so an unreachable Cashfree cannot cancel a possibly-paid booking); the cancel is
+a conditional UPDATE (still pending) so a webhook confirming at the same moment wins; release happens only if the cancel happened;
+per-booking errors are counted, never stop the run; max 100 per run.
+New: src/lib/bookings/expire-pending.ts, verify/golive05.test.ts. Modified: src/lib/config/constants.ts (+BOOKING.PENDING_EXPIRY_MINUTES,
+PENDING_EXPIRY_BATCH), booking.repository.ts (+getExpirablePendingBookingIds, +cancelPendingBookingIfStillPending), payment.repository.ts
+(+getBookingIdsWithLivePayments), cron route.ts (calls the job, returns `expiry` summary). No migration, no new env var.
+Known limit: orders created before GOLIVE-01 have no Cashfree expiry; a legacy pending payment that Cashfree still reports ACTIVE keeps its
+booking (and room) until it is closed. Also: bookings.payment_status is never updated by the payment flow (stays "unpaid"), so expiry
+deliberately does not rely on it.
+Not verified: cron firing on the host; a real abandoned booking freeing its room; Job order on a real run.
+
+2026-10-07 — GOLIVE-04 (room inventory reservation — fixes overbooking) — booking safety
+
+Status: CODE COMPLETE. SQL VERIFIED on a real local PostgreSQL 16 (stub schema); app flow NOT verified on real Supabase/Cashfree.
+Defect fixed: createBooking never checked or consumed room_inventory, so two guests could book the last room.
+New: src/db/sql/032_golive04_room_reservation.sql (NOT yet run in production) — adds bookings.room_inventory_held (flag),
+CHECK room_inventory.available_rooms >= 0 (NOT VALID, new writes only), and 4 service-role-only functions:
+reserve_room / release_room (the Bible's primitives) + hold_room_for_booking / release_booking_room (booking-level,
+idempotent, flag flipped in the same transaction). New: src/lib/inventory/room-reservation.ts.
+Modified: src/app/actions/booking.actions.ts (hold after insert for hotel bookings with a room; release in cancelMyBooking and
+cancelBookingAdmin).
+Behaviour (RULE 12 — confirm): night with NO room_inventory row -> blocked (NO_INVENTORY), not "unlimited"; sold out -> friendly
+error and the just-inserted booking row is closed as cancelled; one room per booking; check-out night not reserved; hotel
+bookings without a specific room and package bookings reserve nothing. Release is idempotent and never throws.
+DELIBERATE CHANGE vs Bible step 4: NOT released on "payment failed" — a failed attempt can still be followed by a SUCCESS or a
+retry on the same booking (GOLIVE-01/02), so releasing there could confirm a booking with no room. Release happens on cancel
+now and on pending-expiry in GOLIVE-05.
+Verified (real Postgres 16): migration runs twice cleanly; 3-night reserve; overlapping request -> SOLD_OUT with full rollback;
+missing row -> NO_INVENTORY; wrapper idempotent and release only once; package -> no hold; blocked rooms respected, release
+clamped; anon/authenticated denied, service_role allowed; 10 parallel requests for the last room -> exactly 1 success, 9
+SOLD_OUT; 12 parallel overlapping ranges -> 0 deadlocks, never below 0 available. tsc --noEmit PASS (whole project); ESLint PASS
+on both changed files.
+Not verified: migration on real Supabase (check live columns first, RULE 7/13); real booking + cancel in the browser; next build.
+Existing bookings created before this deploy have no hold (flag false) — they are not counted against inventory.
+
 2026-10-07 — PROMO-03 (video banners in homepage promotions + banner-3 playback fix)
 
 Status: CODE COMPLETE, NOT VERIFIED. tsc PASS (whole project, later run); ESLint not run on these files.
