@@ -33,6 +33,8 @@ export interface PaymentRecord extends DatabaseRecord {
   // null for payments that never reach "success".
   platform_commission_amount: number | null;
   vendor_payout_amount: number | null;
+  // GOLIVE-07 — running total refunded (maintained by finalize_refund in SQL).
+  refunded_amount: number;
 }
 
 type PaymentUpdateData =
@@ -306,9 +308,13 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     const { data, error } = await this.supabase
       .from("payments")
       .select(
-        "vendor_payout_amount, booking:bookings!payments_booking_id_fkey(vendor_id)"
+        "vendor_payout_amount, booking:bookings!payments_booking_id_fkey!inner(vendor_id)"
       )
-      .eq("status", "success")
+      // GOLIVE-07: a partially refunded payment still earns the vendor the
+      // un-refunded share, and a fully refunded one is netted to zero by the
+      // refund reversals (PaymentRefundRepository.getVendorPayoutReversedTotal,
+      // subtracted by the caller). So all three states are counted here.
+      .in("status", ["success", "partially_refunded", "refunded"])
       .is("deleted_at", null)
       .eq("booking.vendor_id", vendorId);
 
