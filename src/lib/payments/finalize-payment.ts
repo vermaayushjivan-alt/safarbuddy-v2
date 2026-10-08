@@ -17,6 +17,7 @@ import {
 import { BookingRepository } from "@/lib/repositories/booking.repository";
 import { computeCommissionSplit } from "@/lib/payments/commission";
 import { runPostConfirmationSideEffects } from "@/lib/payments/post-payment";
+import { flagRefundDueIfPaid } from "@/lib/payments/refund";
 import type { SupabaseClientType } from "@/lib/repositories/types";
 
 // States from which a payment may still move to "success". A FAILED or
@@ -146,5 +147,7 @@ export async function confirmBookingForSuccessfulPayment(
       `[payments] payment ${payment.id} succeeded but booking ${booking.id} is "${booking.status}" — REFUND OR MANUAL REVIEW NEEDED`
     );
     // TODO: alerting — customer paid for a booking that is not payable (e.g. cancelled).
+    // GOLIVE-07: put it in the admin "refund due" list (never refunds by itself).
+    await flagRefundDueIfPaid(supabase, booking.id);
   }
 }
