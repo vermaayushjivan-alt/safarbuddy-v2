@@ -1199,6 +1199,21 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
     return data !== null;
   }
 
+  // GOLIVE-07 — the customer paid and the booking is cancelled: show it in the
+  // admin "refund due" list. Cleared by finalize_refund (SQL) on a refund success.
+  async markRefundDue(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("bookings")
+      .update({ refund_due: true, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("deleted_at", null);
+
+    if (error) {
+      console.error("[bookings] markRefundDue failed", { id, error });
+      throw error;
+    }
+  }
+
   async confirmBooking(
     id: string
   ): Promise<BookingRecord> {
