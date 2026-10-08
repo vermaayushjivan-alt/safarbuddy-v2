@@ -182,3 +182,14 @@ UNVERIFIED beyond what's already reflected in existing repository
 interfaces. If a field is needed that isn't already in one of these
 interfaces, STOP per DEVELOPMENT_BIBLE RULE 13/7 and confirm with the
 project owner instead of guessing.
+
+
+GOLIVE-07a (2026-10-08) — migration 033_golive07_refunds.sql (NOT yet run in production; RULE 13 check required first)
+- public.payment_refunds: refund ledger, one row per refund request, never deleted. RLS ENABLED, NO POLICIES = service-role only; anon/authenticated have all
+  privileges revoked. Read/written only by server code using createServiceRoleClient() after a role check. Columns: id, payment_id, booking_id, refund_id (unique,
+  our idempotency key), cf_refund_id, amount (>0), currency_code, status (pending|success|failed|cancelled), reason, gateway_status, gateway_message,
+  platform_commission_reversed, vendor_payout_reversed, requested_by, requested_at, processed_at, created_at, updated_at.
+- public.payments: + refunded_amount numeric(10,2) not null default 0; payments_status_check re-created NOT VALID with refunded/partially_refunded allowed.
+- public.bookings: + refund_due boolean not null default false (partial index where true).
+- Functions create_refund_request / finalize_refund: SECURITY DEFINER, execute revoked from public/anon/authenticated, granted to service_role only.
+- Measured state: NOT measured (migration not run).
