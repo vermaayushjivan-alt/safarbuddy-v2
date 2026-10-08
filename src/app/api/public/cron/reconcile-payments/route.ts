@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { reconcilePayments } from "@/lib/payments/reconcile";
 import { expireStalePendingBookings } from "@/lib/bookings/expire-pending";
+import { syncPendingRefunds } from "@/lib/payments/refund";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // GOLIVE-05: expire abandoned bookings AFTER reconciliation, so payments
     // Cashfree has expired are already closed and no longer protect them.
     const expiry = await expireStalePendingBookings(supabase);
-    return NextResponse.json({ success: true, summary, expiry });
+    // GOLIVE-07: resolve refunds an admin already requested whose webhook
+    // never arrived. Never starts a refund by itself.
+    const refunds = await syncPendingRefunds(supabase);
+    return NextResponse.json({ success: true, summary, expiry, refunds });
   } catch (error) {
     console.error("[reconcile] run failed", error);
     // TODO: alerting — the reconciliation run itself crashed.
