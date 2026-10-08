@@ -33,6 +33,7 @@ import {
   mapCashfreeRefundStatus,
   type RefundStatus,
 } from "@/lib/payments/refund-status";
+import { notifyCustomerRefundProcessed } from "@/lib/notifications/refund-email";
 import type { SupabaseClientType } from "@/lib/repositories/types";
 
 // A refund request that Cashfree has no record of after this long never
@@ -155,6 +156,18 @@ export async function applyCashfreeRefundUpdate(
     gatewayStatus: update.rawStatus,
     message: update.message,
   });
+
+  // GOLIVE-07b: tell the customer, once. `applied` is true only for the call
+  // that really moved the refund to "success" (webhook/sync/request can race).
+  // The email function never throws.
+  if (done.applied && done.finalStatus === "success") {
+    await notifyCustomerRefundProcessed(supabase, {
+      bookingId: row.booking_id,
+      amount: Number(row.amount),
+      currencyCode: row.currency_code,
+      refundId: row.refund_id,
+    });
+  }
 
   return {
     outcome: done.finalStatus === "success" ? "success" : "rejected",
