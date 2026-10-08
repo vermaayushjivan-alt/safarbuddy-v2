@@ -2,6 +2,8 @@ PROJECT_STATUS.md
 
 Single source of truth for SafarBuddy V2 progress.
 
+GOLIVE-07a — Refund backend (admin-initiated, D4) — CODE COMPLETE (2026-10-08), NOT Frozen, NOT verified. Needs migration 033, tsc/vitest run, Cashfree sandbox refund + webhook walkthrough (RULE 22). 07b (admin screen, policy helper, customer email) not started. See CHANGELOG.md 2026-10-08.
+
 SEC-REDIRECT-01 — Open-redirect fix (login + OAuth callback) — CODE COMPLETE (2026-10-07). 85/85 tests PASS; browser check pending. See CHANGELOG.md.
 
 GOLIVE-06 — Login required to book (D1 = Option A) + GOLIVE-09 step 1 — CODE COMPLETE (2026-10-07), NOT Frozen. 54/54 tests PASS; browser walkthrough pending. See CHANGELOG.md 2026-10-07 GOLIVE-06.
