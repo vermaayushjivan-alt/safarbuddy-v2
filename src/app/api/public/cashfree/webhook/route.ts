@@ -41,6 +41,7 @@ import {
   confirmBookingForSuccessfulPayment,
   paymentAmountMismatch,
 } from "@/lib/payments/finalize-payment";
+import { handleRefundWebhook } from "@/lib/payments/refund";
 import type { SupabaseClientType } from "@/lib/repositories/types";
 
 export const runtime = "nodejs";
@@ -107,6 +108,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const data = payload.data as Record<string, unknown> | undefined;
+
+  // GOLIVE-07: refund events carry data.refund (no data.order / data.payment),
+  // so they are handled first, before the payment-status logic below.
+  const refundData = data?.refund as Record<string, unknown> | undefined;
+  if (payload.type === "REFUND_STATUS_WEBHOOK" || refundData) {
+    if (!refundData) return ok();
+    try {
+      await handleRefundWebhook(createServiceRoleClient(), refundData);
+      return ok();
+    } catch (error) {
+      console.error("[Cashfree Webhook] refund processing failed", error);
+      // TODO: alerting — refund webhook handler threw; Cashfree will retry.
+      return serverError(); // safe: handleRefundWebhook is idempotent
+    }
+  }
+
   const order = data?.order as Record<string, unknown> | undefined;
   const paymentData = data?.payment as Record<string, unknown> | undefined;
 
