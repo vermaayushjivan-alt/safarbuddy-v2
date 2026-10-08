@@ -33,10 +33,8 @@ export async function getInvoiceByBookingIdAdmin(
 // --- Customer: fetch own invoice by booking id ---
 // Ownership check mirrors getMyBookingById (booking.actions.ts) —
 // booking.customer_id must match the signed-in user's public.users id.
-// Guest-checkout access (BOOKING-03, no session at all) is intentionally
-// NOT covered here — getGuestBookingConfirmation's trust model (opaque
-// booking UUID as the access token) is a Step 5 decision, not assumed
-// here.
+// GOLIVE-06: there is no guest access any more — booking requires login,
+// so ownership (customer_id) is the only way in.
 export async function getMyInvoiceByBookingId(
   bookingId: string
 ): Promise<InvoiceRecord | null> {
@@ -55,35 +53,6 @@ export async function getMyInvoiceByBookingId(
   const booking = await bookingRepo.getBookingById(bookingId);
 
   if (!booking || booking.customer_id !== customerId) {
-    return null;
-  }
-
-  return invoiceRepo.getInvoiceByBookingId(bookingId);
-}
-
-// --- Guest checkout: fetch own invoice by booking id (INVOICE-02) ---
-// Same trust model as getGuestBookingConfirmation() (booking.actions.ts):
-// no session exists for a guest booking (BOOKING-03), so the opaque
-// booking UUID itself is the access token — not an enumerable id, and
-// never listed/searchable anywhere public. Service-role read, no
-// ownership check (there is no customer_id to check against for a
-// guest booking; that's the whole reason this separate action exists
-// instead of reusing getMyInvoiceByBookingId above).
-export async function getGuestInvoiceByBookingId(
-  bookingId: string
-): Promise<InvoiceRecord | null> {
-  if (!bookingId || !bookingId.trim()) {
-    return null;
-  }
-
-  const supabase = createServiceRoleClient();
-
-  const bookingRepo = new BookingRepository(supabase);
-  const invoiceRepo = new InvoiceRepository(supabase);
-
-  const booking = await bookingRepo.getBookingById(bookingId);
-
-  if (!booking) {
     return null;
   }
 
