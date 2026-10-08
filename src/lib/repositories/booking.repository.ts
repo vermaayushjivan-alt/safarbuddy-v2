@@ -1146,6 +1146,59 @@ export class BookingRepository extends BaseRepository<BookingRecord> {
       : null;
   }
 
+  // GOLIVE-05 — ids of "pending" bookings created before `olderThan`,
+  // oldest first, capped at `limit`. Candidates for expiry.
+  async getExpirablePendingBookingIds(
+    olderThan: string,
+    limit: number
+  ): Promise<string[]> {
+    const { data, error } = await this.supabase
+      .from("bookings")
+      .select("id")
+      .eq("booking_status", "pending")
+      .lt("created_at", olderThan)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      console.error("[bookings] getExpirablePendingBookingIds failed", error);
+      throw error;
+    }
+    return (data ?? []).map((row) => (row as { id: string }).id);
+  }
+
+  // GOLIVE-05 — atomic "cancel only if still pending".
+  // Returns true only if THIS call cancelled the booking; false if it was
+  // already confirmed/cancelled (e.g. a webhook won the race).
+  async cancelPendingBookingIfStillPending(
+    id: string,
+    reason: string
+  ): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from("bookings")
+      .update({
+        booking_status: "cancelled",
+        cancellation_status: "cancelled",
+        cancellation_reason: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("booking_status", "pending")
+      .is("deleted_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      console.error("[bookings] cancelPendingBookingIfStillPending failed", {
+        id,
+        error,
+      });
+      throw error;
+    }
+    return data !== null;
+  }
+
   async confirmBooking(
     id: string
   ): Promise<BookingRecord> {
