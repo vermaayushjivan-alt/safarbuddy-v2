@@ -15,6 +15,7 @@ import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { reconcilePayments } from "@/lib/payments/reconcile";
+import { expireStalePendingBookings } from "@/lib/bookings/expire-pending";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,8 +43,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const summary = await reconcilePayments(createServiceRoleClient());
-    return NextResponse.json({ success: true, summary });
+    const supabase = createServiceRoleClient();
+    const summary = await reconcilePayments(supabase);
+    // GOLIVE-05: expire abandoned bookings AFTER reconciliation, so payments
+    // Cashfree has expired are already closed and no longer protect them.
+    const expiry = await expireStalePendingBookings(supabase);
+    return NextResponse.json({ success: true, summary, expiry });
   } catch (error) {
     console.error("[reconcile] run failed", error);
     // TODO: alerting — the reconciliation run itself crashed.
