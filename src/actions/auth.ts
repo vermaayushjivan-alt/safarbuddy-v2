@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { verifyCaptcha } from "@/lib/security/turnstile";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 import {
   normalizeReferralCode,
   recordReferralSignup,
@@ -96,9 +97,11 @@ export async function loginAction(
     return { error: error.message };
   }
 
-  const redirectTo = formData.get("redirectTo");
+  // SECURITY: only a same-site path is honoured (open-redirect fix). An
+  // unsafe or missing value falls through to the smart default below.
+  const redirectTo = safeRedirectPath(formData.get("redirectTo"));
 
-  if (typeof redirectTo === "string" && redirectTo) {
+  if (redirectTo) {
     redirect(redirectTo);
   }
 
@@ -222,14 +225,15 @@ export async function registerAction(
 /* -------------------------------------------------------------------------- */
 
 export async function googleLoginAction(formData: FormData) {
-  const redirectTo = formData.get("redirectTo");
+  // SECURITY: sanitised before it is embedded in the callback URL.
+  const redirectTo = safeRedirectPath(formData.get("redirectTo"));
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback${
-        typeof redirectTo === "string" && redirectTo
+        redirectTo
           ? `?redirectTo=${encodeURIComponent(redirectTo)}`
           : ""
       }`,
