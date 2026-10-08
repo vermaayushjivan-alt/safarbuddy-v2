@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -8,9 +9,11 @@ export async function GET(request: NextRequest) {
   // STABILIZATION-01 fix: read "next" param correctly.
   // Previous code read "redirectTo" for both variables, silently
   // ignoring Supabase's "next" param and the original "redirectTo".
-  // Safe: origin is already the verified request origin — no open redirect.
-  const redirectTo = searchParams.get("redirectTo") ?? "/";
-  const next = searchParams.get("next") ?? redirectTo;
+  // SECURITY: the origin is verified, but `${origin}${next}` is NOT safe on its
+  // own — next="@evil.com" or ".evil.com" changes the host. Only a same-site
+  // path is accepted; anything else becomes "/".
+  const redirectTo = safeRedirectPath(searchParams.get("redirectTo"), "/") as string;
+  const next = safeRedirectPath(searchParams.get("next"), redirectTo) as string;
 
   if (code) {
     const supabase = await createClient();
