@@ -372,14 +372,18 @@ async function getInrCurrencyId(
 export async function createBooking(
   input: CreateBookingInput
 ): Promise<BookingRecord> {
-  // BOOKING-03: a session is no longer required. When there is no
-  // authUser, this becomes a guest checkout — guest_name/email/phone
-  // are required instead (validated below) and every DB call for the
-  // rest of this function uses the service-role client, since a guest
-  // has no session for RLS to evaluate (same trusted-server-write
-  // pattern as property-listing.actions.ts's self-service submission).
+  // GOLIVE-06 (D1 = Option A): booking requires a signed-in user. The
+  // guest/service-role insert path from BOOKING-03 is gone: a guest booking
+  // could never be paid (payment needs a session) and would only hold a room.
+  // The pages redirect to /login first; this check is the server-side backstop.
   const authUser =
     await getAuthUser();
+
+  if (!authUser) {
+    throw new Error(
+      "UNAUTHENTICATED"
+    );
+  }
 
   let parsed;
 
@@ -399,38 +403,17 @@ export async function createBooking(
     );
   }
 
-  if (!authUser) {
-    if (
-      !parsed.guest_name ||
-      !parsed.guest_email ||
-      !parsed.guest_phone
-    ) {
-      throw new Error(
-        "Name, email, and phone are required to book without an account."
-      );
-    }
-  }
-
-  // CONTACT-03: name + phone are now required for EVERY booking, not
-  // just guest checkout. Root cause fixed here: a signed-in booking
-  // previously stored guest_name/guest_phone as null and relied only
-  // on the stale public.users profile, so the hotel/admin had no
-  // reliable, booking-time-confirmed way to reach the actual guest
-  // (who may not be the profile owner, or whose profile number is
-  // outdated). Email stays optional for a signed-in user only, since
-  // public.users already has one for that path.
-  if (authUser) {
-    if (!parsed.guest_name || !parsed.guest_phone) {
-      throw new Error(
-        "Name and phone are required to complete this booking."
-      );
-    }
+  // CONTACT-03: name + phone are required for every booking — this is the
+  // booking-time contact the hotel/admin notification uses, kept separate
+  // from (and possibly different from) the signed-in user's profile.
+  if (!parsed.guest_name || !parsed.guest_phone) {
+    throw new Error(
+      "Name and phone are required to complete this booking."
+    );
   }
 
   const supabase =
-    authUser
-      ? await createClient()
-      : createServiceRoleClient();
+    await createClient();
 
   // ---------------------------------------------------------------------------
   // Resolve public.users.id (skipped for a guest), INR currency, and
@@ -454,9 +437,7 @@ export async function createBooking(
 
   const [customerId, currencyId, hotel, pkg] =
     await Promise.all([
-      authUser
-        ? getPublicUserId(supabase, authUser.id)
-        : Promise.resolve(null),
+      getPublicUserId(supabase, authUser.id),
       getInrCurrencyId(supabase),
       hotelRepo
         ? hotelRepo.getHotelById(parsed.hotel_id as string)
@@ -753,38 +734,6 @@ export async function createBooking(
   // not a duplicate trigger at both points).
 
   return created;
-}
-
-// -----------------------------------------------------------------------------
-// BOOKING-03 - PUBLIC GUEST CONFIRMATION
-// -----------------------------------------------------------------------------
-
-// Deliberately not gated by getAuthUser()/requireRole() — a guest who
-// just checked out has no session at all. Safety comes from the
-// lookup key: `id` is the booking's own UUID primary key, returned to
-// the browser only once, right after createBooking() succeeds (see
-// BookingForm.tsx's redirect target) — not enumerable or guessable,
-// same trust model as a typical e-commerce order-confirmation link.
-// Reads via the service-role client for the same reason a guest write
-// does: there's no session for RLS to evaluate.
-export async function getGuestBookingConfirmation(
-  id: string
-): Promise<BookingRecord | null> {
-  if (!id || !id.trim()) {
-    return null;
-  }
-
-  const supabase =
-    createServiceRoleClient();
-
-  const repo =
-    new BookingRepository(
-      supabase
-    );
-
-  return repo.getBookingById(
-    id
-  );
 }
 
 // -----------------------------------------------------------------------------
