@@ -4,6 +4,32 @@ CHANGELOG.md
 
 All significant SafarBuddy V2 changes are recorded here.
 
+2026-10-08 — GOLIVE-07a (refund backend) — payment safety (RULE 22)
+
+Status: CODE COMPLETE (backend only). Helper checks run and pass (refund status mapping, paise validation/rounding; reversal
+maths simulated on 20,000 random splits). NOT run: tsc/eslint/vitest (no node_modules in the sandbox, only a syntax check, clean),
+migration 033 NOT run on any Postgres, nothing tested against Cashfree sandbox. Admin screen, policy helper and customer email = 07b.
+Decision D4 (owner): refunds are ADMIN-INITIATED only. Nothing here refunds by itself; the cron only syncs refunds an admin requested.
+New: src/db/sql/033_golive07_refunds.sql (NOT yet run) — payments.refunded_amount, payments_status_check re-created (NOT VALID) to allow
+refunded/partially_refunded, bookings.refund_due, table payment_refunds (RLS on, NO policies = service role only), SQL functions
+create_refund_request (row-locks the payment; blocks refunding more than paid incl. refunds in flight) and finalize_refund (idempotent;
+on success updates payments, reverses vendor/commission share proportionally with the last refund taking the exact remainder, clears
+refund_due). New: src/lib/payments/refund.ts, refund-status.ts, src/lib/repositories/payment-refund.repository.ts,
+src/app/actions/payment-refund.actions.ts (requestRefundAdmin, getRefundsForPaymentAdmin), verify/golive07.test.ts.
+Modified: cashfree.client.ts (+createCashfreeRefund, +getCashfreeRefund), webhook route.ts (REFUND_STATUS_WEBHOOK branch, before the
+payment logic), cron route.ts (+syncPendingRefunds, returns `refunds`), booking.repository.ts (+markRefundDue), booking.actions.ts
+(cancelMyBooking/cancelBookingAdmin flag refund_due when the booking was paid), finalize-payment.ts (paid-but-not-payable booking now
+also flagged refund_due), payment.repository.ts (+refunded_amount; settlement total counts partially_refunded/refunded), vendor-settlement.actions.ts
+(due = earned - refund reversals; reversals read with the service role because payment_refunds has no RLS policy).
+Safety rules: refund row written BEFORE calling Cashfree with our own refund_id (no double refund on retry); timeout / 5xx is "unknown"
+and stays pending (never "failed") until the sync job looks it up; a refund Cashfree has no record of after 15 min is closed so the admin
+can retry; webhook/sync/request can race, finalize_refund applies once.
+FOUND AND CHANGED (please confirm): getSuccessfulVendorPayoutTotal filtered `booking.vendor_id` on a plain embed. In PostgREST that does
+not drop the other rows, so every vendor's "earned" may have been the total of ALL vendors. Changed to an !inner join. Verify with 2 vendors.
+Unverified Cashfree details: field names are from Cashfree's docs; a GET for a refund that does not exist may return 400 instead of 404
+(then the refund simply stays pending and visible, it is never wrongly closed).
+Before running 033 (RULE 13): check payments columns and the live payments_status_check with the queries at the top of the file.
+
 2026-10-07 — SEC-REDIRECT-01 (open-redirect fix) — security
 
 Status: CODE COMPLETE. tsc PASS (whole project), ESLint clean, vitest 85/85 (31 new + 54 old). NOT verified in a browser.
@@ -1524,4 +1550,4 @@ Fixed (build-blocking, neither previously logged anywhere):
 
 Diagnosed (not a code bug): live-mode Cashfree order creation returned HTTP 401 (confirmed via Vercel function logs). cashfree.client.ts itself was already correct. Root cause was stale/mismatched production API keys in Vercel and/or a missing redeploy. Resolved by the user re-entering matched live keys and redeploying; confirmed working with a real live payment.
 
-Found — NOT fixed (logged as BOOKING-02, top priority): src/db/sql/008_room05_booking_room_linkage.sql is referenced elsewhere as created, but does not exist anywhere in the delivered repo. booking.repos
+Found — NOT fixed (logged as BOOKING-02, top priority): src/db/sql/008_room05_booking_room_linkage.sql is
