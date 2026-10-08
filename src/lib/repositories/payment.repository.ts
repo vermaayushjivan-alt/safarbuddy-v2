@@ -224,6 +224,32 @@ export class PaymentRepository extends BaseRepository<PaymentRecord> {
     return (data ?? []) as PaymentRecord[];
   }
 
+  // GOLIVE-05 — which of these bookings must NOT be expired: any booking with a
+  // payment that is still payable ('pending') or already paid ('success').
+  // A 'pending' payment stops blocking only once reconciliation (GOLIVE-03)
+  // has asked Cashfree and closed it, so an unreachable Cashfree can never
+  // cause a possibly-paid booking to be cancelled.
+  async getBookingIdsWithLivePayments(
+    bookingIds: string[]
+  ): Promise<Set<string>> {
+    if (bookingIds.length === 0) return new Set();
+
+    const { data, error } = await this.supabase
+      .from("payments")
+      .select("booking_id")
+      .in("booking_id", bookingIds)
+      .in("status", ["pending", "success", "refunded", "partially_refunded"])
+      .is("deleted_at", null);
+
+    if (error) {
+      console.error("[payments] getBookingIdsWithLivePayments failed", error);
+      throw error;
+    }
+    return new Set(
+      (data ?? []).map((row) => (row as { booking_id: string }).booking_id)
+    );
+  }
+
   // Successful payments completed since `sinceIso`; the job checks whether
   // each one's booking is still pending. Newest first.
   async getRecentSuccessfulPayments(
