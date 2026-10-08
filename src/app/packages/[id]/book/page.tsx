@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Navbar from '@/components/home/Navbar';
 import Footer from '@/components/home/Footer';
 import { getPackageForBooking } from '@/app/actions/package.actions';
@@ -10,13 +10,8 @@ import BookingForm from '@/components/booking/BookingForm';
 // (only /admin/packages is built so far), so this route is addressed by
 // id.
 //
-// BOOKING-03: this page (and /packages/[id] generally) used to be
-// outside middleware.ts's public allowlist, and this page additionally
-// redirected to /login itself — both blocked guest checkout entirely
-// for packages. middleware.ts now allows the /packages/ prefix; the
-// redirect here is removed the same way it was for the hotel booking
-// page, and authUser is kept only to tell BookingForm whether to show
-// the guest-contact section.
+// GOLIVE-06 (D1 = Option A): booking requires login. A visitor who is not
+// signed in is sent to /login and brought straight back here afterwards.
 
 export default async function PackageBookingPage({
   params,
@@ -30,6 +25,10 @@ export default async function PackageBookingPage({
   }
 
   const authUser = await getAuthUser();
+
+  if (!authUser) {
+    redirect(`/login?redirectTo=${encodeURIComponent(`/packages/${id}/book`)}`);
+  }
 
   const pkg = await getPackageForBooking(id);
   if (!pkg) {
@@ -53,7 +52,6 @@ export default async function PackageBookingPage({
             targetName={pkg.package_name}
             startingPrice={pkg.starting_price}
             vendorId={pkg.vendor_id ?? null}
-            isAuthenticated={Boolean(authUser)}
           />
         </div>
       </section>
