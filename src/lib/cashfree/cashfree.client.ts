@@ -315,3 +315,169 @@ export function verifyWebhookSignature(
     return false;
   }
 }
+
+// ---------------------------------------------------------------------------
+// GOLIVE-07 — Refunds
+//
+// POST /orders/{order_id}/refunds   body: { refund_amount, refund_id, refund_note }
+// GET  /orders/{order_id}/refunds/{refund_id}
+//
+// `refund_id` is OUR id (stored in payment_refunds.refund_id before the call),
+// so repeating a request for the same refund can never create a second one.
+//
+// A refund that Cashfree accepts is usually "PENDING" at first; the final
+// state arrives by REFUND_STATUS_WEBHOOK (SUCCESS or CANCELLED) or by the
+// sync job calling getCashfreeRefund.
+// ---------------------------------------------------------------------------
+
+export type CashfreeRefundState =
+  | 'SUCCESS'
+  | 'PENDING'
+  | 'ONHOLD'
+  | 'CANCELLED'
+  | 'FAILED';
+
+export interface CashfreeRefundDetails {
+  cf_refund_id: string | null;
+  refund_id: string | null;
+  refund_status: string; // raw Cashfree value; see CashfreeRefundState
+  status_description: string | null;
+}
+
+// "rejected": Cashfree answered and said no (4xx) — nothing was created.
+// "unknown":  no answer / 5xx / 429 — the refund MAY exist at Cashfree.
+//             Never treat unknown as failed; look it up by refund_id.
+// "not_found": GET only — Cashfree has no such refund.
+export type CashfreeRefundCallResult =
+  | { ok: true; refund: CashfreeRefundDetails }
+  | { ok: false; kind: 'rejected'; message: string }
+  | { ok: false; kind: 'not_found' }
+  | { ok: false; kind: 'unknown' };
+
+function parseRefundBody(
+  body: Record<string, unknown>
+): CashfreeRefundDetails | null {
+  const status = body['refund_status'];
+  if (typeof status !== 'string' || !status) return null;
+
+  const cf = body['cf_refund_id'];
+  const rid = body['refund_id'];
+  const desc = body['status_description'];
+
+  return {
+    cf_refund_id:
+      typeof cf === 'string' && cf
+        ? cf
+        : typeof cf === 'number'
+          ? String(cf)
+          : null,
+    refund_id: typeof rid === 'string' ? rid : null,
+    refund_status: status,
+    status_description: typeof desc === 'string' ? desc : null,
+  };
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  try {
+    const parsed = (await response.json()) as Record<string, unknown>;
+    // Only documented error fields; never the whole body (RULE 38 / GOLIVE-01).
+    const message = parsed['message'];
+    return typeof message === 'string' && message
+      ? message
+      : `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+}
+
+export async function createCashfreeRefund(input: {
+  orderId: string;
+  refundId: string;
+  amount: number;
+  note: string;
+}): Promise<CashfreeRefundCallResult> {
+  const baseUrl = getCashfreeBaseUrl();
+  const headers = getCashfreeHeaders();
+
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(
+      `${baseUrl}/orders/${encodeURIComponent(input.orderId)}/refunds`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          refund_amount: input.amount,
+          refund_id: input.refundId,
+          refund_note: input.note.slice(0, 100),
+        }),
+      }
+    );
+  } catch (networkError) {
+    console.error('[Cashfree] Refund request failed (network/timeout)', networkError);
+    // TODO: alerting — refund outcome unknown.
+    return { ok: false, kind: 'unknown' };
+  }
+
+  if (!response.ok) {
+    const message = await readErrorMessage(response);
+    console.error(`[Cashfree] Refund request failed: HTTP ${response.status}`, {
+      refundId: input.refundId,
+      message,
+    });
+    // 4xx (except 408 / 429) = Cashfree understood and refused: nothing created.
+    const refused =
+      response.status >= 400 &&
+      response.status < 500 &&
+      response.status !== 408 &&
+      response.status !== 429;
+    return refused
+      ? { ok: false, kind: 'rejected', message }
+      : { ok: false, kind: 'unknown' };
+  }
+
+  try {
+    const refund = parseRefundBody(
+      (await response.json()) as Record<string, unknown>
+    );
+    // 2xx but unreadable body: the refund exists, we just cannot read it.
+    return refund ? { ok: true, refund } : { ok: false, kind: 'unknown' };
+  } catch {
+    return { ok: false, kind: 'unknown' };
+  }
+}
+
+export async function getCashfreeRefund(input: {
+  orderId: string;
+  refundId: string;
+}): Promise<CashfreeRefundCallResult> {
+  const baseUrl = getCashfreeBaseUrl();
+  const headers = getCashfreeHeaders();
+
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(
+      `${baseUrl}/orders/${encodeURIComponent(input.orderId)}/refunds/${encodeURIComponent(input.refundId)}`,
+      { method: 'GET', headers }
+    );
+  } catch (networkError) {
+    console.error('[Cashfree] Refund fetch failed (network/timeout)', networkError);
+    return { ok: false, kind: 'unknown' };
+  }
+
+  if (response.status === 404) return { ok: false, kind: 'not_found' };
+
+  if (!response.ok) {
+    console.error(`[Cashfree] Refund fetch failed: HTTP ${response.status}`);
+    return { ok: false, kind: 'unknown' };
+  }
+
+  try {
+    const refund = parseRefundBody(
+      (await response.json()) as Record<string, unknown>
+    );
+    return refund ? { ok: true, refund } : { ok: false, kind: 'unknown' };
+  } catch {
+    return { ok: false, kind: 'unknown' };
+  }
+}
