@@ -9,6 +9,7 @@ import {
   Wallet,
   Ticket,
   HandCoins,
+  Undo2,
   Megaphone,
 } from "lucide-react";
 
@@ -54,6 +55,12 @@ const sections = [
     label: "Payments",
     description: "View Cashfree payment status and history for every booking.",
     icon: Wallet,
+  },
+  {
+    href: "/admin/refunds",
+    label: "Refunds Due",
+    description: "Cancelled bookings that were paid and still need a refund decision.",
+    icon: Undo2,
   },
   {
     href: "/admin/coupons",
