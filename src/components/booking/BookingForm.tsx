@@ -27,10 +27,6 @@ interface BookingFormProps {
   initialCheckInDate?: string;
   initialCheckOutDate?: string;
   initialNumGuests?: number;
-  // BOOKING-03: when false, the guest-contact section below is shown
-  // and required, and a successful booking redirects to the public
-  // confirmation page instead of the (session-only) dashboard.
-  isAuthenticated: boolean;
   // COUPON-01: needed to preview a vendor-scoped coupon correctly.
   // Optional — when the caller doesn't pass it, a vendor-scoped coupon
   // will simply fail its live preview here (shows "not valid for this
@@ -67,7 +63,6 @@ export default function BookingForm({
   initialCheckInDate = '',
   initialCheckOutDate = '',
   initialNumGuests = 1,
-  isAuthenticated,
   vendorId = null,
 }: BookingFormProps) {
   const router = useRouter();
@@ -88,9 +83,8 @@ export default function BookingForm({
   const [travelDate, setTravelDate] = useState('');
   const [numGuests, setNumGuests] = useState(initialNumGuests);
 
-  // BOOKING-03: only used/shown/validated when !isAuthenticated.
+  // Booking contact (CONTACT-03): the name/phone the hotel should use.
   const [guestName, setGuestName] = useState('');
-  const [guestEmail, setGuestEmail] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
 
   const [roomId, setRoomId] = useState<string>(
@@ -190,23 +184,12 @@ export default function BookingForm({
       return;
     }
 
-    // BOOKING-03: guest checkout — email required only without a session.
-    if (!isAuthenticated) {
-      if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
-        setError('Please enter your name, email, and phone to book without an account.');
-        return;
-      }
-    }
-
-    // CONTACT-03: name + phone are now required for every booking,
-    // including a signed-in one — this is the booking-time contact
-    // the hotel/admin notification actually uses, not the (possibly
-    // stale, or a different person's) profile on file.
-    if (isAuthenticated) {
-      if (!guestName.trim() || !guestPhone.trim()) {
-        setError('Please enter the name and phone number for this booking.');
-        return;
-      }
+    // CONTACT-03: name + phone are required for every booking — this is the
+    // booking-time contact the hotel/admin notification actually uses, not
+    // the (possibly stale, or a different person's) profile on file.
+    if (!guestName.trim() || !guestPhone.trim()) {
+      setError('Please enter the name and phone number for this booking.');
+      return;
     }
 
     const input: CreateBookingInput = {
@@ -221,11 +204,10 @@ export default function BookingForm({
       check_out_date: mode === 'hotel' ? checkOutDate : null,
       travel_date: mode === 'package' ? travelDate : null,
       num_guests: numGuests,
-      // CONTACT-03: always sent now (name/phone required for every
-      // booking; email stays guest-only since a signed-in user's
-      // email is already on file).
+      // CONTACT-03: booking contact. No email is collected — the signed-in
+      // user's email is already on file (GOLIVE-06: no guest checkout).
       guest_name: guestName.trim(),
-      guest_email: isAuthenticated ? null : guestEmail.trim(),
+      guest_email: null,
       guest_phone: guestPhone.trim(),
       // COUPON-01: only the code is sent — createBooking() re-validates
       // and re-computes the discount itself, ignoring any amount shown
@@ -242,17 +224,19 @@ export default function BookingForm({
         // navigating away from it via router.push(), which is a wasted
         // round trip — the destination page already fetches its own
         // fresh data on navigation as a Server Component.
-        //
-        // BOOKING-03: a guest has no /dashboard/bookings (it requires a
-        // session), so guests go to the public confirmation page
-        // instead — the only route that resolves this booking's id
-        // without one.
-        router.push(
-          isAuthenticated
-            ? `/dashboard/bookings?created=${booking.id}`
-            : `/booking-confirmation/${booking.id}`
-        );
+        router.push(`/dashboard/bookings?created=${booking.id}`);
       } catch (err) {
+        // Session expired while the form was open: send them to log in and
+        // bring them straight back to this page (room/dates preserved).
+        if (err instanceof Error && err.message.includes('UNAUTHENTICATED')) {
+          router.push(
+            `/login?redirectTo=${encodeURIComponent(
+              window.location.pathname + window.location.search
+            )}`
+          );
+          return;
+        }
+
         setError(
           err instanceof Error
             ? err.message
@@ -425,15 +409,12 @@ export default function BookingForm({
         />
       </Field>
 
-      {/* CONTACT-03: name + phone are now captured for every booking
-          (signed-in or guest) — this is what the hotel/admin
-          notification uses to reach the actual guest, so it's asked
-          again here even for a signed-in user rather than silently
-          reused from their profile. Email stays guest-only since a
-          signed-in user's email is already on file. */}
+      {/* CONTACT-03: name + phone are captured for every booking — this is
+          what the hotel/admin notification uses to reach the actual guest,
+          so it's asked here rather than silently reused from the profile. */}
       <div className="space-y-5 border-t border-deep/10 pt-5">
         <p className="text-[13px] font-semibold text-deep">
-          {isAuthenticated ? 'Booking contact' : 'Your details'}
+          Booking contact
         </p>
 
         <Field label="Full name" required>
@@ -447,18 +428,6 @@ export default function BookingForm({
         </Field>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          {!isAuthenticated && (
-            <Field label="Email" required>
-              <input
-                type="email"
-                required
-                value={guestEmail}
-                onChange={(e) => setGuestEmail(e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-          )}
-
           <Field label="Phone" required>
             <input
               type="tel"
@@ -471,9 +440,7 @@ export default function BookingForm({
         </div>
 
         <p className="text-[11px] text-ink/45">
-          {isAuthenticated
-            ? "We'll use this name and number to reach you about this booking."
-            : "We'll send your booking confirmation to this email."}
+          We&apos;ll use this name and number to reach you about this booking.
         </p>
       </div>
 
