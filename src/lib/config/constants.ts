@@ -59,6 +59,12 @@ export const BOOKING = {
   MAX_TRAVELERS_PER_BOOKING: 9,
   MAX_ROOMS_PER_BOOKING: 5,
   BOOKING_NUMBER_PREFIX: 'SB',
+  // GOLIVE-05: a booking still "pending" this long is abandoned and its room
+  // is given back. MUST stay larger than PAYMENT.ORDER_EXPIRY_MINUTES (a
+  // customer can open a payment order late in the window) plus a buffer.
+  PENDING_EXPIRY_MINUTES: 45,
+  // Max bookings expired per cron run (the cron runs every few minutes).
+  PENDING_EXPIRY_BATCH: 100,
 } as const;
 
 /**
