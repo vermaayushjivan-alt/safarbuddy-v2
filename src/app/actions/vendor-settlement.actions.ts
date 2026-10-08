@@ -23,6 +23,8 @@ import {
   VendorSettlementRepository,
   type VendorSettlementRecord,
 } from '@/lib/repositories/vendor-settlement.repository';
+import { createServiceRoleClient } from '@/lib/supabase/server';
+import { PaymentRefundRepository } from '@/lib/repositories/payment-refund.repository';
 import { runAction, emptyToNull, type ActionResult } from '@/lib/actions/action-result';
 
 export interface VendorDueSummary {
@@ -37,10 +39,21 @@ async function buildDueSummary(
   paymentRepo: PaymentRepository,
   settlementRepo: VendorSettlementRepository
 ): Promise<VendorDueSummary> {
-  const [totalEarned, totalSettled] = await Promise.all([
+  // GOLIVE-07: payment_refunds is service-role only (RLS, no policies), so the
+  // reversal total is read with the service role. Safe: this function only
+  // returns the figures for the one vendor it is given, and every caller has
+  // already passed requireRole / requireVendorContext.
+  const refundRepo = new PaymentRefundRepository(createServiceRoleClient());
+
+  const [grossEarned, totalSettled, totalReversed] = await Promise.all([
     paymentRepo.getSuccessfulVendorPayoutTotal(vendor.id),
     settlementRepo.getTotalSettledForVendor(vendor.id),
+    refundRepo.getVendorPayoutReversedTotal(vendor.id),
   ]);
+
+  // Earned = vendor's share of paid bookings minus the share of refunds
+  // already returned to customers.
+  const totalEarned = Math.round((grossEarned - totalReversed) * 100) / 100;
 
   return {
     vendor,
