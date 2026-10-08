@@ -2,6 +2,14 @@ PROJECT_STATUS.md
 
 Single source of truth for SafarBuddy V2 progress.
 
+SEC-REDIRECT-01 — Open-redirect fix (login + OAuth callback) — CODE COMPLETE (2026-10-07). 85/85 tests PASS; browser check pending. See CHANGELOG.md.
+
+GOLIVE-06 — Login required to book (D1 = Option A) + GOLIVE-09 step 1 — CODE COMPLETE (2026-10-07), NOT Frozen. 54/54 tests PASS; browser walkthrough pending. See CHANGELOG.md 2026-10-07 GOLIVE-06.
+
+GOLIVE-05 — Pending-booking expiry — CODE COMPLETE (2026-10-07), NOT Frozen. 45/45 simulated tests PASS; needs migration 032 (GOLIVE-04) and a real walkthrough. See CHANGELOG.md 2026-10-07 GOLIVE-05.
+
+GOLIVE-04 — Inventory reservation — CODE COMPLETE (2026-10-07), NOT Frozen. SQL verified on local Postgres 16 (incl. 10-way race: exactly 1 wins); migration 032 not yet run on Supabase; RULE 22 walkthrough pending. See CHANGELOG.md 2026-10-07 GOLIVE-04.
+
 Completed
 
 HOME-01 — COMPLETE — Frozen
