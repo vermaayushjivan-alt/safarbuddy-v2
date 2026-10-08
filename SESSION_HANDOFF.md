@@ -4,6 +4,55 @@ SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
 
+SEC-REDIRECT-01 (2026-10-07, after GOLIVE-06) — the open-redirect finding below is FIXED. src/lib/auth/safe-redirect.ts (new), src/actions/auth.ts,
+src/app/auth/callback/route.ts, verify/safe-redirect.test.ts (new). tsc PASS, ESLint clean, vitest 85/85. Walkthrough: open /login?redirectTo=https://example.com ,
+log in -> must land on your normal dashboard, NOT example.com; open /login?redirectTo=/profile -> lands on /profile; Google login too.
+NEXT: GOLIVE-07 (refunds, D4 decided) — large; plan to split into 07a backend (Cashfree refund client, payment_refunds table, webhook, room release on cancel) and 07b admin UI + policy helper + settlement adjustment.
+
+GOLIVE-06 (2026-10-07, after GOLIVE-05) — OWNER DECIDED D1 = Option A: login required to book. CODE COMPLETE, tests only.
+(Owner's standing instruction: prefer the professional, low-maintenance, automated option — small team, nothing should need manual running.)
+Also did GOLIVE-09 step 1 (guest read paths deleted) because it is the same deletion. No migration, no new env var.
+MODIFIED (paste over): src/app/actions/booking.actions.ts (also carries the GOLIVE-04 hold/release), src/app/actions/invoice.actions.ts, middleware.ts,
+src/components/booking/BookingForm.tsx, src/app/hotels/[slug]/book/page.tsx, src/app/packages/[id]/book/page.tsx, verify/golive06.test.ts (new).
+DELETE FROM REPO (3 files; if one is forgotten the build fails loudly on the missing getGuestInvoiceByBookingId, or a stale guest page stays): 
+src/app/booking-confirmation/[id]/page.tsx, src/app/booking-confirmation/[id]/invoice/page.tsx, src/app/api/public/invoices/[bookingId]/pdf/route.ts.
+Verified: tsc PASS, ESLint PASS on changed files, vitest 54/54. NOT verified: real browser flow.
+Walkthrough: signed out -> open a hotel book URL with room/dates -> sent to login -> after login lands on the SAME page with room/dates kept -> create booking -> goes to /dashboard/bookings?created=... -> pay. Same for a package. A signed-out call to the old /booking-confirmation/<uuid> must 404.
+FIXED LATER IN THIS SAME DAY (see SEC-REDIRECT-01 above). Original finding: src/actions/auth.ts redirects to whatever redirectTo string it receives, so /login?redirectTo=https://evil.example is an open redirect (phishing risk). Fix later by accepting only paths that start with a single "/" (not "//"). Small, should be done before launch.
+Stale comments only (harmless): InvoiceView.tsx and payment.actions.ts still mention /booking-confirmation/.
+NEXT: GOLIVE-07 (refunds) — D4 already decided: keep admin-initiated, no auto-refund at launch. Then GOLIVE-08 (RLS audit).
+
+GOLIVE-05 (2026-10-07, after GOLIVE-04) — pending-booking expiry. CODE COMPLETE, SIMULATED TESTS ONLY.
+New: src/lib/bookings/expire-pending.ts, verify/golive05.test.ts (deliver as _verify/golive05.test.ts). Modified: src/lib/config/constants.ts,
+src/lib/repositories/booking.repository.ts, src/lib/repositories/payment.repository.ts, src/app/api/public/cron/reconcile-payments/route.ts.
+Migrations: none. New env vars: none. tsc PASS (whole project), ESLint PASS on changed files, vitest 45/45 (11 new + 34 old).
+Rule: pending > 45 min AND no pending/success/refunded payment -> cancelled "Payment not completed in time" + release_booking_room. Runs inside the
+existing cron AFTER reconciliation. REQUIRES migration 032 to be run first (otherwise release logs an error and the room stays held).
+NOT verified: real cron run; abandoned booking really freeing its room. Walkthrough: start a booking, do not pay, wait 45+ min (or temporarily lower
+PENDING_EXPIRY_MINUTES in sandbox), call the cron endpoint with the Bearer token -> booking cancelled, room_inventory booked_rooms back down,
+response JSON has `expiry.expired: 1`. Also confirm a booking with a payment in progress is NOT cancelled.
+OWNER STILL HAS TO DO (unchanged): run 032 (GOLIVE-04), set CRON_SECRET, decide D8 (Vercel plan) — without the cron nothing expires — and decide D9.
+NEXT: GOLIVE-06 (guest checkout) needs owner decision D1 first (recommended: require login to book). Ask D1 before coding.
+
+GOLIVE-04 (2026-10-07, later session) — inventory reservation (overbooking fix). CODE COMPLETE, NOT VERIFIED ON SUPABASE.
+Plan/rules: DEVELOPMENT_BIBLE.md Section L, GOLIVE-04. New: src/db/sql/032_golive04_room_reservation.sql, src/lib/inventory/room-reservation.ts.
+Modified: src/app/actions/booking.actions.ts only (hold after insert; release in cancelMyBooking + cancelBookingAdmin). Docs: CHANGELOG, DEVELOPMENT_BIBLE,
+DATABASE_BIBLE (registry row 032), PROJECT_STATUS, this file. NEW ENV VAR: none.
+Verified for real: migration + functions on local PostgreSQL 16 (idempotent re-run, rollback on sold-out, 10 parallel requests -> 1 success,
+12 overlapping -> 0 deadlocks, anon/authenticated denied); tsc --noEmit PASS whole project; ESLint PASS on changed files.
+NOT verified: run on real Supabase; real booking/cancel in browser; next build; Vercel build.
+OWNER MUST DO, IN ORDER: (1) in Supabase run the information_schema query at the top of 032 and confirm room_inventory + bookings columns;
+check src/db/sql/ for number clashes, then run 032; (2) replace the 3 files above, redeploy; (3) walkthrough (RULE 22): book the last room with
+account A, try the same dates with account B -> friendly "sold out"; cancel A -> B can book; check room_inventory booked_rooms/available_rooms
+each step; (4) book a room that has NO inventory rows -> expect "not open for booking" (see decision below).
+DECISION NEEDED (new, D9): a night with no room_inventory row is BLOCKED. Rooms made via /list-your-property get 180 days seeded, but rooms
+an admin created earlier or dates past the seed have no rows, so guests cannot book them until inventory is set in admin. Confirm blocked
+(safe, recommended) or tell me to treat missing rows as unlimited (risk: overbooking again).
+Deliberate deviation: no release on payment "failed" (a later SUCCESS/retry would then confirm with no room); release happens on cancel and, next,
+on expiry (GOLIVE-05). Old pending bookings from before this deploy hold no room.
+Still pending from GOLIVE-03: set CRON_SECRET, decide D8 (Vercel plan), lost-webhook sandbox test.
+NEXT: GOLIVE-05 (pending-booking expiry in the GOLIVE-03 cron, calls release_booking_room) — after 032 is run and the walkthrough passes.
+
 BUILD-FIX-01 (2026-10-07): the owner's Vercel build (commit 89d3fdd) failed at "Running TypeScript": verify/vitest.config.ts cannot
 find 'vitest'. Cause: tsconfig.json include **/*.ts picks up the test folder. Fix = tsconfig.json exclude ["node_modules","verify","_verify"]
 (only file changed). Useful fact: the same log shows "Compiled successfully in 19.9s", so the Turbopack compile of GOLIVE-01/02/03 and the
@@ -1313,49 +1362,4 @@ BOOKING-02 — CLOSED 2026-08-28. Live schema confirmed via information_schema.c
 
 Completed this session (2026-08-28 — documentation backfill + BOOKING-02 resolution + VENDOR-02 implementation)
 
-User confirmed PROJECT_STATUS.md/CHANGELOG.md had not been updated for the 2026-08-23 (ROOM-05) and 2026-08-27 (build-stability/planning) sessions. Both files backfilled from this file's own record of those sessions, cross-checked against the actual repo contents. Also found and logged (DOC_DEBT.md item 5): this file's own claim that BOOKING-02/VENDOR-02/PAY-04/CONTACT-02 each had "a full RULE 15 pre-coding audit recorded in PROJECT_STATUS.md" was false — none of the four audits actually exist there. They were not fabricated to close the gap; VENDOR-02/PAY-04/CONTACT-02 still need real audits before coding.
-
-Then resolved BOOKING-02 itself: ran the live-schema queries (information_schema.columns, then pg_attribute/pg_attrdef/pg_constraint) against public.bookings, confirmed room_id's actual state, and wrote the missing migration file as a documentation record (not a live change — the column was already there).
-
-Completed previous session (2026-08-27 — build-stability audit + launch-readiness planning)
-
-Found and fixed two build-blocking bugs, neither previously logged anywhere:
-
-1. src/lib/notifications/whatsapp.client.ts did not exist on disk, but src/lib/notifications/dispatch.ts imports sendWhatsApp from it — this broke `tsc`/Vercel production builds with "Cannot find module './whatsapp.client'". Fixed: recreated as an inert stub (returns success:false, "provider not configured yet") matching the already-decided no-WhatsApp-provider-yet state from CONTACT-01. Confirmed fixed via tsc --noEmit and a clean Vercel production build.
-
-2. package.json was missing the nodemailer and @types/nodemailer dependencies even though src/lib/notifications/email.client.ts imports nodemailer — this broke Vercel production builds with "Cannot find module 'nodemailer'". Fixed: added both to package.json (nodemailer ^9.0.6, @types/nodemailer ^8.0.1 in devDependencies). Confirmed fixed via a clean Vercel production build.
-
-Separately diagnosed (Cashfree-side, not a code bug): live-mode Cashfree order creation was returning HTTP 401 (confirmed via Vercel function logs: "[Cashfree] Order creation failed: HTTP 401"). Root cause was stale/mismatched production API keys in Vercel and/or a missing redeploy after an env-var change — cashfree.client.ts itself was already correct (reads NEXT_PUBLIC_CASHFREE_ENV / CASHFREE_APP_ID / CASHFREE_SECRET_KEY correctly, correct base URLs, current API version 2023-08-01). Resolved by the user re-entering matched live keys in Vercel and redeploying. Confirmed working with a real live payment.
-
-Found — NOT yet fixed (this is now BOOKING-02, top priority):
-
-Migration 008_room05_booking_room_linkage.sql is referenced as "created for real this time" and required in this file's own prior version, but does not exist anywhere in the delivered repo (only 001, 002, 003, 004, 006, 007, 009 are present in src/db/sql/). booking.repository.ts's createBooking() unconditionally inserts a room_id column. If the live public.bookings table does not have this column, every hotel booking insert fails with a Postgres "column does not exist" error — this would mean bookings have likely been failing in production despite ROOM-05 being marked Frozen. This is a RULE 32 violation (a migration claimed as created must actually exist on disk). Not yet confirmed against the live schema this session — see BOOKING-02 in PROJECT_STATUS.md for the full audit and minimal plan.
-
-Documentation backfill (RULE 40):
-
-CONTACT-01 (hotel contact capture + booking notifications — HotelForm/schema/actions capturing phone/email/website, notifications table, contact-resolution with hotel-then-vendor fallback, admin dashboard alert page, Gmail SMTP email sending) was implemented and functionally verified in an earlier undocumented session, but was never recorded in PROJECT_STATUS.md or CHANGELOG.md until this session. Backfilled into PROJECT_STATUS.md's "Next Development Phase" section.
-
-DOC_DEBT.md created (new file) to formally log all of the above per RULE 40 — see that file for full detail on each item, including two more of the same "claimed but not actually present" pattern (whatsapp.client.ts, package.json).
-
-Four new milestones planned this session, at the user's explicit request, to cover the full hotel-listing-to-automated-payout launch flow. Each has a full RULE 15 pre-coding audit recorded in PROJECT_STATUS.md. None have been started — this is planning/documentation only, no code was written for any of them:
-
-- BOOKING-02 — Booking Migration Repair (fix the migration 008 gap above). No dependencies. Top priority.
-- VENDOR-02 — Hotel Owner Payout KYC Capture (bank/UPI + PAN details, Cashfree vendor onboarding). No dependencies.
-- PAY-04 — Automated Split Settlement via Cashfree Easy Split (0.1% per split, no monthly/setup fee — confirmed via Cashfree's public pricing). Depends on VENDOR-02.
-- CONTACT-02 — Payment-Triggered Notifications (move the CONTACT-01 notification trigger from booking-creation to payment-success). Depends on PAY-04.
-
-Verified this session: TypeScript (tsc --noEmit) clean after all fixes. Two separate clean Vercel production builds (one after each of the two build fixes above). Cashfree live payment confirmed working end-to-end by the user.
-
-Not verified: BOOKING-02's actual live-schema state (whether public.bookings really lacks room_id) — this is the first step of BOOKING-02's minimal plan, not yet performed.
-
-Completed previous session (2026-08-23 — ROOM-05)
-
-Audited against the live schema per RULE 13/15 (user ran information_schema.columns against public.bookings directly). Found two separate, previously undocumented issues:
-
-1. Public read gap: every existing room-related Server Action (room-type.actions.ts, room-price.actions.ts) is requireRole-gated (admin/super_admin/hotel_owner). The public hotel detail page and booking page had no legal way to read hotel_rooms or room_prices, so rooms never rendered and booking always fell back to hotel.starting_price regardless of admin-set room rates.
-
-2. Confirmed production bug: booking.repository.ts's createBooking() has been unconditionally inserting a `room_id` column into public.bookings since an earlier undocumented session, but the live table does not have that column (migration file 008 was referenced in comments but never actually existed in this repo, and was never run). This means every hotel booking attempt — not just room-specific pricing — has been failing with a Postgres "column does not exist" error.
-
-Fixed:
-- New public (no-auth) action getBookableRoomsForHotel() in room-type.actions.ts.
-- 
+User confirmed PROJECT_STATUS.md/CHANGELOG.md had not been updated for the 2026-08-23 (ROOM-05) and 2026-08-27 (build-stability/planning) sessions. Both files backfilled from this file's own record of those sessions, cross-checked against the actual repo contents. Also 
