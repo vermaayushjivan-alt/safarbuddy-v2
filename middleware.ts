@@ -38,12 +38,6 @@ const PUBLIC_ROUTES = [
   // GOLIVE-03: uptime monitors have no session
   "/api/health",
 
-  // BOOKING-03: guest checkout. A guest must be able to reach a
-  // package's booking page (previously only /hotels/ had the prefix
-  // match below — /packages/[id] and /packages/[id]/book were
-  // login-gated here regardless of what the page itself did) and the
-  // post-booking confirmation page, which by definition is viewed
-  // with no session.
 ];
 
 function isPublicRoute(pathname: string) {
@@ -57,10 +51,12 @@ function isPublicRoute(pathname: string) {
     pathname.startsWith("/destinations/") ||
     // LAUNCH-03: /offers/[id] detail pages are public too.
     pathname.startsWith("/offers/") ||
-    // BOOKING-03: same reasoning as /hotels/ above — /packages has its
-    // own dynamic detail/book routes that must stay unauthenticated too.
+    // /packages/[id] detail pages are browsable without an account.
+    // GOLIVE-06: the /book pages under /hotels/ and /packages/ check the
+    // session themselves and redirect to /login WITH the room/dates query
+    // preserved (middleware could only pass the bare path). The old public
+    // /booking-confirmation/ prefix was removed with guest checkout.
     pathname.startsWith("/packages/") ||
-    pathname.startsWith("/booking-confirmation/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/public") ||
     /\.(svg|png|jpg|jpeg|ico|webp)$/.test(pathname)
