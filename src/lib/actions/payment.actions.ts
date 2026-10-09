@@ -75,6 +75,11 @@ async function createNewPayment(
   const bookingRepo = new BookingRepository(supabase);
   const paymentRepo = new PaymentRepository(supabase);
 
+  // GOLIVE-08: payment rows are WRITTEN with the service-role client (the
+  // customer's login may not insert or update payments, migration 038). Reads
+  // above still use the customer's own session.
+  const paymentWriteRepo = new PaymentRepository(createServiceRoleClient());
+
   // P0.2 fix (2026-08-28 session, see ULTRA_PRO_AUDIT.md Section 9):
   // resolve the real public.users.id first — every ownership check and
   // every id written to the payments row below must use THIS value,
@@ -193,7 +198,7 @@ async function createNewPayment(
   // then logged "No payment found" and returned 200, and the customer's
   // money was taken with nothing recorded. Now the worst case is a local
   // "pending" row with no Cashfree order, which is harmless.
-  const paymentRow = await paymentRepo.createPayment({
+  const paymentRow = await paymentWriteRepo.createPayment({
     booking_id: booking.id,
     user_id: userRowId,
 
@@ -225,7 +230,7 @@ async function createNewPayment(
     // The customer never received a payment_session_id, so this order can
     // never be paid — safe to close the local row as failed.
     try {
-      await paymentRepo.updatePaymentStatus(paymentRow.id, {
+      await paymentWriteRepo.updatePaymentStatus(paymentRow.id, {
         status: "failed",
         failure_reason: "Could not create the Cashfree payment order.",
         completed_at: new Date().toISOString(),
