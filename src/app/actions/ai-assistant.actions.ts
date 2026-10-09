@@ -22,6 +22,12 @@
 import { runAction, type ActionResult } from '@/lib/actions/action-result';
 import { getSiteKnowledge } from '@/lib/ai/site-knowledge';
 import { APP } from '@/lib/config/constants';
+import {
+  RATE_LIMITS,
+  firstExceeded,
+  getClientIp,
+  tooManyRequestsMessage,
+} from '@/lib/security/rate-limit';
 
 // Read directly from process.env (same pattern as the other optional
 // server-only secrets in this codebase, see env.ts).
@@ -39,6 +45,7 @@ const MODEL_CANDIDATES: string[] = Array.from(
       'gemini-3.6-flash',
       'gemini-3.5-flash',
       'gemini-3-flash-preview',
+      'gemini-3.1-flash-lite', // stable fallback
     ].filter((m): m is string => !!m)
   )
 );
@@ -116,6 +123,17 @@ export async function askHomeAssistant(
     if (!GEMINI_API_KEY) {
       // RULE 30 — gated off, not broken, when the key isn't set yet.
       return "SafarBuddy's AI assistant isn't fully set up yet — please reach us via the contact page for now, or check back soon!";
+    }
+
+    // GOLIVE-10 — protects the Gemini quota/cost from scripted abuse.
+    const ip = await getClientIp();
+    const exceeded = await firstExceeded([
+      { scope: 'ai-min', identifier: ip, rule: RATE_LIMITS.AI_PER_IP_MINUTE },
+      { scope: 'ai-day', identifier: ip, rule: RATE_LIMITS.AI_PER_IP_DAY },
+      { scope: 'ai-global', identifier: 'all', rule: RATE_LIMITS.AI_GLOBAL_DAY },
+    ]);
+    if (exceeded) {
+      throw new Error(tooManyRequestsMessage(exceeded.retryAfterSeconds, 'questions'));
     }
 
     const knowledge = await getSiteKnowledge();
