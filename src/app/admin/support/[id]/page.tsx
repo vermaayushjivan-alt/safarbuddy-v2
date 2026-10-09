@@ -5,8 +5,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTicketThread } from '@/app/actions/support.actions';
-import { TicketChatThread } from '@/components/support/TicketChatThread';
-import { TicketStatusControls } from '@/components/support/TicketStatusControls';
+import {
+  TicketChatThread,
+  TicketStatusControls,
+} from '@/components/support/TicketStatusControls';
 import {
   CATEGORY_LABELS,
   STATUS_LABELS,
