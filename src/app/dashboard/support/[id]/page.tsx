@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthUser } from '@/lib/auth/session';
 import { getTicketThread } from '@/app/actions/support.actions';
-import { TicketChatThread } from '@/components/support/TicketChatThread';
+import { TicketChatThread } from '@/components/support/TicketStatusControls';
 import { toSafeErrorMessage } from '@/lib/actions/action-result';
 import {
   CATEGORY_LABELS,
