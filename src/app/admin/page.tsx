@@ -10,6 +10,7 @@ import {
   Ticket,
   HandCoins,
   Undo2,
+  LifeBuoy,
   Megaphone,
 } from "lucide-react";
 
@@ -55,6 +56,12 @@ const sections = [
     label: "Payments",
     description: "View Cashfree payment status and history for every booking.",
     icon: Wallet,
+  },
+  {
+    href: "/admin/support",
+    label: "Customer Support",
+    description: "Cancellation, refund and help requests from customers (chat).",
+    icon: LifeBuoy,
   },
   {
     href: "/admin/refunds",
