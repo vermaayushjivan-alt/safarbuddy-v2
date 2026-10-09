@@ -1,6 +1,38 @@
 import type { NextConfig } from "next";
 
+// GOLIVE-11 — security headers. The CSP is REPORT-ONLY on purpose: it never
+// blocks anything, it only logs violations in the browser console. Check the
+// console on /, /hotels, /book and the payment page; once clean, rename the
+// header to "Content-Security-Policy" to enforce it.
+const cspReportOnly = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://challenges.cloudflare.com https://*.cashfree.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://*.supabase.co https://picsum.photos https://*.googleusercontent.com",
+  "media-src 'self' blob: https://*.supabase.co",
+  "font-src 'self' data:",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.cashfree.com https://challenges.cloudflare.com",
+  "frame-src 'self' https://challenges.cloudflare.com https://*.cashfree.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self' https://*.cashfree.com",
+  "frame-ancestors 'self'",
+].join("; ");
+
+const securityHeaders = [
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), payment=(self)" },
+  { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
+];
+
 const nextConfig: NextConfig = {
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
+
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",
