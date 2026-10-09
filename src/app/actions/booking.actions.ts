@@ -32,6 +32,11 @@ import {
   releaseRoomForBooking,
 } from "@/lib/inventory/room-reservation";
 import { flagRefundDueIfPaid } from "@/lib/payments/refund";
+import {
+  RATE_LIMITS,
+  firstExceeded,
+  tooManyRequestsMessage,
+} from "@/lib/security/rate-limit";
 
 // -----------------------------------------------------------------------------
 // VALIDATION
@@ -383,6 +388,16 @@ export async function createBooking(
   if (!authUser) {
     throw new Error(
       "UNAUTHENTICATED"
+    );
+  }
+
+  // GOLIVE-10 — stop booking spam (each booking holds a room until expiry).
+  const bookingExceeded = await firstExceeded([
+    { scope: "booking-user", identifier: authUser.id, rule: RATE_LIMITS.BOOKING_PER_USER },
+  ]);
+  if (bookingExceeded) {
+    throw new Error(
+      tooManyRequestsMessage(bookingExceeded.retryAfterSeconds, "booking attempts")
     );
   }
 
