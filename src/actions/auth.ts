@@ -5,6 +5,13 @@ import { z } from "zod";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { verifyCaptcha } from "@/lib/security/turnstile";
+import {
+  RATE_LIMITS,
+  firstExceeded,
+  getClientIp,
+  hashIdentifier,
+  tooManyRequestsMessage,
+} from "@/lib/security/rate-limit";
 import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 import {
   normalizeReferralCode,
@@ -90,6 +97,21 @@ export async function loginAction(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
+  // GOLIVE-10 — slow down password guessing (per IP and per account).
+  const loginExceeded = await firstExceeded([
+    { scope: "login-ip", identifier: await getClientIp(), rule: RATE_LIMITS.LOGIN_PER_IP },
+    {
+      scope: "login-email",
+      identifier: hashIdentifier(parsed.data.email),
+      rule: RATE_LIMITS.LOGIN_PER_EMAIL,
+    },
+  ]);
+  if (loginExceeded) {
+    return {
+      error: tooManyRequestsMessage(loginExceeded.retryAfterSeconds, "login attempts"),
+    };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
@@ -172,6 +194,16 @@ export async function registerAction(
   );
   if (!captcha.ok) {
     return { error: captcha.error };
+  }
+
+  // GOLIVE-10 — limit account creation per IP.
+  const registerExceeded = await firstExceeded([
+    { scope: "register-ip", identifier: await getClientIp(), rule: RATE_LIMITS.REGISTER_PER_IP },
+  ]);
+  if (registerExceeded) {
+    return {
+      error: tooManyRequestsMessage(registerExceeded.retryAfterSeconds, "sign-up attempts"),
+    };
   }
 
   const supabase = await createClient();
@@ -265,6 +297,21 @@ export async function forgotPasswordAction(
 
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+
+  // GOLIVE-10 — stop reset-email spam (to us and to a victim's inbox).
+  const forgotExceeded = await firstExceeded([
+    { scope: "forgot-ip", identifier: await getClientIp(), rule: RATE_LIMITS.FORGOT_PER_IP },
+    {
+      scope: "forgot-email",
+      identifier: hashIdentifier(parsed.data.email),
+      rule: RATE_LIMITS.FORGOT_PER_EMAIL,
+    },
+  ]);
+  if (forgotExceeded) {
+    return {
+      error: tooManyRequestsMessage(forgotExceeded.retryAfterSeconds, "reset requests"),
+    };
   }
 
   const supabase = await createClient();
