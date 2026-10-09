@@ -595,9 +595,15 @@ export async function createBooking(
   // CREATE
   // ---------------------------------------------------------------------------
 
+  // GOLIVE-08 (no booking without paying): the booking row is written with the
+  // SERVICE-ROLE client, after everything above has been checked on the server
+  // (login, ownership, price from the database). The customer's own login no
+  // longer has any right to INSERT into bookings (migration 038), so nobody can
+  // create a booking row by calling the Supabase API directly with a made-up
+  // price or a "confirmed" status.
   const bookingRepo =
     new BookingRepository(
-      supabase
+      createServiceRoleClient()
     );
 
   const created =
