@@ -1,8 +1,66 @@
+
 <!-- ROOT PATH: SESSION_HANDOFF.md -->
 
 SESSION_HANDOFF.md
 
 Single source of truth for the current session boundary. Read this first if picking up the project without the full ZIP.
+
+SESSION 2026-10-09 (after GOLIVE-07a) — GOLIVE-07b, BUILD-FIX, GOLIVE-08 (RLS audit + write guards + no-booking-without-payment), SUPPORT-01, deep audit report.
+EVERYTHING BELOW IS CODE/SQL WRITTEN IN A SANDBOX WITHOUT tsc, eslint, vitest, Postgres, Cashfree OR A BROWSER. Only syntax-level checks were run (tsc syntax errors = none).
+NOTHING in this block is verified on Supabase/Vercel/Cashfree. The owner delivers files by pasting each one into GitHub (cannot edit files himself): always give COMPLETE files with repo root path, never a zip.
+
+A. BUILD STATE (read first). Last two Vercel builds (commits f4b15d6, e17b5de) failed ONLY with: "Can't resolve '@/components/support/TicketChatThread'" in
+src/app/admin/support/[id]/page.tsx and src/app/dashboard/support/[id]/page.tsx. Cause: that file never reached the repo. Fix delivered (not yet confirmed green):
+TicketChatThread is now INSIDE src/components/support/TicketStatusControls.tsx (exports TicketChatThread AND TicketStatusControls) and both pages import from there.
+A separate TicketChatThread.tsx, if it exists in the repo, is harmless/unused. Next step: owner pushes the 3 files, sends the new build log; fix any further errors it shows.
+Earlier in this session an older build failed with 17 errors because src/lib/payments/refund-status.ts in the 07a zip contained a COPY of refund.ts. It was rewritten as pure helpers
+(RefundStatus type, mapCashfreeRefundStatus, roundToPaise, isValidRefundAmount, buildRefundId); checked against verify/golive07.test.ts expectations. Do NOT touch refund.ts for that.
+
+B. FILES, by feature (all paths are repo root).
+GOLIVE-07b (refund admin UI): NEW src/lib/payments/cancellation-policy.ts (suggestRefund: >=72h 100%, 24-72h 50%, else 0; suggestion only), src/components/admin/payments/RefundPanel.tsx,
+src/lib/notifications/refund-email.ts (customer email once per refund, never throws), src/app/actions/refund-due.actions.ts (reads bookings.refund_due + payments + pending refunds),
+src/app/admin/refunds/page.tsx ("Refunds Due"). MODIFIED src/app/admin/payments/[id]/page.tsx (refund panel, history, refund-due badge), src/lib/payments/refund.ts (email hook
+after finalize_refund applied=true and status success), src/app/admin/page.tsx (cards: Refunds Due, Customer Support).
+GOLIVE-08 (security): verify/golive08_rls_audit.sql (read-only live audit), GOLIVE08_RLS_AUDIT.md (findings), src/db/sql/034_golive08_rls_hardening.sql (anon revoked on 14 sensitive tables),
+035_golive08_write_guards.sql (triggers: bookings/payments/users/vendors/hotels/packages protected columns, handle_new_auth_user execute revoked, 10 MB bucket cap),
+037_golive08_no_booking_without_payment.sql (REPLACES the bookings guard from 035: nobody with a normal login, admin included, can set booking_status=confirmed without a successful payment;
+customers may only cancel), 038_golive08_server_only_inserts.sql (drops policies bookings_insert_own and payments_insert_own). MODIFIED src/app/actions/booking.actions.ts (booking row is
+created with createServiceRoleClient()), src/lib/actions/payment.actions.ts (paymentWriteRepo = service role for createPayment and updatePaymentStatus; this also fixes a silent bug where
+the "mark failed" update ran as the customer and was blocked by payments_admin_update).
+SUPPORT-01 (customer help tickets with chat): NEW src/db/sql/036_support01_help_tickets.sql (tables help_tickets, help_ticket_messages, sequence, RLS, select policies, realtime publication),
+src/lib/repositories/help-ticket.repository.ts, src/app/actions/support.actions.ts, src/components/support/NewTicketForm.tsx, src/components/support/TicketStatusControls.tsx (see A),
+src/app/dashboard/support/page.tsx, src/app/dashboard/support/new/page.tsx, src/app/dashboard/support/[id]/page.tsx, src/app/admin/support/page.tsx, src/app/admin/support/[id]/page.tsx.
+MODIFIED src/app/dashboard/bookings/page.tsx ("Cancel / Help" on confirmed/completed, "Refund help" on cancelled -> /dashboard/support/new?booking=ID&category=...).
+Old table support_tickets is NOT used (its columns are not in the repo). Customers cannot write tickets from the browser; all writes go through support.actions.ts (service role after ownership check).
+Max 5 active tickets per customer; same booking+category re-uses the open ticket; staff = admin or super_admin.
+AUDIT REPORT: Claude Doc "SafarBuddy v2 - Deep Audit Report (9 Oct 2026)" (findings C1-C10, unprofessional list U1-U13, India roadmap, phases). Exportable to Word/PDF/Markdown.
+
+C. OWNER TODO, IN THIS ORDER (ask which are already done: the owner ran 034 and the live RLS audit this session; the rest is unknown).
+1) Paste the 3 build-fix files (A), push, send new build log.  2) Supabase: 033 (if not yet) -> 034 -> 035 -> 036 -> 037.  3) Deploy the code.
+4) Test one real sandbox booking + payment (must work). 5) ONLY THEN run 038 (running it before the new code is live breaks "Book now" and "Pay"; rollback policies are written inside the file).
+6) Run the TEST blocks at the bottom of 035 and 037 (must fail with "GOLIVE-08").  7) Cashfree dashboard: enable the Refund webhook (same URL as payment webhook).
+8) Set CRON_SECRET; decide D8 (Vercel plan: without a 5-minute cron nothing expires/reconciles).  9) Set ADMIN_NOTIFICATION_EMAIL (support emails; the variable name was used as process.env.ADMIN_NOTIFICATION_EMAIL —
+CHECK it matches the existing CONTACT-03 admin-notify variable in .env.example/env.ts and rename in support.actions.ts if not).
+
+D. ASSUMPTIONS TO VERIFY (guessed, not confirmed against the live DB).
+- payments has columns initiated_at, refunded_amount, gateway_payment_id, completed_at (used by support.actions.ts ordering and the payments insert guard).
+- users may have full_name / name / email (read defensively with select *). Guard on users protects id, auth_user_id, email, status, is_active, deleted_at, created_at: if the app ever changes email through the session, loosen it.
+- current_user_id(), is_admin() exist and are true/false for the logged-in caller (RLS audit shows they are used by live policies, so this is likely fine).
+- Triggers use current_user in ('authenticated','anon') to detect normal logins; service_role and postgres are unrestricted.
+- Admin "Confirm booking" (confirmBookingAdmin) now works only for bookings that already have a successful payment (037). Owner's stated rule: no booking without payment. Applying it to admins is MY design choice: confirm with the owner if offline/cash bookings are needed.
+- Correction of an earlier claim in this session: payment confirmation does NOT run as the customer. The real confirm path is finalize-payment.ts called by the webhook and reconcile cron (service role). The gap was only that the DB let a customer set status=confirmed or insert a booking/payment row directly.
+
+E. KNOWN OPEN ITEMS (priority order; details in the audit report).
+1) middleware.ts sits in the repo ROOT while the app is in src/app, and Next 16 renamed it proxy.ts: test that logged-out /dashboard redirects to /login; move to src/middleware.ts or src/proxy.ts if not.
+2) No rate limiting anywhere (login, register, contact, AI chat, coupon, booking, tickets).  3) No security headers (CSP, HSTS, X-Frame-Options...).  4) No Sentry/alerts.
+5) vitest is NOT in package.json, no test script, no CI (.github missing): add vitest + GitHub Actions (tsc, eslint, vitest, build).  6) Homepage has FAKE testimonials and a hard-coded "4.9 star" rating (src/data/home.ts): remove before launch (legal/trust).
+7) Customer cannot see the refund amount before cancelling or the refund status afterwards (suggestRefund exists, not shown to customers).  8) Account deletion (GOLIVE-12), Grievance Officer details, lawyer review of Terms/Privacy/Refund/Partner Terms, CA sign-off (GOLIVE-14).
+9) bookings.notes JSON holds price_snapshot, hotel_id, package_id (money and IDs in free text): move to real columns later.  10) DB baseline not in repo: migrations 017-023 missing (booking_messages + its policy exist only in production), 028 and 032 sit in repo root, number clash 030/031.
+11) Gmail SMTP for email; no WhatsApp/SMS; English only.  12) Support v2 not built: email/WhatsApp to the customer when support replies, attachments, auto-assign, SLA.
+13) Docs NOT updated this session: CHANGELOG.md, PROJECT_STATUS.md, DATABASE_BIBLE.md (registry rows for migrations 033-038), DEVELOPMENT_BIBLE.md. Do this in the next session.
+
+F. NEXT (suggested order). (a) Get a green Vercel build. (b) Owner runs section C and reports results. (c) Rate limiting + security headers + CI/vitest + Sentry. (d) Show refund amount on the cancel screen and refund status on the booking page.
+(e) Remove fake testimonials. (f) GOLIVE-12 account deletion, GOLIVE-17 sandbox walkthrough. (g) Update the docs in E13. Public-launch estimate given to the owner: about 2-3 weeks (5-7 days for a limited soft launch); legal/CA waiting time is the long pole.
 
 GOLIVE-07a (2026-10-08) — refund backend. CODE COMPLETE, NOT VERIFIED (no tsc/vitest/Postgres/Cashfree in the sandbox; syntax check only).
 New: src/db/sql/033_golive07_refunds.sql (NOT run), src/lib/payments/refund.ts, refund-status.ts, src/lib/repositories/payment-refund.repository.ts,
@@ -1339,32 +1397,4 @@ Delivered this session: src/db/sql/012_booking03_guest_checkout.sql (customer_id
 
 Verified for real this session — unlike every prior BOOKING-related session note in this file, `npm install` succeeded (registry.npmjs.org is reachable from this sandbox) and both `tsc --noEmit` and `eslint` were run and are clean on every file touched. Not verified (RULE 21-23): migration 012 has not been run against production (no reachable Supabase instance), and there has been no live functional walkthrough (real browser, an actual guest completing a hotel and a package booking end-to-end, confirmation page rendering correctly). RULE 22 applies — this is a bookings-mutation path and must not be marked Frozen until both are done.
 
-Also logged, not fixed this session (out of scope — user's explicit priority is booking-setup completion, i.e. coupons/invoices/commissions, before returning to this): PROJECT_STATUS.md's claim that the hotel-owner onboarding wizard (P0.3 Steps 2-5) was CODE COMPLETE 2026-09-05 does not match this session's repo zip — only src/app/hotel-owner/page.tsx and layout.tsx exist, no wizard sub-pages. See DOC_DEBT.md item 13.
-
-Previous milestone
-
-P0.3 Steps 2-5 (2026-09-05, this session) — hotel-owner onboarding dashboard, built on Step 1's already-complete owner-scoped layer (see DOC_DEBT.md item 8). CODE COMPLETE, NOT VERIFIED — same sandbox limitation as every session below: no node_modules and no network, so tsc/eslint could not be run at all this session, and no live Supabase was reachable for a functional walkthrough. New: src/app/hotel-owner/page.tsx (the route's first real page — layout.tsx has been role-gating an empty route since Step 1) and src/components/owner/OwnerHotelForm.tsx. Modified: src/components/public/PropertyListingForm.tsx (Step 3 — auto-redirects to /hotel-owner when submitPropertyListing() reused an existing session instead of creating a new one) and src/actions/auth.ts (Step 4 — loginAction's default landing, i.e. no explicit ?redirectTo, now sends a plain hotel_owner to /hotel-owner instead of "/"). Full detail, including the exact walkthrough steps still needed and the two scope assumptions made where the milestone's own docs never specified behavior (RULE 12), is in CHANGELOG.md's 2026-09-05 entry and PROJECT_STATUS.md v15. NOTE (2026-09-11 session): this milestone's claimed files were not present in the next session's repo zip — see DOC_DEBT.md item 13; treat "CODE COMPLETE" claims in this file as unverified against the live repo, not as fact, until re-confirmed.
-
-Also this session: DOC_DEBT.md item 6 (mangled "CHANGELOG (1).md"/"PROJECT_STATUS (1) (1).md" filenames) was reopened yet again in the delivered zip — renamed to canonical a third time. Given the recurrence (closed/reopened at least four times now across 2026-08-28, 2026-09-03, and 2026-09-05), DOC_DEBT.md now suggests this be fixed at whatever export/upload step produces the zip, rather than re-patched every session.
-
-Also this session, later: the user ran src/db/sql/011_vendor03_hotel_facilities.sql manually against production Supabase and confirmed via information_schema.columns — both public.hotel_facilities and public.hotel_facility_links exist with every expected column and correct type. VENDOR-03 M1 is now DEPLOYMENT READY (RULE 13/35). This unblocks functionally testing M2 (the live "List Your Property" form) end-to-end for the first time — still not done, since that requires a real browser walkthrough this sandbox cannot perform.
-
-Earlier milestone
-
-HOME-HOTEL-SEARCH-01 (2026-09-03) — homepage Hero switched to Hotels-primary with a real functional search (new src/components/public/HotelSearchBar.tsx, HotelRepository.searchPublishedHotels(), /hotels now accepts city/checkin/checkout/guests and carries them through room + booking links into BookingForm's initial values). CODE COMPLETE, NOT VERIFIED — this sandbox has no node_modules and no network, so tsc/eslint could not be run at all this session (not even the usual "clean except fonts" build check). Must be typechecked/linted and walked through on a real dev server (search from homepage → results filter by city → book with dates pre-filled) before being trusted. Full detail in CHANGELOG.md's 2026-09-03 HOME-HOTEL-SEARCH-01 entry, including three explicitly-scoped-out gaps: no availability filter on hotel search (dates don't yet narrow which hotels show up), no checked-in/checked-out operational status for bookings, and other verticals (Flights/Bus/etc.) remain "Coming soon" placeholders with no backend.
-
-P0.3 audit continuation (2026-08-28, session after VENDOR-03/M2 below) — this is the actual most recent session; it was recorded in CHANGELOG.md at the time but never backfilled into this file or PROJECT_STATUS.md until now (DOC_DEBT.md item 10). Re-verified SESSION_HANDOFF_2026-08-28_P0_FIXES.md's claim that P0.3 Step 1 (owner-scoped repository/action layer) was "not yet started" — false, Step 1 was already fully present (VendorRepository.getVendorByOwnerUserId(), src/lib/auth/owner-context.ts, owner-hotel.actions.ts, owner-room-type.actions.ts, all confirmed on disk — see DOC_DEBT.md item 8). Steps 2-5 (onboarding wizard page, post-submit redirect, first-login smart redirect, submitted-for-review screen) confirmed genuinely NOT started — src/app/hotel-owner/ contains only layout.tsx.
-
-Also found and fixed (DOC_DEBT.md item 9, P0-adjacent): room-price.repository.ts and room-inventory.repository.ts's verifyRoomOwnership() hotel_owner branch queried a nonexistent vendors.owner_id column (live column is owner_user_id, confirmed elsewhere in the codebase) with the Postgrest error silently swallowed — net effect, a hotel_owner onboarded via VENDOR-03's self-service flow could never successfully price or manage inventory for their own rooms. Both repositories fixed to use owner_user_id.
-
-Created: src/app/actions/owner-room-image.actions.ts — owner-scoped counterpart to the admin room-image actions (upload/list/set-primary/reorder/delete), gated via requireOwnerVendor()/assertHotelOwnedByVendor() + a room-belongs-to-hotel check. Not created: separate owner-room-price/owner-room-inventory action wrappers — unnecessary, since room-price.actions.ts/room-inventory.actions.ts already accept the hotel_owner role directly once the owner_id bug above is fixed.
-
-Verified: tsc --noEmit clean (whole project). eslint clean on all changed/created files. NOT verified: no live Supabase reachable in that sandbox — the owner_id fix and new owner-room-image actions need a real hotel_owner walkthrough (set a rate, set inventory, upload a room photo) before being trusted in production. P0.3 Steps 2-5 remain the actual next coding work on the onboarding flow, once someone picks that back up.
-
-VENDOR-03 (M2) — Public "List Your Property" self-service flow. CODE COMPLETE 2026-08-28. Homepage "List Your Property" button (Navbar) → /list-your-property → single consolidated form (owner account + property + facilities checklist + payout/contact, one submit) → src/app/actions/property-listing.actions.ts creates auth user + vendor(pending) + hotel(pending) + facility links + payout row + hotel_owner role grant + best-effort admin alert email, all via createServiceRoleClient() (trusted-server pattern, not requireRole-gated — see file header for why this is safe). Depends on M1's migration 011 being run first (still not run in production). RULE 29 backfill: GMAIL_USER/GMAIL_APP_PASSWORD/ADMIN_NOTIFICATION_EMAIL added to env schema (were missing despite a false code comment — DOC_DEBT.md item 7). tsc --noEmit: PASS. eslint (whole project): PASS, 0 errors. `next build`: NOT VERIFIED — fails only on Google Fonts being network-blocked in this sandbox, unrelated to code changed here. NOT verified: no functional walkthrough (no live Supabase reachable from this sandbox) — must be walked through for real (signup → check inbox → confirm → login → see pending listing) before this milestone is marked Frozen. Property photo/ID-proof upload intentionally not in scope for M2 — no Storage bucket designed yet.
-
-VENDOR-03 (M1) — Self-Service "List Your Property" schema foundation. CODE COMPLETE 2026-08-28, migration NOT YET RUN in production. See PROJECT_STATUS.md / CHANGELOG.md for full detail. New: src/db/sql/011_vendor03_hotel_facilities.sql, src/lib/repositories/hotel-facility.repository.ts, src/lib/auth/roles.ts. tsc --noEmit and eslint clean. Not verified: migration not run against any live Supabase instance (no DB credentials in this environment) — run manually, confirm via information_schema.columns, before starting M2 (the actual public form + Server Action). Also this session: renamed mangled "CHANGELOG (1).md"/"PROJECT_STATUS (1) (1).md" to canonical filenames (DOC_DEBT.md item 6), and found+logged a pre-existing dangling "DOC_DEBT.md item 5" citation in PROJECT_STATUS.md (DOC_DEBT.md item 5, left open — out of scope for this milestone).
-
-PAY-04 — Automated Split Settlement via Cashfree Easy Split. NOT STARTED. Depends on VENDOR-02 (code complete, see below) and on Cashfree Payout API credentials, which have not been provided yet. No RULE 15 pre-coding audit exists yet — perform one before writing any code.
-
-VENDOR-02 — Hotel Owner Payout KYC Capture. CODE COMPLETE 2026-08-28. Migration RUN AND CONFIRMED IN PRODUCTION 2026-09-03: public.vendor_payout_details verified live via information_schema.columns — all 12 expected columns present with correct types (bank_account_number/bank_ifsc/upi_id/cashfree_beneficiary_id text nullable, payout_status text NOT NULL default 'pending', id/vendor_id/created_at/updated_at NOT NULL, created_by/updated_by/deleted_at nullable), per RULE 13/35. RULE 15 au
+Also logged, not fixed this sess
