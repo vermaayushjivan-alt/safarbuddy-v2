@@ -15,9 +15,9 @@ export type LegalSection = {
 export const LEGAL_LAST_UPDATED = "5 October 2026";
 
 // Consumer Protection (E-Commerce) Rules, 2020 require the Grievance
-// Officer's name and contact to be displayed. Put the officer's full name
-// here; while empty, the name line is simply not shown.
-export const GRIEVANCE_OFFICER_NAME = "";
+// Officer's name and contact to be displayed (GOLIVE-13, decision D5).
+export const GRIEVANCE_OFFICER_NAME = "Ayush Jivan Verma";
+export const GRIEVANCE_OFFICER_PHONE = "+91 73074 93338";
 
 export default function LegalPage({
   title,
@@ -67,6 +67,15 @@ export default function LegalPage({
             one month of receipt.
           </p>
           <p className="mt-1">
+            Phone:{" "}
+            <a
+              href="tel:+917307493338"
+              className="focus-ring rounded font-medium text-deep underline"
+            >
+              {GRIEVANCE_OFFICER_PHONE}
+            </a>
+          </p>
+          <p className="mt-1">
             Email{" "}
             <a
               href={`mailto:${footerContact.supportEmail}`}
@@ -74,7 +83,7 @@ export default function LegalPage({
             >
               {footerContact.supportEmail}
             </a>{" "}
-            or call {footerContact.supportPhone} ({footerContact.supportHours}).
+            or call the officer on the number above ({footerContact.supportHours}).
           </p>
           <p className="mt-1">{footerContact.address}</p>
         </div>
