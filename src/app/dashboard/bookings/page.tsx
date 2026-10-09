@@ -158,6 +158,22 @@ export default async function MyBookingsPage({
                         </Link>
                       )}
 
+                      {/* HELP — cancellation / refund / any problem (SUPPORT-01) */}
+                      {booking.status !== 'pending' && (
+                        <Link
+                          href={`/dashboard/support/new?booking=${booking.id}&category=${
+                            booking.status === 'cancelled'
+                              ? 'refund'
+                              : booking.status === 'confirmed'
+                                ? 'cancellation'
+                                : 'other'
+                          }`}
+                          className="focus-ring rounded-lg border border-deep/15 px-3 py-1.5 text-[12px] font-semibold text-deep transition hover:bg-mist"
+                        >
+                          {booking.status === 'cancelled' ? 'Refund help' : 'Cancel / Help'}
+                        </Link>
+                      )}
+
                       {/* PAY NOW — pending bookings only */}
                       {booking.status === 'pending' && (
                         <Link
@@ -250,6 +266,22 @@ export default async function MyBookingsPage({
                     className="focus-ring w-full rounded-lg border border-deep/15 px-3 py-2 text-center text-[13px] font-semibold text-deep transition hover:bg-mist"
                   >
                     Chat
+                  </Link>
+                )}
+
+                {/* HELP — same as desktop (SUPPORT-01) */}
+                {booking.status !== 'pending' && (
+                  <Link
+                    href={`/dashboard/support/new?booking=${booking.id}&category=${
+                      booking.status === 'cancelled'
+                        ? 'refund'
+                        : booking.status === 'confirmed'
+                          ? 'cancellation'
+                          : 'other'
+                    }`}
+                    className="focus-ring w-full rounded-lg border border-deep/15 px-3 py-2 text-center text-[13px] font-semibold text-deep transition hover:bg-mist"
+                  >
+                    {booking.status === 'cancelled' ? 'Refund help' : 'Cancel / Help'}
                   </Link>
                 )}
 
