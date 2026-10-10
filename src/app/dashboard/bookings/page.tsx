@@ -289,7 +289,7 @@ export default async function MyBookingsPage({
 
               <RefundStatusNote note={refundNotes[booking.id]} />
 
-              <div className="mt-4 flex items-center justify-end gap-2 border-t border-deep/10 pt-3">
+              <div className="mt-4 flex flex-wrap items-stretch gap-2 border-t border-deep/10 pt-3">
                 {/* INVOICE — confirmed/completed bookings only,
                     mirrors the desktop table above 1:1 (see
                     MOBILE-PAYMENT-BUG-01 note at the top of this
@@ -359,7 +359,9 @@ export default async function MyBookingsPage({
                 {/* CANCEL — pending or confirmed only */}
                 {(booking.status === 'pending' ||
                   booking.status === 'confirmed') && (
-                  <CancelBookingButton bookingId={booking.id} />
+                  <div className="w-full">
+                    <CancelBookingButton bookingId={booking.id} />
+                  </div>
                 )}
               </div>
             </div>
