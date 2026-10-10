@@ -10,6 +10,7 @@ import {
   type CreateBookingInput,
 } from '@/app/actions/booking.actions';
 import { validateCouponPublic } from '@/app/actions/coupon.actions';
+import { normalizePhone, PHONE_HELP_TEXT } from '@/lib/utils/phone';
 import type { BookableRoom } from '@/app/actions/room-type.actions';
 
 interface BookingFormProps {
@@ -189,6 +190,14 @@ export default function BookingForm({
     // the (possibly stale, or a different person's) profile on file.
     if (!guestName.trim() || !guestPhone.trim()) {
       setError('Please enter the name and phone number for this booking.');
+      return;
+    }
+
+    // PHONE-01: no country code needed (+91 is assumed); other countries start with +.
+    if (!normalizePhone(guestPhone).valid) {
+      setError(
+        'Enter a valid 10-digit mobile number. For another country, start with + and the country code.'
+      );
       return;
     }
 
@@ -428,19 +437,30 @@ export default function BookingForm({
         </Field>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label="Phone" required>
-            <input
-              type="tel"
-              required
-              value={guestPhone}
-              onChange={(e) => setGuestPhone(e.target.value)}
-              className={inputClass}
-            />
+          <Field label="Mobile number" required>
+            <div className="flex items-stretch gap-2">
+              {!/^\s*(\+|00)/.test(guestPhone) && (
+                <span className="flex items-center rounded-xl border border-deep/15 bg-mist px-3 text-sm font-semibold text-deep">
+                  +91
+                </span>
+              )}
+              <input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                required
+                value={guestPhone}
+                onChange={(e) => setGuestPhone(e.target.value)}
+                placeholder="98765 43210"
+                className={`${inputClass} min-w-0 flex-1`}
+              />
+            </div>
           </Field>
         </div>
 
         <p className="text-[11px] text-ink/45">
-          We&apos;ll use this name and number to reach you about this booking.
+          We&apos;ll use this name and number to reach you about this booking.{' '}
+          {PHONE_HELP_TEXT}
         </p>
       </div>
 
