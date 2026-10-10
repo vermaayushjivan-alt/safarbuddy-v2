@@ -27,6 +27,8 @@ const serverEnvSchema = z.object({
   
   // Database
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // GOLIVE-11: optional PEM of Supabase's CA; when set, DB TLS is verified.
+  DATABASE_SSL_CA: z.string().optional(),
   
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: z.string().url('Invalid Supabase URL'),
