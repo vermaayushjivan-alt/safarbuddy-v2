@@ -34,6 +34,8 @@ const PUBLIC_ROUTES = [
   "/refund-policy",
   // PARTNER-TERMS-01: public so owners can read it before signing up
   "/partner-terms",
+  // GOLIVE-12: public page explaining how to delete an account (store/DPDP requirement)
+  "/delete-account",
 
   // GOLIVE-03: uptime monitors have no session
   "/api/health",
