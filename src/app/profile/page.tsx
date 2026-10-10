@@ -3,6 +3,8 @@ import Navbar from '@/components/home/Navbar';
 import Footer from '@/components/home/Footer';
 import { getMyProfile } from '@/app/actions/profile.actions';
 import { PhoneForm } from '@/components/profile/PhoneForm';
+import { DeleteAccountForm } from '@/components/profile/DeleteAccountForm';
+import { accountUsesPassword } from '@/app/actions/account-deletion.actions';
 
 // P0 fix — PROFILE-01: closes the confirmed /profile 404 (linked from
 // ProfileMenu.tsx "My Profile") and gives users a way to set the phone
@@ -14,6 +16,7 @@ import { PhoneForm } from '@/components/profile/PhoneForm';
 
 export default async function ProfilePage() {
   const profile = await getMyProfile();
+  const needsPassword = await accountUsesPassword();
 
   // Defensive fallback — middleware already requires a session for any
   // non-public route, so this should not normally trigger.
@@ -54,6 +57,10 @@ export default async function ProfilePage() {
           <hr className="border-deep/10" />
 
           <PhoneForm initialPhone={profile.phone} />
+
+          <hr className="border-deep/10" />
+
+          <DeleteAccountForm needsPassword={needsPassword} />
         </div>
       </div>
 
