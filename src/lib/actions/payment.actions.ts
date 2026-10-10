@@ -3,6 +3,7 @@
 
 "use server";
 
+import { normalizePhone } from "@/lib/utils/phone";
 import { z } from "zod";
 import { runAction, type ActionResult } from "@/lib/actions/action-result";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
@@ -115,14 +116,27 @@ async function createNewPayment(
     throw new Error("This booking has already been paid.");
   }
 
-  if (
-    profileError ||
-    !userProfile ||
-    typeof userProfile.phone !== "string" ||
-    userProfile.phone.trim() === ""
-  ) {
+  // PHONE-01: the number sent to Cashfree comes from the BOOKING contact first
+  // (the customer typed it in the booking form), then from the profile as a
+  // fallback. A profile phone is optional. No country code needed: Indian
+  // numbers are normalised to 10 digits (see src/lib/utils/phone.ts).
+  if (profileError) {
+    console.warn("[payments] profile phone lookup failed, using booking phone only");
+  }
+
+  let gatewayPhone = "";
+  for (const candidate of [booking.guest_phone, userProfile?.phone]) {
+    if (typeof candidate !== "string" || candidate.trim() === "") continue;
+    const normalized = normalizePhone(candidate);
+    if (normalized.valid) {
+      gatewayPhone = normalized.gateway;
+      break;
+    }
+  }
+
+  if (!gatewayPhone) {
     throw new Error(
-      "A valid phone number is required to make a payment. Please update your profile."
+      "We need a valid 10-digit mobile number to take payment. Add one in your profile (optional field), then try again."
     );
   }
 
@@ -173,7 +187,7 @@ async function createNewPayment(
     customer_details: {
       customer_id: authUser.id,
       customer_email: authUser.email ?? "",
-      customer_phone: userProfile.phone.trim(),
+      customer_phone: gatewayPhone,
     },
 
     order_meta: {
