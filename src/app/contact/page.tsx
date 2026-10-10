@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { Mail, Phone, MapPin, Clock } from "lucide-react";
@@ -7,6 +8,13 @@ import { footerContact } from "@/data/home";
 // entry in middleware.ts. Server component, no auth required.
 // This route previously did not exist, which is why "/contact" links
 // (e.g. Footer "Contact Us") had nowhere to go.
+
+export const metadata: Metadata = {
+  title: "Contact Us",
+  description:
+    "Contact SafarBuddy support for help with bookings, payments, refunds or planning your trip.",
+  alternates: { canonical: "/contact" },
+};
 
 export default function ContactPage() {
   return (
