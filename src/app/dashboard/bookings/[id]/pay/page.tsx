@@ -60,6 +60,12 @@ export default async function BookingPayPage({ params }: PageProps) {
     );
   }
 
+  // 3b. Already paid: never show "Payment not available" to someone who just
+  // paid and pressed Back — send them to the Booking Confirmed screen.
+  if (booking.status === 'confirmed' || booking.status === 'completed') {
+    redirect(`/payment/success?booking_id=${encodeURIComponent(booking.id)}`);
+  }
+
   // 4. Status check — only pending bookings are payable
   if (booking.status !== 'pending') {
     return (
