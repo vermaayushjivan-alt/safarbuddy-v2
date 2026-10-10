@@ -5,6 +5,8 @@ import Navbar from "@/components/home/Navbar";
 import Footer from "@/components/home/Footer";
 import { HotelGrid } from "@/components/public/HotelGrid";
 import { HotelSearchBar } from "@/components/public/HotelSearchBar";
+import { NearMeButton } from "@/components/public/NearMeButton";
+import { getHotelsNearMe } from "@/app/actions/near-me.actions";
 import {
   getPublishedHotels,
   searchPublishedHotels,
@@ -23,9 +25,18 @@ import { SITE_NAME } from "@/lib/seo/site";
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; city?: string }>;
+  searchParams: Promise<{ page?: string; city?: string; lat?: string; lng?: string }>;
 }): Promise<Metadata> {
   const params = await searchParams;
+
+  // GOLIVE-14: "near me" results depend on the visitor's location: never index them.
+  if (params.lat && params.lng) {
+    return {
+      title: `Hotels near you | ${SITE_NAME}`,
+      robots: { index: false, follow: true },
+    };
+  }
+
   const page = Number(params.page ?? "1") || 1;
   const city = params.city?.trim();
 
@@ -80,15 +91,38 @@ export default async function HotelsPage({
     checkin?: string;
     checkout?: string;
     guests?: string;
+    lat?: string;
+    lng?: string;
   }>;
 }) {
   const params = await searchParams;
   const page = Number(params.page ?? "1") || 1;
   const city = params.city ?? "";
 
-  const { data: hotels, total, totalPages, hasNext, hasPrev } = city
-    ? await searchPublishedHotels(city, page, 16)
-    : await getPublishedHotels(page, 16);
+  // GOLIVE-14: ?lat=&lng= -> hotels near the visitor, nearest first.
+  const nearLat = Number(params.lat);
+  const nearLng = Number(params.lng);
+  const isNearMe =
+    params.lat != null &&
+    params.lng != null &&
+    Number.isFinite(nearLat) &&
+    Number.isFinite(nearLng);
+
+  const nearResult = isNearMe
+    ? await getHotelsNearMe({ lat: nearLat, lng: nearLng, radiusKm: 100, limit: 48 })
+    : null;
+
+  const { data: hotels, total, totalPages, hasNext, hasPrev } = nearResult
+    ? {
+        data: nearResult.ok ? nearResult.hotels.map((n) => n.hotel) : [],
+        total: nearResult.ok ? nearResult.hotels.length : 0,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      }
+    : city
+      ? await searchPublishedHotels(city, page, 16)
+      : await getPublishedHotels(page, 16);
 
   const stayQuery = buildQuery({
     checkin: params.checkin,
@@ -115,12 +149,20 @@ export default async function HotelsPage({
             Stays for every trip
           </span>
           <h1 className="mt-1 font-display text-3xl text-deep">
-            {city ? `Hotels in ${city}` : "All Hotels"}
+            {isNearMe ? "Hotels near you" : city ? `Hotels in ${city}` : "All Hotels"}
           </h1>
           <p className="mt-2 max-w-md text-[14px] text-ink/60">
-            {total} hotel{total === 1 ? "" : "s"}
-            {city ? " found" : " to explore"}.
+            {isNearMe
+              ? total > 0
+                ? `${total} hotel${total === 1 ? "" : "s"} within 100 km, nearest first.`
+                : nearResult && !nearResult.ok
+                  ? nearResult.error
+                  : "No SafarBuddy hotels within 100 km of you yet. Try searching by city."
+              : `${total} hotel${total === 1 ? "" : "s"}${city ? " found" : " to explore"}.`}
           </p>
+          <div className="mt-4">
+            <NearMeButton />
+          </div>
         </div>
 
         <HotelSearchBar
