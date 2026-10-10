@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { getMyBookings } from '@/app/actions/booking.actions';
 import CancelBookingButton from '@/components/booking/CancelBookingButton';
+import RefundStatusNote from '@/components/booking/RefundStatusNote';
+import { getMyRefundNotes } from '@/app/actions/customer-refund.actions';
 import type { BookingRecord } from '@/lib/repositories/booking.repository';
 
 function formatDate(value: string | null): string {
@@ -39,6 +41,9 @@ export default async function MyBookingsPage({
 
   const { data: bookings, total, totalPages, hasNext, hasPrev } =
     await getMyBookings(page, 20);
+
+  // GOLIVE-13b: refund status per booking (cancelled / refunded ones only get a note)
+  const refundNotes = await getMyRefundNotes(bookings.map((b) => b.id));
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -131,6 +136,7 @@ export default async function MyBookingsPage({
                     >
                       {booking.status}
                     </span>
+                    <RefundStatusNote note={refundNotes[booking.id]} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
@@ -242,6 +248,8 @@ export default async function MyBookingsPage({
                   {Number(booking.price_snapshot).toLocaleString('en-IN')}
                 </span>
               </div>
+
+              <RefundStatusNote note={refundNotes[booking.id]} />
 
               <div className="mt-4 flex items-center justify-end gap-2 border-t border-deep/10 pt-3">
                 {/* INVOICE — confirmed/completed bookings only,
