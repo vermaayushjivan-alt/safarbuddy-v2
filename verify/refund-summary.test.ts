@@ -1,1 +1,47 @@
-
+{
+  "name": "safarbuddy-v2",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^4.9.0",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.58.0",
+    "@vercel/analytics": "^1.5.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "dotenv": "17.3.1",
+    "drizzle-orm": "0.45.2",
+    "lucide-react": "^1.28.0",
+    "next": "16.2.6",
+    "nodemailer": "^9.0.6",
+    "pg": "8.20.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "server-only": "^0.0.1",
+    "sharp": "^0.34.5",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.1.17",
+    "@types/node": "22.19.15",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "8.18.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "drizzle-kit": "0.31.10",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "postcss": "8.5.8",
+    "tailwindcss": "4.1.17",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
