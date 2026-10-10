@@ -48,7 +48,7 @@ export function PhoneForm({ initialPhone }: PhoneFormProps) {
 
       {success && !error && (
         <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-[13px] text-green-700">
-          Phone number updated.
+          Phone number saved.
         </div>
       )}
 
@@ -57,7 +57,7 @@ export function PhoneForm({ initialPhone }: PhoneFormProps) {
           htmlFor="phone"
           className="mb-1.5 block text-sm font-semibold text-deep"
         >
-          Phone number
+          Mobile number <span className="font-normal text-ink/45">(optional)</span>
         </label>
         <input
           id="phone"
@@ -65,12 +65,11 @@ export function PhoneForm({ initialPhone }: PhoneFormProps) {
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          required
           className="focus-ring w-full rounded-xl border border-deep/15 bg-white px-4 py-3 text-sm text-deep outline-none"
-          placeholder="+91 98765 43210"
+          placeholder="98765 43210"
         />
         <p className="mt-1.5 text-[12px] text-ink/50">
-          Required to complete payment on bookings.
+          Optional. You can also enter your number when you book. +91 is added automatically for Indian numbers.
         </p>
       </div>
 
