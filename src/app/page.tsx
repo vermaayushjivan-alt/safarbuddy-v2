@@ -9,6 +9,7 @@ import Footer from "@/components/home/Footer";
 import HomeAiChatWidget from "@/components/home/HomeAiChatWidget";
 import PromoBanner from "@/components/home/PromoBanner";
 import ServicesGrid from "@/components/home/ServicesGrid";
+import NearYou from "@/components/home/NearYou";
 import HomeHostCta from "@/components/home/HomeHostCta";
 
 // SEO_AUDIT.md §4.3 — homepage had no dedicated metadata beyond the
@@ -25,6 +26,7 @@ export default function Home() {
       <Navbar />
       <Hero />
       <ServicesGrid />
+      <NearYou />
       <PromoBanner slot="after_hero" />
       <Offers />
       <Destinations />
