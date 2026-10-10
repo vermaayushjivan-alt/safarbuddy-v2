@@ -1,1 +1,37 @@
+# GOLIVE-18 — runs on every pull request and every push to main.
+# The production build itself is checked by Vercel (every push gets a build),
+# so CI covers what Vercel does not: type-check, unit tests and lint.
+name: CI
 
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # No package-lock.json is committed yet, so `npm ci` is not possible.
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Informational for now: existing lint findings should not block merges.
+      # Remove `continue-on-error` once `npm run lint` is clean.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
