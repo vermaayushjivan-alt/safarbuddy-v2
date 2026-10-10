@@ -198,8 +198,8 @@ export default function InvoiceDocument({
           <View>
             <Text style={styles.metaLabel}>Invoice number</Text>
             <Text style={styles.metaValue}>{invoice.invoiceNumber}</Text>
-            <Text style={styles.metaLabel}>Issued</Text>
-            <Text style={styles.metaValue}>{invoice.generatedAtLabel}</Text>
+            <Text style={styles.metaLabel}>Payment received on</Text>
+            <Text style={styles.metaValue}>{invoice.paymentTimeLabel}</Text>
           </View>
         </View>
 
