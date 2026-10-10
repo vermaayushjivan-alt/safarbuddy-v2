@@ -4,108 +4,25 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  Star,
   MapPin,
   Clock,
   ArrowRight,
-  Plane,
-  BedDouble,
-  Coffee,
-  Camera,
-  Car,
-  ShieldCheck,
-  Sparkles,
   Package as PackageIcon,
-  type LucideIcon,
 } from "lucide-react";
 import { getFeaturedPackages } from "@/app/actions/package.actions";
 import type { PackageRecord } from "@/lib/repositories/package.repository";
 
-const highlightIcons: Record<string, LucideIcon> = {
-  "Flight Included": Plane,
-  "Hotel Included": BedDouble,
-  Breakfast: Coffee,
-  Sightseeing: Camera,
-  "Airport Transfer": Car,
-  "Free Cancellation": ShieldCheck,
-};
-
-// Static UI-only presentation data — no DB column exists for these yet.
-// Cycled by index against live data, same pattern as Hotels/Offers/Destinations.
-// `banner` reuses the same gradient-fallback pattern as Trending.tsx (hotelStyles.banner).
-const packageStyles = [
-  {
-    rating: 4.6,
-    reviews: "2.3k",
-    originalPrice: "17,999",
-    discount: "28% OFF",
-    highlights: ["Flight Included", "Hotel Included", "Breakfast", "Free Cancellation"],
-    limitedOffer: true,
-    banner: "from-sky to-deep",
-  },
-  {
-    rating: 4.8,
-    reviews: "1.8k",
-    originalPrice: "32,999",
-    discount: "24% OFF",
-    highlights: ["Hotel Included", "Sightseeing", "Airport Transfer", "Breakfast"],
-    limitedOffer: true,
-    banner: "from-orange to-orange-2",
-  },
-  {
-    rating: 4.9,
-    reviews: "3.5k",
-    originalPrice: "54,999",
-    discount: "22% OFF",
-    highlights: ["Flight Included", "Hotel Included", "Airport Transfer", "Free Cancellation"],
-    limitedOffer: true,
-    banner: "from-deep-2 to-sky",
-  },
-  {
-    rating: 4.7,
-    reviews: "4.1k",
-    originalPrice: "47,999",
-    discount: "20% OFF",
-    highlights: ["Flight Included", "Hotel Included", "Sightseeing", "Breakfast"],
-    limitedOffer: false,
-    banner: "from-sky-light to-deep-2",
-  },
-  {
-    rating: 4.6,
-    reviews: "2.9k",
-    originalPrice: "35,999",
-    discount: "24% OFF",
-    highlights: ["Flight Included", "Hotel Included", "Sightseeing", "Free Cancellation"],
-    limitedOffer: true,
-    banner: "from-deep to-sky-light",
-  },
-  {
-    rating: 4.5,
-    reviews: "5.2k",
-    originalPrice: "19,999",
-    discount: "22% OFF",
-    highlights: ["Hotel Included", "Breakfast", "Sightseeing", "Airport Transfer"],
-    limitedOffer: false,
-    banner: "from-orange-2 to-deep",
-  },
-  {
-    rating: 4.7,
-    reviews: "3.0k",
-    originalPrice: "17,499",
-    discount: "20% OFF",
-    highlights: ["Hotel Included", "Breakfast", "Sightseeing", "Free Cancellation"],
-    limitedOffer: true,
-    banner: "from-sky to-deep-2",
-  },
-  {
-    rating: 4.8,
-    reviews: "1.6k",
-    originalPrice: "28,999",
-    discount: "21% OFF",
-    highlights: ["Flight Included", "Hotel Included", "Sightseeing", "Airport Transfer"],
-    limitedOffer: false,
-    banner: "from-deep-2 to-orange",
-  },
+// Decorative gradient shown only when a package has no image. Cycled by index.
+// GOLIVE-13: the old made-up ratings, review counts, struck-through prices,
+// "% OFF" badges, "Limited Time Offer" and included-services chips were removed:
+// none of it came from the database, so showing it to customers was misleading.
+const packageBanners = [
+  "from-sky to-deep",
+  "from-orange to-orange-2",
+  "from-deep-2 to-sky",
+  "from-sky-light to-deep-2",
+  "from-deep to-sky-light",
+  "from-orange-2 to-deep",
 ];
 
 function formatPrice(price: number | null): string {
@@ -226,7 +143,7 @@ export default function Packages() {
           aria-label="Holiday packages"
         >
           {packages.map((p, i) => {
-            const style = packageStyles[i % packageStyles.length];
+            const banner = packageBanners[i % packageBanners.length];
             const hasImage = Boolean(p.thumbnail && p.thumbnail.trim().length > 0);
 
             return (
@@ -247,21 +164,11 @@ export default function Packages() {
                     />
                   ) : (
                     <div
-                      className={`absolute inset-0 h-full w-full bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
+                      className={`absolute inset-0 h-full w-full bg-gradient-to-br ${banner} transition-transform duration-500 ease-out group-hover:scale-110`}
                       aria-hidden
                     />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/0" />
-
-                  <span className="absolute left-3 top-3 rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
-                    {style.discount}
-                  </span>
-                  {style.limitedOffer && (
-                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-cream/95 px-2.5 py-1 text-[10px] font-semibold text-orange backdrop-blur-sm">
-                      <Sparkles size={11} aria-hidden />
-                      Limited Time Offer
-                    </span>
-                  )}
 
                   <div className="absolute bottom-3 left-4 right-4 text-white">
                     <p className="font-heading text-lg font-semibold leading-tight">
@@ -276,32 +183,10 @@ export default function Packages() {
 
                 <div className="p-5">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-mist px-2 py-0.5 text-[12px] font-semibold text-deep">
-                      <Star size={11} className="fill-deep text-deep" aria-hidden />
-                      {style.rating.toFixed(1)}
-                    </span>
-                    <span className="text-[12px] text-ink/50">
-                      {style.reviews} reviews
-                    </span>
-                    <span className="ml-auto flex items-center gap-1 text-[12px] text-ink/50">
+                    <span className="flex items-center gap-1 text-[12px] text-ink/50">
                       <Clock size={11} aria-hidden />
                       {p.duration ?? "—"}
                     </span>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {style.highlights.map((h) => {
-                      const Icon = highlightIcons[h] ?? Sparkles;
-                      return (
-                        <span
-                          key={h}
-                          className="inline-flex items-center gap-1 rounded-full bg-mist px-2 py-1 text-[10px] font-medium text-deep/80"
-                        >
-                          <Icon size={10} aria-hidden />
-                          {h}
-                        </span>
-                      );
-                    })}
                   </div>
 
                   <div className="mt-4 flex items-end justify-between">
@@ -310,9 +195,6 @@ export default function Packages() {
                       <div className="flex items-baseline gap-2">
                         <span className="font-display text-xl text-orange">
                           ₹{formatPrice(p.starting_price)}
-                        </span>
-                        <span className="text-[12px] text-ink/40 line-through">
-                          ₹{style.originalPrice}
                         </span>
                       </div>
                     </div>
