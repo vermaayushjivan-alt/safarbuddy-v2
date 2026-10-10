@@ -12,6 +12,7 @@
 // the existing runAction/ActionResult + direct-Supabase-client pattern
 // used throughout src/app/actions/*.
 
+import { normalizePhone } from '@/lib/utils/phone';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthUser, resolvePublicUserId } from '@/lib/auth/session';
@@ -55,28 +56,31 @@ export async function getMyProfile(): Promise<MyProfile | null> {
   return data as MyProfile;
 }
 
-// users.phone is varchar(20) (src/db/schema.ts) — light sanity check only,
-// no assumed format, since no phone validation convention exists
-// elsewhere in the codebase to follow.
-const updatePhoneSchema = z.object({
-  phone: z
-    .string()
-    .trim()
-    .min(7, 'Enter a valid phone number.')
-    .max(20, 'Phone number is too long.')
-    .regex(/^[0-9+()\-\s]+$/, 'Enter a valid phone number.'),
-});
+// PHONE-01: the profile phone is OPTIONAL. Empty = remove it. A number is
+// normalised (+91 is assumed when no country code is typed) before saving.
+const phoneInputSchema = z.string().trim().max(30, 'Phone number is too long.');
 
 export async function updateMyPhoneAction(
   phone: string
-): Promise<ActionResult<{ phone: string }>> {
+): Promise<ActionResult<{ phone: string | null }>> {
   return runAction(async () => {
     const authUser = await getAuthUser();
     if (!authUser) {
       throw new Error('UNAUTHENTICATED');
     }
 
-    const parsed = updatePhoneSchema.parse({ phone });
+    const raw = phoneInputSchema.parse(phone);
+
+    let phoneToSave: string | null = null;
+    if (raw !== '') {
+      const normalized = normalizePhone(raw);
+      if (!normalized.valid) {
+        throw new Error(
+          'Enter a valid 10-digit mobile number. For another country, start with + and the country code.'
+        );
+      }
+      phoneToSave = normalized.stored;
+    }
 
     const supabase = await createClient();
 
@@ -86,13 +90,13 @@ export async function updateMyPhoneAction(
 
     const { error } = await supabase
       .from('users')
-      .update({ phone: parsed.phone })
+      .update({ phone: phoneToSave })
       .eq('id', userRowId);
 
     if (error) {
       throw new Error(`Failed to update phone number: ${error.message}`);
     }
 
-    return { phone: parsed.phone };
+    return { phone: phoneToSave };
   });
 }
