@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { Analytics } from '@vercel/analytics/next';
 import { RootProvider } from '@/components/providers/RootProvider';
 import MobileBottomNav from '@/components/layout/MobileBottomNav';
 import { getSiteUrl, SITE_NAME, ORG_CONTACT } from '@/lib/seo/site';
@@ -92,6 +93,9 @@ export default function RootLayout({
           {children}
           <MobileBottomNav />
         </RootProvider>
+        {/* GOLIVE-18: cookieless page-view analytics. Switch it on in the
+            Vercel dashboard (project -> Analytics); harmless until then. */}
+        <Analytics />
       </body>
     </html>
   );
