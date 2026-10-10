@@ -26,6 +26,9 @@ import type { InvoiceRecord } from '@/lib/repositories/invoice.repository';expor
 export interface InvoiceViewModel {
   invoiceNumber: string;
   generatedAtLabel: string;
+  // Date AND time the payment was received, in Indian time (the invoice is
+  // generated in the same step as the payment confirmation).
+  paymentTimeLabel: string;
   bookingNumber: string;
   bookingTypeLabel: string;
 
@@ -75,6 +78,26 @@ function formatDate(value: string | null): string | null {
     month: 'short',
     year: 'numeric',
   });
+}
+
+// Always Indian time, whatever timezone the server runs in (Vercel = UTC).
+function formatDateTime(value: string | null): string | null {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date
+    .toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata',
+    })
+    .replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
 }
 
 // Matches the ₹-prefix convention already used throughout the admin/
@@ -143,6 +166,7 @@ export function buildInvoiceViewModel(invoice: InvoiceRecord): InvoiceViewModel 
   return {
     invoiceNumber: invoice.invoice_number,
     generatedAtLabel: formatDate(invoice.generated_at) ?? '—',
+    paymentTimeLabel: formatDateTime(invoice.generated_at) ?? '—',
     bookingNumber: invoice.booking_number,
     bookingTypeLabel: isHotel ? 'Hotel booking' : 'Package booking',
 
