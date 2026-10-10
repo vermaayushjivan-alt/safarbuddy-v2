@@ -6,10 +6,6 @@ import Image from "next/image";
 import {
   Star,
   MapPin,
-  Wifi,
-  Coffee,
-  Snowflake,
-  Waves,
   ArrowRight,
   BedDouble,
 } from "lucide-react";
@@ -17,22 +13,17 @@ import { getTrendingHotels } from "@/app/actions/hotel.actions";
 import type { HotelRecord } from "@/lib/repositories/hotel.repository";
 import { slugify } from "@/lib/utils/format";
 
-// Static UI-only presentation data — no DB column exists for these yet.
-// Cycled by index against live data, same pattern as Offers/Destinations.
-const hotelStyles = [
-  { stars: 5, originalPrice: "32,000", discount: "22% OFF", banner: "from-sky to-deep" },
-  { stars: 5, originalPrice: "45,000", discount: "14% OFF", banner: "from-orange to-orange-2" },
-  { stars: 5, originalPrice: "21,499", discount: "21% OFF", banner: "from-deep-2 to-sky" },
-  { stars: 5, originalPrice: "27,000", discount: "20% OFF", banner: "from-sky-light to-deep-2" },
-  { stars: 4, originalPrice: "10,999", discount: "23% OFF", banner: "from-deep to-sky-light" },
-  { stars: 4, originalPrice: "6,999", discount: "24% OFF", banner: "from-orange-2 to-deep" },
-];
-
-const amenities = [
-  { icon: Wifi, label: "Free WiFi" },
-  { icon: Coffee, label: "Breakfast" },
-  { icon: Snowflake, label: "AC" },
-  { icon: Waves, label: "Pool" },
+// Decorative gradient shown only when a hotel has no image. Cycled by index.
+// GOLIVE-13: the old made-up hotel class, struck-through prices, "% OFF" badges
+// and the identical Wi-Fi/Breakfast/AC/Pool row on every card were removed:
+// none of it came from the database, so showing it to customers was misleading.
+const hotelBanners = [
+  "from-sky to-deep",
+  "from-orange to-orange-2",
+  "from-deep-2 to-sky",
+  "from-sky-light to-deep-2",
+  "from-deep to-sky-light",
+  "from-orange-2 to-deep",
 ];
 
 function formatLocation(city: string | null, state: string | null): string {
@@ -164,7 +155,7 @@ export default function Trending() {
           aria-label="Trending hotels"
         >
           {hotels.map((h, i) => {
-            const style = hotelStyles[i % hotelStyles.length];
+            const banner = hotelBanners[i % hotelBanners.length];
             const hasImage = Boolean(h.thumbnail && h.thumbnail.trim().length > 0);
             return (
               <div
@@ -184,25 +175,11 @@ export default function Trending() {
                     />
                   ) : (
                     <div
-                      className={`absolute inset-0 bg-gradient-to-br ${style.banner} transition-transform duration-500 ease-out group-hover:scale-110`}
+                      className={`absolute inset-0 bg-gradient-to-br ${banner} transition-transform duration-500 ease-out group-hover:scale-110`}
                       aria-hidden
                     />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0" />
-
-                  <span className="absolute left-3 top-3 rounded-full bg-orange px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
-                    {style.discount}
-                  </span>
-                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-deep backdrop-blur-sm">
-                    {Array.from({ length: style.stars }).map((_, s) => (
-                      <Star
-                        key={s}
-                        size={10}
-                        className="fill-gold text-gold"
-                        aria-hidden
-                      />
-                    ))}
-                  </span>
 
                   <div className="absolute bottom-3 left-4 right-4 text-white">
                     <p className="font-heading text-lg font-semibold leading-tight">
@@ -216,28 +193,19 @@ export default function Trending() {
                 </div>
 
                 <div className="p-5">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-mist px-2 py-0.5 text-[12px] font-semibold text-deep">
-                      <Star size={11} className="fill-deep text-deep" aria-hidden />
-                      {h.star_rating != null ? h.star_rating.toFixed(1) : "—"}
-                    </span>
-                    <span className="text-[12px] text-ink/50">
-                      {formatReviews(h.total_reviews)} reviews
-                    </span>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    {amenities.map((a) => (
-                      <span
-                        key={a.label}
-                        title={a.label}
-                        className="flex items-center gap-1 text-[11px] text-ink/50"
-                      >
-                        <a.icon size={13} aria-hidden />
-                        <span className="hidden sm:inline">{a.label}</span>
+                  {h.star_rating != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-mist px-2 py-0.5 text-[12px] font-semibold text-deep">
+                        <Star size={11} className="fill-deep text-deep" aria-hidden />
+                        {h.star_rating.toFixed(1)}
                       </span>
-                    ))}
-                  </div>
+                      {(h.total_reviews ?? 0) > 0 && (
+                        <span className="text-[12px] text-ink/50">
+                          {formatReviews(h.total_reviews)} reviews
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mt-4 flex items-end justify-between">
                     <div>
@@ -245,9 +213,6 @@ export default function Trending() {
                       <div className="flex items-baseline gap-2">
                         <span className="font-display text-xl text-orange">
                           ₹{formatPrice(h.starting_price)}
-                        </span>
-                        <span className="text-[12px] text-ink/40 line-through">
-                          ₹{style.originalPrice}
                         </span>
                       </div>
                     </div>
