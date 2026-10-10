@@ -28,6 +28,8 @@ import { slugify } from "@/lib/utils/format";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
 import HotelGallery from "@/components/public/HotelGallery";
 import HotelMap from "@/components/public/HotelMap";
+import HotelReviews from "@/components/public/HotelReviews";
+import { getHotelReviewSummary } from "@/app/actions/review.actions";
 import ReadMore from "@/components/public/ReadMore";
 import { HotelIcon } from "@/components/layout/nav-icons";
 
@@ -247,9 +249,24 @@ export default async function HotelDetailPage({
   // — see SEO_AUDIT.md priority list item 4), no fabricated amenities.
   // hotel.total_reviews/star_rating are real (if currently always
   // null pre-reviews-system) HotelRecord fields, not invented ones.
+  // GOLIVE-15: real review summary; the structured-data rating below is only
+  // emitted when at least one PUBLISHED review exists (never invented).
+  const reviewSummary = await getHotelReviewSummary(hotel.id);
+
   const hotelJsonLd = {
     "@context": "https://schema.org",
     "@type": "Hotel",
+    ...(reviewSummary.count > 0 && reviewSummary.average != null
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: reviewSummary.average,
+            reviewCount: reviewSummary.count,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     name: hotel.hotel_name,
     description: hotel.description ?? undefined,
     url: absoluteUrl(`/hotels/${canonicalSlug}`),
@@ -576,6 +593,9 @@ export default async function HotelDetailPage({
                   </div>
                 </section>
               )}
+
+              {/* Guest reviews (GOLIVE-15) */}
+              <HotelReviews hotelId={hotel.id} />
             </div>
 
             {/* Desktop booking card (phones use the sticky bar below) */}
