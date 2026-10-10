@@ -12,6 +12,7 @@ import {
   Undo2,
   LifeBuoy,
   Megaphone,
+  Star,
 } from "lucide-react";
 
 const sections = [
@@ -62,6 +63,12 @@ const sections = [
     label: "Customer Support",
     description: "Cancellation, refund and help requests from customers (chat).",
     icon: LifeBuoy,
+  },
+  {
+    href: "/admin/reviews",
+    label: "Reviews",
+    description: "Publish or reject guest reviews of hotel stays.",
+    icon: Star,
   },
   {
     href: "/admin/refunds",
