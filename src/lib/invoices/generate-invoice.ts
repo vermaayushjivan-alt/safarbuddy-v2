@@ -52,18 +52,32 @@ export async function resolveRecipient(
   supabase: SupabaseClientType,
   booking: BookingRecord
 ): Promise<{ name: string; email: string | null; phone: string | null }> {
+  // The name/phone the customer typed on the booking form (CONTACT-03: stored
+  // on every booking) is what must appear on the invoice and in the email.
+  // The profile name (public.users.full_name) is only a fallback — for many
+  // accounts it is just the part of the email before the "@", or empty.
+  const bookingName = booking.guest_name?.trim() || null;
+  const bookingPhone = booking.guest_phone?.trim() || null;
+
   if (booking.customer_id) {
     const user = await new UserRepository(supabase).getUserById(booking.customer_id);
 
     if (user) {
-      return { name: user.full_name, email: user.email, phone: user.phone };
+      const profileName = user.full_name?.trim() || null;
+      const emailName = user.email ? user.email.split('@')[0] : null;
+
+      return {
+        name: bookingName ?? profileName ?? emailName ?? 'Guest',
+        email: user.email || booking.guest_email,
+        phone: bookingPhone ?? user.phone,
+      };
     }
   }
 
   return {
-    name: booking.guest_name ?? 'Guest',
+    name: bookingName ?? 'Guest',
     email: booking.guest_email,
-    phone: booking.guest_phone,
+    phone: bookingPhone,
   };
 }
 
