@@ -125,8 +125,9 @@ export function buildInvoiceViewModel(invoice: InvoiceRecord): InvoiceViewModel 
   const subtotalLabel = formatMoney(invoice.subtotal, invoice.currency);
   if (subtotalLabel) lineItems.push({ label: 'Subtotal', value: subtotalLabel });
 
-  const taxesLabel = formatMoney(invoice.taxes, invoice.currency);
-  if (taxesLabel) lineItems.push({ label: 'Taxes', value: taxesLabel });
+  // GST / taxes are intentionally NOT shown: SafarBuddy is not charging GST
+  // at launch. invoice.taxes is still stored on the row; re-add a 'Taxes'
+  // line here (one place, web + PDF both read it) when GST starts.
 
   const discountLabel = formatMoney(invoice.discount, invoice.currency);
   if (discountLabel) lineItems.push({ label: 'Discount', value: `− ${discountLabel}` });
