@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 import * as schema from "./schema";
 
 type DrizzleDb = ReturnType<typeof drizzle>;
@@ -16,6 +16,26 @@ export class DatabaseConfigError extends Error {
     super(message);
     this.name = "DatabaseConfigError";
   }
+}
+
+let warnedUnverifiedSsl = false;
+
+function buildSslConfig(): PoolConfig["ssl"] {
+  // The PEM may be pasted into Vercel with literal "\n" sequences.
+  const ca = process.env.DATABASE_SSL_CA?.trim().replace(/\\n/g, "\n");
+
+  if (ca) {
+    return { ca, rejectUnauthorized: true };
+  }
+
+  if (process.env.NODE_ENV === "production" && !warnedUnverifiedSsl) {
+    warnedUnverifiedSsl = true;
+    console.warn(
+      "[db] DATABASE_SSL_CA is not set: the database connection is encrypted but the server certificate is not verified."
+    );
+  }
+
+  return { rejectUnauthorized: false };
 }
 
 let _db: DrizzleDb | null = null;
@@ -39,12 +59,20 @@ function getDbInstance(): DrizzleDb {
     );
   }
 
+  // GOLIVE-11 — TLS to the database.
+  // DATABASE_SSL_CA unset  -> encrypted but NOT certificate-verified (the old
+  //                           behaviour, so nothing breaks on deploy).
+  // DATABASE_SSL_CA set    -> encrypted AND the server certificate is verified
+  //                           against that CA (download "SSL Certificate" from
+  //                           Supabase > Project Settings > Database).
+  // To roll back, delete the env var and redeploy.
   const pool = new Pool({
     connectionString,
-    // Supabase's pooler (port 6543) requires SSL. `rejectUnauthorized: false`
-    // is safe here because we're connecting via Supabase's trusted endpoint
-    // over a connection string that already encodes host/user/password.
-    ssl: { rejectUnauthorized: false },
+    ssl: buildSslConfig(),
+    // Serverless: keep few, short-lived connections (Supabase pooler limits).
+    max: 3,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
   });
 
   _db = drizzle(pool, { schema });
