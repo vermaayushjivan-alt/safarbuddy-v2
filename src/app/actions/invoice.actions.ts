@@ -8,10 +8,13 @@
 // generateInvoiceForBooking() (src/lib/invoices/generate-invoice.ts) is
 // called only from src/app/api/public/cashfree/webhook/route.ts.
 //
-// Not wired into any page yet — that's Step 4 (admin UI) / Step 5
-// (customer UI), separate future sessions per SESSION_HANDOFF.md's
-// one-step-at-a-time pattern. These two actions exist now so Step 3a
-// is a complete, working backend slice on its own.
+// FIX (invoice never showed after payment): public.invoices has RLS ON and NO
+// policy for logged-in users (migration 015 says so: "RLS itself is not the
+// authorization boundary here"). Reading it with the user's own session
+// therefore always returned zero rows, so the invoice page showed
+// "invoice is being generated" forever even though the invoice existed.
+// The invoice is now READ with the service-role client, only AFTER the
+// authorization check in each function below (admin role / booking ownership).
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { requireRole, getAuthUser, resolvePublicUserId } from '@/lib/auth/session';
@@ -24,8 +27,8 @@ export async function getInvoiceByBookingIdAdmin(
 ): Promise<InvoiceRecord | null> {
   await requireRole(['admin', 'super_admin']);
 
-  const supabase = await createClient();
-  const invoiceRepo = new InvoiceRepository(supabase);
+  // Authorized above; the invoices table has no browser-facing policy.
+  const invoiceRepo = new InvoiceRepository(createServiceRoleClient());
 
   return invoiceRepo.getInvoiceByBookingId(bookingId);
 }
@@ -44,18 +47,21 @@ export async function getMyInvoiceByBookingId(
     throw new Error('UNAUTHENTICATED');
   }
 
+  // Ownership is checked with the customer's OWN session (RLS applies to
+  // bookings: bookings_select_own).
   const supabase = await createClient();
   const customerId = await resolvePublicUserId(supabase, authUser.id);
 
   const bookingRepo = new BookingRepository(supabase);
-  const invoiceRepo = new InvoiceRepository(supabase);
-
   const booking = await bookingRepo.getBookingById(bookingId);
 
   if (!booking || booking.customer_id !== customerId) {
     return null;
   }
 
+  // Ownership confirmed — now read the invoice (service role: no RLS policy
+  // exists for customers on public.invoices).
+  const invoiceRepo = new InvoiceRepository(createServiceRoleClient());
+
   return invoiceRepo.getInvoiceByBookingId(bookingId);
 }
-
