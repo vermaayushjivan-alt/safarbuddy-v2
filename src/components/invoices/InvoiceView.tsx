@@ -32,8 +32,8 @@ export default function InvoiceView({ invoice }: { invoice: InvoiceViewModel }) 
         <div className="text-right">
           <p className="text-[11px] text-ink/45">Invoice number</p>
           <p className="font-semibold text-deep">{invoice.invoiceNumber}</p>
-          <p className="mt-2 text-[11px] text-ink/45">Issued</p>
-          <p className="text-[13px] text-deep">{invoice.generatedAtLabel}</p>
+          <p className="mt-2 text-[11px] text-ink/45">Payment received on</p>
+          <p className="text-[13px] text-deep">{invoice.paymentTimeLabel}</p>
         </div>
       </div>
 
