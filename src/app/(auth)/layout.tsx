@@ -9,13 +9,20 @@
  * RESPONSIBILITY:
  * - If a session already exists, send the user to /dashboard instead of
  *   re-showing the login/register form.
+ * - Tell search engines not to index login / register / reset pages
+ *   (robots.ts already disallows crawling; this covers pages linked from outside).
  *
  * SERVER/CLIENT: Server Component
  *
  * USED BY: Next.js for every page under src/app/(auth)/*
  */
 
+import type { Metadata } from "next";
 import { redirectIfAuthenticated } from "@/lib/auth/route-guards";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function AuthGroupLayout({
   children,
