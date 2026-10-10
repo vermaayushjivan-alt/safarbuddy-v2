@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { normalizePhone } from "@/lib/utils/phone";
 
 import {
   createClient,
@@ -125,13 +126,18 @@ const createBookingBaseSchema =
         .nullable()
         .optional(),
 
+    // PHONE-01: no country code needed. Indian numbers are accepted as 10
+    // digits and stored as +91XXXXXXXXXX (see src/lib/utils/phone.ts).
     guest_phone:
       z.string()
         .trim()
-        .min(7, "Enter a valid phone number.")
-        .max(20)
         .nullable()
-        .optional(),
+        .optional()
+        .refine(
+          (value) => !value || normalizePhone(value).valid,
+          "Enter a valid 10-digit mobile number."
+        )
+        .transform((value) => (value ? normalizePhone(value).stored : value)),
 
     // COUPON-01: optional. Re-validated and re-priced entirely
     // server-side in createBooking() below — never trust a
