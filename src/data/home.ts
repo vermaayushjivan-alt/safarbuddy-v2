@@ -292,6 +292,7 @@ export const footerLinkColumns: FooterLinkColumn[] = [
       { label: "Contact Us", href: "/contact" },
       { label: "Cancellation & Refund Policy", href: "/refund-policy" },
       { label: "Hotel Partner Terms", href: "/partner-terms" },
+      { label: "Delete Account", href: "/delete-account" },
       { label: "FAQ", href: "#" },
       { label: "Customer Support", href: "#" },
     ],
