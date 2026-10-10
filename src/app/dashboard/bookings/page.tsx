@@ -4,6 +4,8 @@ import { getMyBookings } from '@/app/actions/booking.actions';
 import CancelBookingButton from '@/components/booking/CancelBookingButton';
 import RefundStatusNote from '@/components/booking/RefundStatusNote';
 import { getMyRefundNotes } from '@/app/actions/customer-refund.actions';
+import { getMyReviewStatuses } from '@/app/actions/review.actions';
+import { isReviewable } from '@/lib/reviews/eligibility';
 import type { BookingRecord } from '@/lib/repositories/booking.repository';
 
 function formatDate(value: string | null): string {
@@ -21,6 +23,32 @@ function statusBadgeClass(status: string): string {
     default:
       return 'bg-orange/10 text-orange';
   }
+}
+
+function ReviewLink({
+  booking,
+  reviewStatus,
+  className,
+}: {
+  booking: BookingRecord;
+  reviewStatus: string | undefined;
+  className: string;
+}) {
+  if (!isReviewable(booking) && !reviewStatus) return null;
+
+  if (reviewStatus) {
+    return (
+      <span className="rounded-lg bg-mist px-3 py-1.5 text-[12px] font-semibold text-ink/60">
+        {reviewStatus === 'published' ? 'Reviewed ✓' : 'Review submitted'}
+      </span>
+    );
+  }
+
+  return (
+    <Link href={`/dashboard/bookings/${booking.id}/review`} className={className}>
+      Rate your stay
+    </Link>
+  );
 }
 
 function bookingDates(booking: BookingRecord): string {
@@ -44,6 +72,9 @@ export default async function MyBookingsPage({
 
   // GOLIVE-13b: refund status per booking (cancelled / refunded ones only get a note)
   const refundNotes = await getMyRefundNotes(bookings.map((b) => b.id));
+
+  // GOLIVE-15: which stays can be reviewed / are already reviewed
+  const reviewStatuses = await getMyReviewStatuses(bookings.map((b) => b.id));
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-12">
@@ -180,6 +211,13 @@ export default async function MyBookingsPage({
                         </Link>
                       )}
 
+                      {/* RATE YOUR STAY — after check-out (GOLIVE-15) */}
+                      <ReviewLink
+                        booking={booking}
+                        reviewStatus={reviewStatuses[booking.id]}
+                        className="focus-ring rounded-lg border border-orange/40 px-3 py-1.5 text-[12px] font-semibold text-orange transition hover:bg-orange/10"
+                      />
+
                       {/* PAY NOW — pending bookings only */}
                       {booking.status === 'pending' && (
                         <Link
@@ -292,6 +330,13 @@ export default async function MyBookingsPage({
                     {booking.status === 'cancelled' ? 'Refund help' : 'Cancel / Help'}
                   </Link>
                 )}
+
+                {/* RATE YOUR STAY — after check-out (GOLIVE-15) */}
+                <ReviewLink
+                  booking={booking}
+                  reviewStatus={reviewStatuses[booking.id]}
+                  className="focus-ring w-full rounded-lg border border-orange/40 px-3 py-2 text-center text-[13px] font-semibold text-orange transition hover:bg-orange/10"
+                />
 
                 {/* PAY NOW — pending bookings only. This is the button
                     that was unreachable on mobile before this hotfix. */}
