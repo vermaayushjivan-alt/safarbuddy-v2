@@ -616,10 +616,10 @@ export default async function HotelDetailPage({
         </div>
       </section>
 
-      {/* Phones: sticky price + Call SafarBuddy support + Book Now, sitting
+      {/* Phones: sticky price + Call Chalfirr support + Book Now, sitting
           just above the bottom tab bar. The extra bottom padding keeps the
           buttons clear of the raised centre Search button. Call goes to
-          SafarBuddy support, never to the property owner. */}
+          Chalfirr support, never to the property owner. */}
       <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-deep/10 bg-white/95 px-4 pb-6 pt-3 backdrop-blur-md lg:hidden">
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <div className="min-w-0 pr-1">
@@ -630,7 +630,7 @@ export default async function HotelDetailPage({
           </div>
           <a
             href={supportTel}
-            aria-label="Call SafarBuddy support"
+            aria-label="Call Chalfirr support"
             className="focus-ring ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sky text-white shadow-md transition active:scale-95"
           >
             <Phone size={20} aria-hidden />
