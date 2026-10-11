@@ -6,7 +6,7 @@
 export const LAUNCH_CAMPAIGN_ID = "launch-navratri-2026";
 
 export const LAUNCH_EMAIL_SUBJECT =
-  "\u{1F64F} शुभ नवरात्रि! SafarBuddy अब LIVE है";
+  "\u{1F64F} शुभ नवरात्रि! Chalfirr अब LIVE है";
 
 function escapeHtml(value: string): string {
   return value
@@ -31,7 +31,7 @@ export function buildLaunchEmailHtml(input: {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
 <meta name="color-scheme" content="light only">
-<title>शुभ नवरात्रि! SafarBuddy अब LIVE है</title>
+<title>शुभ नवरात्रि! Chalfirr अब LIVE है</title>
 <style>
   body { margin:0; padding:0; background:#f2f6fb; -webkit-text-size-adjust:100%; }
   table { border-collapse:collapse; }
@@ -64,10 +64,10 @@ export function buildLaunchEmailHtml(input: {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
           <tr>
             <td valign="middle" style="padding-right:12px;">
-              <img src="${site}/icon-512-2.png" width="52" height="52" alt="SafarBuddy" style="display:block;width:52px;height:52px;border-radius:26px;">
+              <img src="${site}/icon-512-2.png" width="52" height="52" alt="Chalfirr" style="display:block;width:52px;height:52px;border-radius:26px;">
             </td>
             <td valign="middle" style="font-family:'Segoe UI',Arial,Helvetica,sans-serif;font-size:30px;font-weight:700;letter-spacing:-0.5px;">
-              <span style="color:#0b2f5c;">Safar</span><span style="color:#ff6a2b;">Buddy</span>
+              <span style="color:#0b2f5c;">Chal</span><span style="color:#ff6a2b;">firr</span>
             </td>
           </tr>
         </table>
@@ -85,7 +85,7 @@ export function buildLaunchEmailHtml(input: {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin-top:22px;">
           <tr>
             <td align="center" bgcolor="#ff6a2b" style="border-radius:30px;padding:12px 26px;font-family:'Segoe UI',Arial,Helvetica,sans-serif;font-size:19px;font-weight:700;color:#ffffff;">
-              SafarBuddy is now LIVE!
+              Chalfirr is now LIVE!
             </td>
           </tr>
         </table>
@@ -99,7 +99,7 @@ export function buildLaunchEmailHtml(input: {
     <tr>
       <td bgcolor="#ffffff" class="px" style="padding:32px 36px 8px 36px;font-family:'Segoe UI','Noto Sans Devanagari',Mangal,Arial,sans-serif;font-size:16px;line-height:26px;color:#0b1b33;">
         <p style="margin:0 0 14px 0;"><strong>${greeting}</strong></p>
-        <p style="margin:0 0 14px 0;">आप SafarBuddy के शुरुआती यूज़र्स में से हैं, इसलिए सबसे पहले आपको बताते हुए हमें खुशी है कि नवरात्रि के पावन अवसर पर आज हम आधिकारिक रूप से <strong>launch</strong> हो गए हैं।</p>
+        <p style="margin:0 0 14px 0;">आप Chalfirr के शुरुआती यूज़र्स में से हैं, इसलिए सबसे पहले आपको बताते हुए हमें खुशी है कि नवरात्रि के पावन अवसर पर आज हम आधिकारिक रूप से <strong>launch</strong> हो गए हैं।</p>
         <p style="margin:0 0 6px 0;">अब आप एक ही जगह से अपनी अगली यात्रा की planning और booking कर सकते हैं:</p>
       </td>
     </tr>
@@ -150,7 +150,7 @@ export function buildLaunchEmailHtml(input: {
     <tr>
       <td bgcolor="#ffffff" class="px" style="padding:20px 36px 32px 36px;font-family:'Segoe UI','Noto Sans Devanagari',Mangal,Arial,sans-serif;font-size:15px;line-height:24px;color:#0b1b33;border-radius:0 0 16px 16px;">
         <p style="margin:0 0 10px 0;">आपका feedback हमारे लिए बहुत कीमती है। कुछ भी सुझाव या दिक्कत हो तो इस email का सीधे reply कर दें।</p>
-        <p style="margin:0;">आपकी यात्रा शुभ हो! &#128591;<br><strong style="color:#0b2f5c;">टीम SafarBuddy</strong></p>
+        <p style="margin:0;">आपकी यात्रा शुभ हो! &#128591;<br><strong style="color:#0b2f5c;">टीम Chalfirr</strong></p>
       </td>
     </tr>
 
@@ -158,8 +158,8 @@ export function buildLaunchEmailHtml(input: {
     <tr>
       <td align="center" class="px" style="padding:22px 24px 8px 24px;font-family:'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;line-height:19px;color:#6b7c93;">
         <div>&#128222; <a href="tel:+917307493338" style="color:#0b2f5c;text-decoration:none;">+91 73074 93338</a> &nbsp;|&nbsp; &#9993; <a href="mailto:safarbuddytravel@gmail.com" style="color:#0b2f5c;text-decoration:none;">safarbuddytravel@gmail.com</a></div>
-        <div style="margin-top:10px;">आपको यह email इसलिए मिला क्योंकि आपने SafarBuddy पर account बनाया है।<br>अगर आप ऐसे emails नहीं चाहते, तो बस reply में &ldquo;STOP&rdquo; लिख दें।</div>
-        <div style="margin-top:10px;">&copy; SafarBuddy</div>
+        <div style="margin-top:10px;">आपको यह email इसलिए मिला क्योंकि आपने Chalfirr पर account बनाया है।<br>अगर आप ऐसे emails नहीं चाहते, तो बस reply में &ldquo;STOP&rdquo; लिख दें।</div>
+        <div style="margin-top:10px;">&copy; Chalfirr</div>
       </td>
     </tr>
 
