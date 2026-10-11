@@ -55,9 +55,9 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout
-      eyebrow="Join SafarBuddy"
+      eyebrow="Join Chalfirr"
       title="Create your account"
-      subtitle="Join SafarBuddy and start planning your next trip."
+      subtitle="Join Chalfirr and start planning your next trip."
       footer={
         <>
           Already have an account?{" "}
