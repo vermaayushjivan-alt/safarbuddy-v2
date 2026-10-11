@@ -99,7 +99,7 @@ export default function Hero() {
           )}
 
           <div className="route-tag flex items-center justify-between border-t border-dashed border-deep/15 px-6 py-3 text-[11px] text-ink/40 sm:px-7">
-            <span>SAFARBUDDY · VERIFIED STAYS</span>
+            <span>CHALFIRR · VERIFIED STAYS</span>
             <span>NO HIDDEN FEES</span>
           </div>
         </div>
