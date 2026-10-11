@@ -19,11 +19,11 @@
  * Application metadata
  */
 export const APP = {
-  NAME: 'SafarBuddy',
+  NAME: 'Chalfirr',
   TAGLINE: 'Your Travel Companion',
-  DESCRIPTION: 'Book flights, hotels, holiday packages and more with SafarBuddy',
+  DESCRIPTION: 'Book flights, hotels, holiday packages and more with Chalfirr',
   VERSION: '0.1.0',
-  COMPANY: 'SafarBuddy Technologies',
+  COMPANY: 'Chalfirr Technologies',
   SUPPORT_EMAIL: 'safarbuddytravel@gmail.com',
   SUPPORT_PHONE: '+91 7307493338',
 } as const;
