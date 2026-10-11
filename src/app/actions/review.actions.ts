@@ -307,7 +307,7 @@ export async function getHotelReviews(
       rating: Number(r.rating),
       title: (r.title as string | null) ?? null,
       comment: (r.comment as string | null) ?? null,
-      reviewerName: names.get(r.user_id as string) ?? 'SafarBuddy guest',
+      reviewerName: names.get(r.user_id as string) ?? 'Chalfirr guest',
       createdAt: r.created_at as string,
     }));
   } catch (err) {
