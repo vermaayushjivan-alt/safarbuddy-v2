@@ -177,7 +177,7 @@ function PromotionForm({ mode, promotion }: PromotionFormProps) {
         />
       </Field>
 
-      <Field label="SafarBuddy Hotel ID (optional)">
+      <Field label="Chalfirr Hotel ID (optional)">
         <input
           type="text"
           placeholder="Only if this promotion advertises one of our own hotels"
