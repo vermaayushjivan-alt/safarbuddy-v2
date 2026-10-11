@@ -10,9 +10,9 @@ import { footerContact } from "@/data/home";
 // Add those yourself only when you can stand behind them.
 
 export const metadata: Metadata = {
-  title: "About SafarBuddy",
+  title: "About Chalfirr",
   description:
-    "SafarBuddy is a travel booking platform for hotels, resorts, homestays and holiday packages.",
+    "Chalfirr is a travel booking platform for hotels, resorts, homestays and holiday packages.",
   alternates: { canonical: "/about" },
 };
 
@@ -23,7 +23,7 @@ const steps = [
   },
   {
     title: "Book",
-    text: "Pick your dates and guests, and place your booking from your SafarBuddy account.",
+    text: "Pick your dates and guests, and place your booking from your Chalfirr account.",
   },
   {
     title: "Pay securely",
@@ -44,9 +44,9 @@ export default function AboutPage() {
         <span className="font-heading text-[13px] font-semibold uppercase tracking-wide text-orange">
           About us
         </span>
-        <h1 className="mt-1 font-display text-3xl text-deep">About SafarBuddy</h1>
+        <h1 className="mt-1 font-display text-3xl text-deep">About Chalfirr</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-ink/70">
-          SafarBuddy is a travel booking platform for hotels, resorts, homestays and
+          Chalfirr is a travel booking platform for hotels, resorts, homestays and
           holiday packages. We list properties and packages from partner hotels and
           travel operators, so you can plan, book and pay for a trip in one place.
         </p>
@@ -100,7 +100,7 @@ export default function AboutPage() {
           Own a hotel or run tours?
         </h2>
         <p className="mt-3 text-[14px] leading-relaxed text-ink/70">
-          Partner with SafarBuddy to reach travellers looking for stays and packages.{" "}
+          Partner with Chalfirr to reach travellers looking for stays and packages.{" "}
           <Link href="/list-your-property" className="font-medium text-deep underline">
             List your property
           </Link>
