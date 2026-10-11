@@ -7,13 +7,13 @@ export function LoadingScreen() {
       <div className="text-center">
         <Image
           src="/brand/logo-mark.svg"
-          alt="SafarBuddy"
+          alt="Chalfirr"
           width={64}
           height={64}
           className="mx-auto h-16 w-16 animate-pulse"
           priority
         />
-        <h2 className="mt-6 text-xl font-semibold text-gray-800">SafarBuddy</h2>
+        <h2 className="mt-6 text-xl font-semibold text-gray-800">Chalfirr</h2>
         <p className="mt-2 text-gray-600">Loading your experience...</p>
       </div>
     </div>
