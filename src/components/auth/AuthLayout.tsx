@@ -6,7 +6,7 @@
  * - Keeps branding, spacing, and card chrome consistent across AUTH-02
  *
  * RESPONSIBILITY:
- * - Render the SafarBuddy auth card (eyebrow, title, subtitle, footer)
+ * - Render the Chalfirr auth card (eyebrow, title, subtitle, footer)
  * - Provide a consistent, on-brand background using the site's design tokens
  *
  * SERVER/CLIENT: Either (no hooks, safe inside client pages)
@@ -42,12 +42,12 @@ export function AuthLayout({
         >
           <Image
             src="/brand/logo-mark.svg"
-            alt="SafarBuddy"
+            alt="Chalfirr"
             width={32}
             height={32}
             className="h-8 w-8"
           />
-          Safar<span className="text-[var(--color-orange)]">Buddy</span>
+          Chal<span className="text-[var(--color-orange)]">firr</span>
         </Link>
 
         <div className="rounded-2xl border border-[var(--color-mist)] bg-white p-8 shadow-sm shadow-[var(--color-ink)]/5">
