@@ -12,7 +12,7 @@ import { footerContact } from "@/data/home";
 export const metadata: Metadata = {
   title: "Contact Us",
   description:
-    "Contact SafarBuddy support for help with bookings, payments, refunds or planning your trip.",
+    "Contact Chalfirr support for help with bookings, payments, refunds or planning your trip.",
   alternates: { canonical: "/contact" },
 };
 
