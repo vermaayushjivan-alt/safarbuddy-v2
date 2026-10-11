@@ -8,8 +8,8 @@ import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 // 7 days of an approved cancellation. Other terms (percentages/windows)
 // are still owner decisions. Lawyer review recommended.
 export const metadata: Metadata = {
-  title: "Cancellation & Refund Policy | SafarBuddy",
-  description: "How cancellations and refunds work for bookings made on SafarBuddy.",
+  title: "Cancellation & Refund Policy | Chalfirr",
+  description: "How cancellations and refunds work for bookings made on Chalfirr.",
   alternates: { canonical: "/refund-policy" },
 };
 
