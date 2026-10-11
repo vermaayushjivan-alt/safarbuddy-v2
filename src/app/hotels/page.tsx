@@ -185,7 +185,7 @@ export default async function HotelsPage({
               ? advanced.error
               : total === 0 && filters.advanced
                 ? isNearMe
-                  ? "No SafarBuddy hotels within 100 km match this. Try changing the filters or search by city."
+                  ? "No Chalfirr hotels within 100 km match this. Try changing the filters or search by city."
                   : "No hotels match these filters. Try changing them."
                 : isNearMe
                   ? `${total} hotel${total === 1 ? "" : "s"} within 100 km.`
