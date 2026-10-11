@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { cancelMyBooking } from '@/app/actions/booking.actions';
+import { cancelMyBookingSafe } from '@/app/actions/cancel-booking.actions';
 import {
   getCancellationEstimate,
   type CancellationEstimate,
@@ -25,9 +25,13 @@ export default function CancelBookingButton({ bookingId }: { bookingId: string }
   useEffect(() => {
     if (!showReason) return;
     let cancelled = false;
-    getCancellationEstimate(bookingId).then((result) => {
-      if (!cancelled) setEstimate(result);
-    });
+    getCancellationEstimate(bookingId)
+      .then((result) => {
+        if (!cancelled) setEstimate(result);
+      })
+      .catch(() => {
+        // Display-only: the estimate is optional.
+      });
     return () => {
       cancelled = true;
     };
@@ -55,19 +59,28 @@ export default function CancelBookingButton({ bookingId }: { bookingId: string }
 
     startTransition(async () => {
       try {
-        await cancelMyBooking({ id: bookingId, reason: reason.trim() });
+        const result = await cancelMyBookingSafe({
+          id: bookingId,
+          reason: reason.trim(),
+        });
+
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+
         router.refresh();
         setShowReason(false);
         setReason('');
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to cancel booking');
+      } catch {
+        setError('Something went wrong. Please try again.');
       }
     });
   }
 
   return (
     <div className="flex flex-col items-end gap-1.5">
-      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {error && <p className="max-w-[260px] text-right text-[11px] text-red-600">{error}</p>}
       {estimate && (
         <div className="max-w-[260px] rounded-lg bg-mist px-2.5 py-2 text-right text-[11px] leading-snug text-ink/70">
           {estimate.paidAmount > 0 ? (
