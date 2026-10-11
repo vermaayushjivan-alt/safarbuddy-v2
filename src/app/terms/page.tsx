@@ -4,8 +4,8 @@ import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 
 // LAUNCH-01 — DRAFT. Must be reviewed by a qualified lawyer before launch.
 export const metadata: Metadata = {
-  title: "Terms & Conditions | SafarBuddy",
-  description: "The terms that apply when you use SafarBuddy to book stays and packages.",
+  title: "Terms & Conditions | Chalfirr",
+  description: "The terms that apply when you use Chalfirr to book stays and packages.",
   alternates: { canonical: "/terms" },
 };
 
@@ -14,7 +14,7 @@ const sections: LegalSection[] = [
     heading: "Acceptance of these terms",
     body: (
       <p>
-        By using SafarBuddy you agree to these Terms &amp; Conditions, our
+        By using Chalfirr you agree to these Terms &amp; Conditions, our
         Privacy Policy and our Cancellation &amp; Refund Policy. If you do not
         agree, please do not use the site.
       </p>
@@ -24,10 +24,10 @@ const sections: LegalSection[] = [
     heading: "Our role",
     body: (
       <p>
-        SafarBuddy is an online platform that connects travellers with hotels,
+        Chalfirr is an online platform that connects travellers with hotels,
         resorts, homestays and holiday package providers. The accommodation or
         service is provided by the respective property owner or partner.
-        SafarBuddy facilitates the booking and payment and is not the operator
+        Chalfirr facilitates the booking and payment and is not the operator
         of the property.
       </p>
     ),
@@ -65,7 +65,7 @@ const sections: LegalSection[] = [
     body: (
       <p>
         Payments are processed securely by our payment gateway, Cashfree. By
-        paying you also agree to the gateway&apos;s applicable terms. SafarBuddy
+        paying you also agree to the gateway&apos;s applicable terms. Chalfirr
         does not store your card, UPI or net banking credentials.
       </p>
     ),
@@ -88,7 +88,7 @@ const sections: LegalSection[] = [
       <p>
         Owners who list a property confirm that the information and images they
         submit are accurate and that they have the right to list the property.
-        SafarBuddy may review, reject, suspend or remove listings at its
+        Chalfirr may review, reject, suspend or remove listings at its
         discretion.
       </p>
     ),
@@ -106,7 +106,7 @@ const sections: LegalSection[] = [
     heading: "Limitation of liability",
     body: (
       <p>
-        To the extent permitted by law, SafarBuddy is not liable for the acts or
+        To the extent permitted by law, Chalfirr is not liable for the acts or
         omissions of property owners or partners, or for indirect or
         consequential losses. Our total liability in connection with a booking
         is limited to the amount you paid to us for that booking.
@@ -138,7 +138,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms & Conditions"
-      intro="Please read these terms carefully before booking through SafarBuddy."
+      intro="Please read these terms carefully before booking through Chalfirr."
       sections={sections}
     />
   );
