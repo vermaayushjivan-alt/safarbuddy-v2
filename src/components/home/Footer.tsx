@@ -81,7 +81,7 @@ export default function Footer() {
           <div className="col-span-2 lg:col-span-1">
             <Image
               src="/brand/logo-horizontal-white.svg"
-              alt="SafarBuddy"
+              alt="Chalfirr"
               width={200}
               height={50}
               className="h-9 w-auto sm:h-10"
