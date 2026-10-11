@@ -1,13 +1,13 @@
 import type { MetadataRoute } from 'next';
 
-// MOBILE-01: lets phones "Add to Home screen" / install SafarBuddy so it
+// MOBILE-01: lets phones "Add to Home screen" / install Chalfirr so it
 // opens full-screen like an app. Uses the valid -2 icons (public/icon-192.png
 // and icon-512.png were empty files in the uploaded project).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'SafarBuddy - Your Travel Companion',
-    short_name: 'SafarBuddy',
-    description: 'Book hotels, resorts, homestays and holiday packages with SafarBuddy.',
+    name: 'Chalfirr - Your Travel Companion',
+    short_name: 'Chalfirr',
+    description: 'Book hotels, resorts, homestays and holiday packages with Chalfirr.',
     start_url: '/',
     scope: '/',
     display: 'standalone',
