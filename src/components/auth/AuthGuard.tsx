@@ -27,7 +27,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
           <div className="flex flex-col items-center gap-4">
             <Image
               src="/brand/logo-mark.svg"
-              alt="SafarBuddy"
+              alt="Chalfirr"
               width={48}
               height={48}
               className="h-12 w-12 animate-pulse"
