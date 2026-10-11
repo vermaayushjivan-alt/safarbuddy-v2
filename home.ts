@@ -27,7 +27,7 @@ export const testimonials: Testimonial[] = [
     verified: true,
     rating: 5,
     reviewText:
-      "Our Goa package was perfectly planned — the beach resort was stunning and the transfers were always on time. SafarBuddy made a 3-day trip feel completely stress-free.",
+      "Our Goa package was perfectly planned — the beach resort was stunning and the transfers were always on time. Chalfirr made a 3-day trip feel completely stress-free.",
     bookingType: "Holiday Package",
     destination: "Goa, India",
     travelDate: "Dec 2025",
@@ -83,7 +83,7 @@ export const testimonials: Testimonial[] = [
     verified: true,
     rating: 5,
     reviewText:
-      "Flight prices for our Phuket trip were unbeatable, and the app kept us updated at every step. Will definitely book through SafarBuddy again for our next vacation.",
+      "Flight prices for our Phuket trip were unbeatable, and the app kept us updated at every step. Will definitely book through Chalfirr again for our next vacation.",
     bookingType: "Flight",
     destination: "Phuket, Thailand",
     travelDate: "Mar 2026",
