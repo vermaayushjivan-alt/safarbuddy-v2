@@ -33,7 +33,7 @@ className="focus-ring flex items-center gap-2 rounded-md"
 >
 <Image
         src="/brand/logo-mark.svg"
-        alt="SafarBuddy"
+        alt="Chalfirr"
         width={36}
         height={36}
         className="h-9 w-9"
@@ -41,7 +41,7 @@ className="focus-ring flex items-center gap-2 rounded-md"
       />
 
       <span className="font-heading text-lg font-semibold text-deep">
-        Safar<span className="text-orange">Buddy</span>
+        Chal<span className="text-orange">firr</span>
       </span>
     </Link>
 
