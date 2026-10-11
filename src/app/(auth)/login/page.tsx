@@ -24,7 +24,7 @@ function LoginFormSkeleton() {
   return (
     <AuthLayout
       eyebrow="Welcome back"
-      title="Log in to SafarBuddy"
+      title="Log in to Chalfirr"
       subtitle="Book flights, hotels and holiday packages in seconds."
     >
       <div className="space-y-5" aria-hidden="true">
@@ -49,11 +49,11 @@ function LoginForm() {
   return (
     <AuthLayout
       eyebrow="Welcome back"
-      title="Log in to SafarBuddy"
+      title="Log in to Chalfirr"
       subtitle="Book flights, hotels and holiday packages in seconds."
       footer={
         <>
-          New to SafarBuddy?{" "}
+          New to Chalfirr?{" "}
           <Link
             href="/register"
             className="font-medium text-[var(--color-sky)] hover:underline"
