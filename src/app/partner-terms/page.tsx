@@ -18,9 +18,9 @@ import {
 // The percentage is read from commission.ts so this page, the listing-form
 // checkbox, the payment split and the stored acceptance can never disagree.
 export const metadata: Metadata = {
-  title: "Hotel Partner Terms & Commission | SafarBuddy",
+  title: "Hotel Partner Terms & Commission | Chalfirr",
   description:
-    "Terms for hotels and property owners listing on SafarBuddy, including the platform commission.",
+    "Terms for hotels and property owners listing on Chalfirr, including the platform commission.",
   alternates: { canonical: "/partner-terms" },
 };
 
@@ -40,7 +40,7 @@ const sections: LegalSection[] = [
       <>
         <p>
           These terms apply to every hotel, resort, homestay or other property
-          owner (&quot;Partner&quot;) who lists a property on SafarBuddy. By
+          owner (&quot;Partner&quot;) who lists a property on Chalfirr. By
           ticking the agreement box on the listing form, the Partner confirms
           they have read and accept these terms, and that they are the owner of
           the property or are authorised to list it.
@@ -54,22 +54,22 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          SafarBuddy charges the Partner a commission of{" "}
+          Chalfirr charges the Partner a commission of{" "}
           <strong>{pct}%</strong> on every booking made and paid through the
-          SafarBuddy platform for the Partner&apos;s property. The commission
+          Chalfirr platform for the Partner&apos;s property. The commission
           is calculated on the amount the guest actually paid for that booking
-          on SafarBuddy (after any coupon or discount applied at checkout), as
+          on Chalfirr (after any coupon or discount applied at checkout), as
           recorded on the payment.
         </p>
         <p>
           Example: for a booking where the guest pays {inr(exampleBooking)},
-          SafarBuddy&apos;s commission is {inr(exampleCommission)} and the
+          Chalfirr&apos;s commission is {inr(exampleCommission)} and the
           Partner&apos;s payout is {inr(examplePayout)}.
         </p>
         <p>
           The commission is worked out once, when the payment succeeds, and
           stays fixed for that booking even if the rate changes later. The
-          Partner agrees that SafarBuddy keeps this commission from the
+          Partner agrees that Chalfirr keeps this commission from the
           booking amount before paying out the rest.
         </p>
       </>
@@ -80,14 +80,14 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          Payouts are made by the SafarBuddy team to the bank account or UPI ID
+          Payouts are made by the Chalfirr team to the bank account or UPI ID
           the Partner provides on the listing form, after deducting the
           commission. Payouts are currently settled manually, and the team will
           tell the Partner how and when each settlement is made.
         </p>
         <p>
           The Partner is responsible for giving correct payout details and for
-          keeping them up to date. SafarBuddy is not responsible for a payout
+          keeping them up to date. Chalfirr is not responsible for a payout
           sent to details the Partner supplied incorrectly.
         </p>
       </>
@@ -97,7 +97,7 @@ const sections: LegalSection[] = [
     heading: "Cancellations and refunds",
     body: (
       <p>
-        Guest cancellations and refunds follow SafarBuddy&apos;s{" "}
+        Guest cancellations and refunds follow Chalfirr&apos;s{" "}
         <a href="/refund-policy" className="font-medium text-deep underline">
           Cancellation &amp; Refund Policy
         </a>{" "}
@@ -108,10 +108,10 @@ const sections: LegalSection[] = [
     ),
   },
   {
-    heading: "Bookings must stay on SafarBuddy",
+    heading: "Bookings must stay on Chalfirr",
     body: (
       <p>
-        For guests who book through SafarBuddy, the Partner must not ask or
+        For guests who book through Chalfirr, the Partner must not ask or
         encourage them to pay outside the platform in order to avoid the
         commission. Doing so can lead to suspension or removal of the listing.
       </p>
@@ -123,7 +123,7 @@ const sections: LegalSection[] = [
       <p>
         The Partner is responsible for the accuracy of their property details,
         photos, prices, facilities, house rules and room availability, and must
-        honour every booking that SafarBuddy confirms. The Partner must keep
+        honour every booking that Chalfirr confirms. The Partner must keep
         availability up to date so that rooms are not sold twice.
       </p>
     ),
@@ -132,9 +132,9 @@ const sections: LegalSection[] = [
     heading: "Verification and approval",
     body: (
       <p>
-        Every listing is reviewed by the SafarBuddy team, including the
+        Every listing is reviewed by the Chalfirr team, including the
         identity and payout documents submitted, before it goes live.
-        SafarBuddy may ask for more information, decline a listing, or suspend
+        Chalfirr may ask for more information, decline a listing, or suspend
         or remove a listing that breaks these terms or the law.
       </p>
     ),
@@ -145,7 +145,7 @@ const sections: LegalSection[] = [
       <p>
         The Partner is responsible for their own tax registrations, invoices
         and tax payments on the income they earn. Where the law requires
-        SafarBuddy to collect or deduct tax from a payout, SafarBuddy will do
+        Chalfirr to collect or deduct tax from a payout, Chalfirr will do
         so and show it in the settlement statement.
       </p>
     ),
@@ -154,7 +154,7 @@ const sections: LegalSection[] = [
     heading: "Changes to these terms or the commission",
     body: (
       <p>
-        SafarBuddy may update these terms or the commission rate. A change
+        Chalfirr may update these terms or the commission rate. A change
         applies only to bookings paid after the Partner has been told about it
         and has accepted the updated terms. Bookings already paid keep the
         commission that applied when they were paid.
@@ -165,7 +165,7 @@ const sections: LegalSection[] = [
     heading: "Record of your agreement",
     body: (
       <p>
-        When the Partner ticks the box and submits the listing, SafarBuddy
+        When the Partner ticks the box and submits the listing, Chalfirr
         records the version of these terms, the commission percentage shown,
         the date and time, and the device and network details used, as proof
         of the agreement.
@@ -178,7 +178,7 @@ export default function PartnerTermsPage() {
   return (
     <LegalPage
       title="Hotel Partner Terms & Commission Agreement"
-      intro="Please read these terms before listing your property on SafarBuddy. They explain the commission we charge, how payouts work, and what we expect from every partner."
+      intro="Please read these terms before listing your property on Chalfirr. They explain the commission we charge, how payouts work, and what we expect from every partner."
       sections={sections}
     />
   );
