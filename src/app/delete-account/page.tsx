@@ -6,9 +6,9 @@ import { footerContact } from '@/data/home';
 // require a way to request deletion WITHOUT being logged in.
 
 export const metadata: Metadata = {
-  title: 'Delete your SafarBuddy account',
+  title: 'Delete your Chalfirr account',
   description:
-    'How to delete your SafarBuddy account and personal data, and what we keep and why.',
+    'How to delete your Chalfirr account and personal data, and what we keep and why.',
 };
 
 export default async function DeleteAccountPage({
@@ -20,8 +20,8 @@ export default async function DeleteAccountPage({
 
   const intro =
     done === '1'
-      ? 'Your account has been deleted and you have been logged out. Thank you for using SafarBuddy.'
-      : 'You can delete your SafarBuddy account and personal data yourself, or ask us to do it.';
+      ? 'Your account has been deleted and you have been logged out. Thank you for using Chalfirr.'
+      : 'You can delete your Chalfirr account and personal data yourself, or ask us to do it.';
 
   return (
     <LegalPage
