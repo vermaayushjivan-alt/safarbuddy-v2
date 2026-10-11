@@ -22,7 +22,7 @@ export default function Loading() {
         {/* Logo, in place of a generic spinner */}
         <Image
           src="/brand/logo-mark.svg"
-          alt="SafarBuddy"
+          alt="Chalfirr"
           width={56}
           height={56}
           className="h-14 w-14 animate-pulse"
