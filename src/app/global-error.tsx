@@ -37,7 +37,7 @@ export default function GlobalError({
         <main style={{ maxWidth: 420 }}>
           <h1 style={{ fontSize: 24, margin: '0 0 8px' }}>Something went wrong</h1>
           <p style={{ margin: '0 0 24px', opacity: 0.7, lineHeight: 1.5 }}>
-            SafarBuddy hit an unexpected problem. Please try again. If it keeps
+            Chalfirr hit an unexpected problem. Please try again. If it keeps
             happening, contact support and we will help.
           </p>
           <button
