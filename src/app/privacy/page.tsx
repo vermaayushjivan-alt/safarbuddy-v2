@@ -3,9 +3,9 @@ import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 
 // LAUNCH-01 — DRAFT. Must be reviewed by a qualified lawyer before launch.
 export const metadata: Metadata = {
-  title: "Privacy Policy | SafarBuddy",
+  title: "Privacy Policy | Chalfirr",
   description:
-    "How SafarBuddy collects, uses and protects your personal information.",
+    "How Chalfirr collects, uses and protects your personal information.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -14,7 +14,7 @@ const sections: LegalSection[] = [
     heading: "Who we are",
     body: (
       <p>
-        SafarBuddy (&ldquo;SafarBuddy&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;)
+        Chalfirr (&ldquo;Chalfirr&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;)
         is an online platform for booking hotels, resorts, homestays and holiday
         packages. This policy explains what personal information we collect
         when you use our website, and how we use and protect it.
