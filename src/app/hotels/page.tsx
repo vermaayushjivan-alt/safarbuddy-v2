@@ -6,7 +6,9 @@ import Footer from "@/components/home/Footer";
 import { HotelGrid } from "@/components/public/HotelGrid";
 import { HotelSearchBar } from "@/components/public/HotelSearchBar";
 import { NearMeButton } from "@/components/public/NearMeButton";
-import { getHotelsNearMe } from "@/app/actions/near-me.actions";
+import { HotelFilters } from "@/components/public/HotelFilters";
+import { hasSortOrFilter, parseHotelFilters } from "@/lib/hotels/search-params";
+import { searchHotelsAdvanced } from "@/lib/hotels/search";
 import {
   getPublishedHotels,
   searchPublishedHotels,
@@ -25,7 +27,15 @@ import { SITE_NAME } from "@/lib/seo/site";
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; city?: string; lat?: string; lng?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    city?: string;
+    lat?: string;
+    lng?: string;
+    sort?: string;
+    budget?: string;
+    stars?: string;
+  }>;
 }): Promise<Metadata> {
   const params = await searchParams;
 
@@ -33,6 +43,14 @@ export async function generateMetadata({
   if (params.lat && params.lng) {
     return {
       title: `Hotels near you | ${SITE_NAME}`,
+      robots: { index: false, follow: true },
+    };
+  }
+
+  // GOLIVE-16: sorted / filtered views are duplicates of the main list: never index them.
+  if (hasSortOrFilter(params)) {
+    return {
+      title: `Hotels | ${SITE_NAME}`,
       robots: { index: false, follow: true },
     };
   }
@@ -93,32 +111,38 @@ export default async function HotelsPage({
     guests?: string;
     lat?: string;
     lng?: string;
+    sort?: string;
+    budget?: string;
+    stars?: string;
   }>;
 }) {
   const params = await searchParams;
   const page = Number(params.page ?? "1") || 1;
   const city = params.city ?? "";
 
-  // GOLIVE-14: ?lat=&lng= -> hotels near the visitor, nearest first.
-  const nearLat = Number(params.lat);
-  const nearLng = Number(params.lng);
-  const isNearMe =
-    params.lat != null &&
-    params.lng != null &&
-    Number.isFinite(nearLat) &&
-    Number.isFinite(nearLng);
+  // GOLIVE-14/16: ?lat=&lng= (near me), ?sort=, ?budget=, ?stars=. Anything but
+  // the plain list goes through the advanced search (SQL function, migration 043);
+  // the plain list keeps using the original queries.
+  const filters = parseHotelFilters({
+    sort: params.sort,
+    budget: params.budget,
+    stars: params.stars,
+    lat: params.lat,
+    lng: params.lng,
+  });
+  const isNearMe = filters.nearMe != null;
 
-  const nearResult = isNearMe
-    ? await getHotelsNearMe({ lat: nearLat, lng: nearLng, radiusKm: 100, limit: 48 })
+  const advanced = filters.advanced
+    ? await searchHotelsAdvanced({ city, filters, page, pageSize: 16 })
     : null;
 
-  const { data: hotels, total, totalPages, hasNext, hasPrev } = nearResult
+  const { data: hotels, total, totalPages, hasNext, hasPrev } = advanced
     ? {
-        data: nearResult.ok ? nearResult.hotels.map((n) => n.hotel) : [],
-        total: nearResult.ok ? nearResult.hotels.length : 0,
-        totalPages: 1,
-        hasNext: false,
-        hasPrev: false,
+        data: advanced.hotels,
+        total: advanced.total,
+        totalPages: advanced.totalPages,
+        hasNext: advanced.hasNext,
+        hasPrev: advanced.hasPrev,
       }
     : city
       ? await searchPublishedHotels(city, page, 16)
@@ -137,6 +161,11 @@ export default async function HotelsPage({
       checkin: params.checkin,
       checkout: params.checkout,
       guests: params.guests,
+      lat: params.lat,
+      lng: params.lng,
+      sort: params.sort,
+      budget: params.budget,
+      stars: params.stars,
     });
 
   return (
@@ -152,13 +181,15 @@ export default async function HotelsPage({
             {isNearMe ? "Hotels near you" : city ? `Hotels in ${city}` : "All Hotels"}
           </h1>
           <p className="mt-2 max-w-md text-[14px] text-ink/60">
-            {isNearMe
-              ? total > 0
-                ? `${total} hotel${total === 1 ? "" : "s"} within 100 km, nearest first.`
-                : nearResult && !nearResult.ok
-                  ? nearResult.error
-                  : "No SafarBuddy hotels within 100 km of you yet. Try searching by city."
-              : `${total} hotel${total === 1 ? "" : "s"}${city ? " found" : " to explore"}.`}
+            {advanced?.error
+              ? advanced.error
+              : total === 0 && filters.advanced
+                ? isNearMe
+                  ? "No SafarBuddy hotels within 100 km match this. Try changing the filters or search by city."
+                  : "No hotels match these filters. Try changing them."
+                : isNearMe
+                  ? `${total} hotel${total === 1 ? "" : "s"} within 100 km.`
+                  : `${total} hotel${total === 1 ? "" : "s"}${city || filters.advanced ? " found" : " to explore"}.`}
           </p>
           <div className="mt-4">
             <NearMeButton />
@@ -170,6 +201,21 @@ export default async function HotelsPage({
           initialCheckIn={params.checkin ?? ""}
           initialCheckOut={params.checkout ?? ""}
           initialGuests={params.guests ?? ""}
+        />
+
+        <HotelFilters
+          hasLocation={isNearMe}
+          current={{
+            city: params.city ?? "",
+            checkin: params.checkin ?? "",
+            checkout: params.checkout ?? "",
+            guests: params.guests ?? "",
+            lat: params.lat ?? "",
+            lng: params.lng ?? "",
+            sort: filters.sort,
+            budget: filters.budget,
+            stars: filters.stars,
+          }}
         />
 
         <div className="mt-8">
