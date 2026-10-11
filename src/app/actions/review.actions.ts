@@ -3,7 +3,7 @@
 // ROOT PATH: src/app/actions/review.actions.ts
 // GOLIVE-15 — customer reviews for hotel stays.
 //
-// reviews is service-role only (RULE 24, see 042_golive15_reviews.sql), so every
+// hotel_reviews is service-role only (RULE 24, see 042_golive15_reviews.sql), so every
 // read/write goes through here. Who the caller is, whether the stay is over and
 // whether they own the booking are decided on the SERVER on every call.
 // A new review is 'pending'; it is public only after an admin publishes it.
@@ -114,7 +114,7 @@ export async function getReviewContext(
     }
 
     const { data: existing } = await admin
-      .from('reviews')
+      .from('hotel_reviews')
       .select('status')
       .eq('booking_id', id)
       .maybeSingle();
@@ -183,7 +183,7 @@ export async function submitReview(input: {
     }
 
     const admin = createServiceRoleClient();
-    const { error } = await admin.from('reviews').insert({
+    const { error } = await admin.from('hotel_reviews').insert({
       booking_id: parsed.bookingId,
       hotel_id: booking.hotel_id,
       user_id: caller.userRowId,
@@ -220,7 +220,7 @@ export async function getMyReviewStatuses(
     const userId = await resolvePublicUserId(admin, authUser.id);
 
     const { data, error } = await admin
-      .from('reviews')
+      .from('hotel_reviews')
       .select('booking_id, status')
       .eq('user_id', userId)
       .in('booking_id', ids);
@@ -273,7 +273,7 @@ export async function getHotelReviews(
     const admin = createServiceRoleClient();
 
     const { data, error } = await admin
-      .from('reviews')
+      .from('hotel_reviews')
       .select('id, user_id, rating, title, comment, created_at')
       .eq('hotel_id', id)
       .eq('status', 'published')
@@ -329,7 +329,7 @@ export async function listReviewsAdmin(
 
     const admin = createServiceRoleClient();
     const { data, error } = await admin
-      .from('reviews')
+      .from('hotel_reviews')
       .select(
         'id, booking_id, hotel_id, user_id, rating, title, comment, status, rejection_reason, created_at'
       )
@@ -397,7 +397,7 @@ export async function moderateReview(input: {
 
     const admin = createServiceRoleClient();
     const { error } = await admin
-      .from('reviews')
+      .from('hotel_reviews')
       .update({
         status: parsed.decision,
         rejection_reason: parsed.decision === 'rejected' ? parsed.reason : null,
