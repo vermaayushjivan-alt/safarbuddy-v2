@@ -3,9 +3,9 @@ import { PropertyListingForm } from "@/components/public/PropertyListingForm";
 import { getAuthUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
-  title: "List Your Property — SafarBuddy",
+  title: "List Your Property — Chalfirr",
   description:
-    "List your hotel or property on SafarBuddy. Submit your details, facilities, and payout information in one place.",
+    "List your hotel or property on Chalfirr. Submit your details, facilities, and payout information in one place.",
 };
 
 export default async function ListYourPropertyPage() {
@@ -30,7 +30,7 @@ export default async function ListYourPropertyPage() {
           Become a host
         </p>
         <h1 className="font-heading text-3xl font-semibold text-[var(--color-ink)] sm:text-4xl">
-          List your property on SafarBuddy
+          List your property on Chalfirr
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-[15px] text-[var(--color-ink)]/60">
           Fill in your property, facilities, and payout details below — one
