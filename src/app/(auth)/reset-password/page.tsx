@@ -20,7 +20,7 @@ export default function ResetPasswordPage() {
     <AuthLayout
       eyebrow="Reset password"
       title="Choose a new password"
-      subtitle="Enter a new password for your SafarBuddy account."
+      subtitle="Enter a new password for your Chalfirr account."
       footer={
         !state.success && (
           <>
