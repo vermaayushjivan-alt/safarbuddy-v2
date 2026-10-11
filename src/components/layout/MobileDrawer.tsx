@@ -229,7 +229,7 @@ export default function MobileDrawer({
   async function handleShare() {
     try {
       await navigator.share({
-        title: "SafarBuddy",
+        title: "Chalfirr",
         text: t("shareText"),
         url: window.location.origin,
       });
@@ -293,7 +293,7 @@ export default function MobileDrawer({
               className="h-8 w-8"
             />
             <span className="font-heading text-lg font-semibold text-white">
-              Safar<span className="text-orange">Buddy</span>
+              Chal<span className="text-orange">firr</span>
             </span>
           </Link>
           <button
