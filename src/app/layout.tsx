@@ -26,15 +26,15 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  applicationName: 'SafarBuddy',
+  applicationName: 'Chalfirr',
   appleWebApp: {
     capable: true,
-    title: 'SafarBuddy',
+    title: 'Chalfirr',
     statusBarStyle: 'default',
   },
   metadataBase: new URL(getSiteUrl()),
-  title: 'SafarBuddy - Your Travel Companion',
-  description: 'Book hotels, resorts, homestays and holiday packages with SafarBuddy.',
+  title: 'Chalfirr - Your Travel Companion',
+  description: 'Book hotels, resorts, homestays and holiday packages with Chalfirr.',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
