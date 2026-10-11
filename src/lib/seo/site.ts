@@ -26,7 +26,7 @@ export function getSiteUrl(): string {
 }
 
 export const SITE_NAME =
-  process.env.NEXT_PUBLIC_APP_NAME || 'SafarBuddy';
+  process.env.NEXT_PUBLIC_APP_NAME || 'Chalfirr';
 
 export const SITE_DESCRIPTION =
   'Enterprise-grade travel platform for hotels, resorts, homestays, and tour packages';
