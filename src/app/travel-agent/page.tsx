@@ -20,7 +20,7 @@ export default function TravelAgentIndexPage() {
       <p className="mt-3 max-w-md text-[14px] text-ink/60">
         You&apos;re signed in as a travel agent. Dedicated tools for this
         role haven&apos;t been built yet — check back soon, or contact the
-        SafarBuddy team if you were expecting something specific here.
+        Chalfirr team if you were expecting something specific here.
       </p>
     </div>
   );
