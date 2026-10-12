@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import campaigns from '@/data/campaigns.json';
 import { Resend } from 'resend';
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const resend = new Resend(process.env.RESEND_API_KEY || 'Re_ZeHKZjxd_GYghU23G3DXixwoYPbiXUcZj');
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
