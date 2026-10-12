@@ -3,16 +3,75 @@ import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import campaigns from '@/data/campaigns.json';
-import { sceneSvg, POST_SCENES } from '@/lib/poster-scene';
+import { POST_SCENES } from '@/lib/poster-scene';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 const W = 1080;
-const H = 1350; // 4:5 portrait: Instagram + Facebook dono ke liye best
+const H = 1350;
 
-// ChalFirr logo mark (public/brand/logo-mark.svg se)
-const LOGO_SVG = `<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" xmlns:c2pa="http://c2pa.org/manifest"> <defs> <linearGradient id="bg" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse"> <stop offset="0" stop-color="#123a70"/> <stop offset="1" stop-color="#0b2f5c"/> </linearGradient> <linearGradient id="path" x1="55" y1="150" x2="150" y2="50" gradientUnits="userSpaceOnUse"> <stop offset="0" stop-color="#ff8c52"/> <stop offset="1" stop-color="#ff6a2b"/> </linearGradient> </defs> <circle cx="100" cy="100" r="100" fill="url(#bg)"/> <!-- dotted route --> <path d="M 56 148 C 56 110, 90 122, 100 100 C 110 78, 96 66, 118 56" fill="none" stroke="#4f8bea" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.5 12" opacity="0.55"/> <!-- route line (the journey / "S" shaped journey) --> <path d="M 56 148 C 56 110, 90 122, 100 100 C 110 78, 96 66, 118 56" fill="none" stroke="url(#path)" stroke-width="7" stroke-linecap="round"/> <!-- origin dot --> <circle cx="56" cy="148" r="6.5" fill="#fbf9f4"/> <!-- destination pin --> <g> <path d="M118 30 C 132.6 30 144 41.6 144 56 C 144 75 118 96 118 96 C 118 96 92 75 92 56 C 92 41.6 103.4 30 118 30 Z" fill="#fbf9f4"/> <circle cx="118" cy="56" r="12" fill="#ff6a2b"/> </g> </svg>`;
+// ChalFirr official visual background mapping 
+const DYNAMIC_BACKGROUNDS: Record<string, string[]> = {
+  mandir: [
+    "https://images.unsplash.com/photo-1620766182966-c6eb5ed2b788?q=80&w=1080&auto=format&fit=crop", // Ayodhya Ram Mandir / Temples
+    "https://images.unsplash.com/photo-1582510003544-4d00b7f74220?q=80&w=1080&auto=format&fit=crop", // Vrindavan Temple Vibes
+    "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?q=80&w=1080&auto=format&fit=crop", // Himalayan Temple / Spiritual
+  ],
+  ghat: [
+    "https://images.unsplash.com/photo-1561361513-2d000a50f0dc?q=80&w=1080&auto=format&fit=crop", // Kashi Aarti
+    "https://images.unsplash.com/photo-1571536802807-30451e3955d8?q=80&w=1080&auto=format&fit=crop", // Assi Ghat Morning
+    "https://images.unsplash.com/photo-1609137144813-7d9921338f24?q=80&w=1080&auto=format&fit=crop", // Ganges Evening
+  ],
+  imambara: [
+    "https://images.unsplash.com/photo-1596176530529-78163a4f7af2?q=80&w=1080&auto=format&fit=crop", // Lucknow Rumi Darwaza
+    "https://images.unsplash.com/photo-1599661046289-e31897846e41?q=80&w=1080&auto=format&fit=crop", // Heritage Palaces
+  ],
+  boat: [
+    "https://images.unsplash.com/photo-1571536802807-30451e3955d8?q=80&w=1080&auto=format&fit=crop", // River Ghat Boat
+    "https://images.unsplash.com/photo-1615836245337-f5b9b2303f10?q=80&w=1080&auto=format&fit=crop", // Lake Pichola ride
+  ],
+  chai: [
+    "https://images.unsplash.com/photo-1577968897966-3d4325b36b61?q=80&w=1080&auto=format&fit=crop", // Kulhad tea corner
+    "https://images.unsplash.com/photo-1561336313-0bd5e0b27ec8?q=80&w=1080&auto=format&fit=crop", // Local Tea stall
+  ],
+  road: [
+    "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1080&auto=format&fit=crop", // Mountain scenic road
+    "https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?q=80&w=1080&auto=format&fit=crop", // Road trip Ladakh Highway
+  ],
+  hills: [
+    "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?q=80&w=1080&auto=format&fit=crop", // Snow hill peaks Manali
+    "https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?q=80&w=1080&auto=format&fit=crop", // Green hill valleys Nainital
+  ],
+  forest: [
+    "https://images.unsplash.com/photo-1534188753412-3e26d0d618d6?q=80&w=1080&auto=format&fit=crop", // Jim Corbett Jungle Forest
+    "https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1080&auto=format&fit=crop", // Pines McLeodGanj
+  ],
+  stupa: [
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1080&auto=format&fit=crop", // Sarnath Stupa / Monastery
+  ],
+  route: [
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1080&auto=format&fit=crop", // Destination road & itinerary
+  ],
+  suitcase: [
+    "https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=1080&auto=format&fit=crop", // Packing luggage, exploration gear
+  ],
+  coins: [
+    "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?q=80&w=1080&auto=format&fit=crop", // Budget mapping travel
+  ],
+  bridge: [
+    "https://images.unsplash.com/photo-1544717305-2782549b5136?q=80&w=1080&auto=format&fit=crop", // Bridges and landscapes
+  ],
+  ticket: [
+    "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1080&auto=format&fit=crop", // Travel Boarding details
+  ],
+  vote: [
+    "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=1080&auto=format&fit=crop", // Multiple Destinations choices
+  ]
+};
+
+// Logo & Brand Colors setup matching standard
+const LOGO_SVG = `<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bg" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#123a70"/><stop offset="1" stop-color="#0b2f5c"/></linearGradient><linearGradient id="path" x1="55" y1="150" x2="150" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ff8c52"/><stop offset="1" stop-color="#ff6a2b"/></linearGradient></defs><circle cx="100" cy="100" r="100" fill="url(#bg)"/><path d="M 56 148 C 56 110, 90 122, 100 100 C 110 78, 96 66, 118 56" fill="none" stroke="#4f8bea" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.5 12" opacity="0.55"/><path d="M 56 148 C 56 110, 90 122, 100 100 C 110 78, 96 66, 118 56" fill="none" stroke="url(#path)" stroke-width="7" stroke-linecap="round"/><circle cx="56" cy="148" r="6.5" fill="#fbf9f4"/><g><path d="M118 30 C 132.6 30 144 41.6 144 56 C 144 75 118 96 118 96 C 118 96 92 75 92 56 C 92 41.6 103.4 30 118 30 Z" fill="#fbf9f4"/><circle cx="118" cy="56" r="12" fill="#ff6a2b"/></g></svg>`;
 const LOGO_URI = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
 const CITIES: [string, string[]][] = [
@@ -32,7 +91,6 @@ function detectCity(title: string): string {
   return found.length === 1 ? found[0] : 'UP Yatra';
 }
 
-// Har post ke liye alag taglines: har varg, har jeb ke liye
 const AUDIENCE = [
   'Budget Friendly • Family Ke Saath',
   'Bus, Train Ya Bike — Sabke Liye',
@@ -53,13 +111,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     readFile(join(process.cwd(), 'assets/fonts/poppins-devanagari-700-normal.woff')),
   ]);
 
-  // Is post ka apna illustrated artwork (koi stock photo nahi, isliye kabhi repeat nahi)
   const sc = POST_SCENES[id] ?? { p: id % 6, motif: 'mandir', variant: id % 3 };
-  const sceneUri = `data:image/svg+xml;base64,${Buffer.from(
-    sceneSvg({ id, slot: post.slot, motif: sc.motif, variant: sc.variant, days: (sc as any).days, p: sc.p })
-  ).toString('base64')}`;
+  
+  // Background selection: high-resolution photographic background matching the motif
+  const images = DYNAMIC_BACKGROUNDS[sc.motif] || DYNAMIC_BACKGROUNDS['mandir'];
+  const index = Math.abs(sc.variant) % images.length;
+  const scenicBgUrl = images[index];
 
-  // "Headline: Subline" format me title todo
   const full: string = post.title;
   const colon = full.indexOf(':');
   const headline = colon > 0 ? full.slice(0, colon).trim() : full;
@@ -78,13 +136,14 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           display: 'flex',
           position: 'relative',
           fontFamily: 'Poppins',
-          backgroundImage: 'linear-gradient(160deg, #123a70 0%, #0b1b33 100%)',
+          backgroundColor: '#0b1b33',
         }}
       >
+        {/* Dynamic authentic background photo overlay (100% photographic replacements for the old flat SVG) */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={sceneUri} width={W} height={H} style={{ position: 'absolute', top: 0, left: 0, width: W, height: H }} />
+        <img src={scenicBgUrl} width={W} height={H} style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, objectFit: 'cover' }} />
 
-        {/* Dark gradient taaki text hamesha padha jaye */}
+        {/* Enhanced linear shading layer for visual contrast on texts */}
         <div
           style={{
             position: 'absolute',
@@ -94,11 +153,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             height: H,
             display: 'flex',
             backgroundImage:
-              'linear-gradient(180deg, rgba(11,27,51,0.60) 0%, rgba(11,27,51,0.08) 30%, rgba(11,27,51,0.70) 62%, rgba(11,27,51,0.97) 100%)',
+              'linear-gradient(180deg, rgba(5, 13, 26, 0.75) 0%, rgba(5, 13, 26, 0.15) 30%, rgba(5, 13, 26, 0.50) 60%, rgba(5, 13, 26, 0.98) 100%)',
           }}
         />
 
-        {/* Logo + brand name */}
+        {/* Brand Details with top banner logic */}
         <div style={{ position: 'absolute', top: 56, left: 56, display: 'flex', alignItems: 'center' }}>
           <img src={LOGO_URI} width={84} height={84} />
           <div style={{ display: 'flex', marginLeft: 18, fontSize: 46, fontWeight: 700, color: '#fbf9f4' }}>
@@ -106,7 +165,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           </div>
         </div>
 
-        {/* City chip */}
+        {/* Destination display chip */}
         <div
           style={{
             position: 'absolute',
@@ -125,7 +184,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           {city.toUpperCase()}
         </div>
 
-        {/* Bottom content */}
+        {/* Bottom card content */}
         <div style={{ position: 'absolute', left: 56, right: 56, bottom: 56, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 26 }}>
             <div
@@ -168,6 +227,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             </div>
           ) : null}
 
+          {/* Branded Foot pill (Call To Action bottom block) */}
           <div
             style={{
               display: 'flex',
@@ -210,7 +270,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     }
   );
 
-  // Instagram sirf JPEG leta hai, isliye PNG ko JPEG me badlo
   const jpg = await sharp(Buffer.from(await png.arrayBuffer())).jpeg({ quality: 88 }).toBuffer();
 
   return new Response(new Uint8Array(jpg), {
