@@ -97,7 +97,14 @@ export async function GET(request: Request) {
     } else {
       try {
         const resend = new Resend(resendKey);
-        const batch = users.map((u) => ({
+        // Fake/test emails (example.com etc.) Resend ko reject karwa dete hain aur poora batch fail ho jata hai
+        const blocked = /@(example\.(com|org|net)|test\.com|localhost|invalid)$/i;
+        const validUsers = users.filter(
+          (u) => typeof u.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email) && !blocked.test(u.email)
+        );
+        const skippedEmails = users.length - validUsers.length;
+        if (validUsers.length === 0) throw new Error('Koi valid email nahi mili');
+        const batch = validUsers.map((u) => ({
           from: 'ChalFirr <updates@chalfirr.com>',
           to: u.email,
           subject: currentPost.email_subject,
@@ -110,7 +117,7 @@ export async function GET(request: Request) {
         }
         results.email =
           errors.length === 0
-            ? { ok: true, detail: `${users.length} users ko bheji` }
+            ? { ok: true, detail: `${validUsers.length} users ko bheji, ${skippedEmails} invalid/test email skip` }
             : { ok: false, detail: errors };
       } catch (e: any) {
         results.email = { ok: false, detail: e.message };
