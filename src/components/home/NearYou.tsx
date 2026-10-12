@@ -134,7 +134,7 @@ export default function NearYou() {
 
       {phase === 'done' && items.length === 0 && (
         <div className="rounded-2xl border border-dashed border-deep/15 bg-mist-2 p-5 text-[13px] text-ink/65">
-          No SafarBuddy hotels within {RADIUS_KM} km of you yet.{' '}
+          No Chalfirr hotels within {RADIUS_KM} km of you yet.{' '}
           <Link href="/hotels" className="font-medium text-deep underline">
             Browse all hotels
           </Link>
