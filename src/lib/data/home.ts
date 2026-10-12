@@ -57,7 +57,7 @@ export const testimonials: Testimonial[] = [
     verified: true,
     rating: 5,
     reviewText:
-      "Our Goa package was perfectly planned — the beach resort was stunning and the transfers were always on time. SafarBuddy made a 3-day trip feel completely stress-free.",
+      "Our Goa package was perfectly planned — the beach resort was stunning and the transfers were always on time. Chalfirr made a 3-day trip feel completely stress-free.",
     bookingType: "Holiday Package",
     destination: "Goa, India",
     travelDate: "Dec 2025",
@@ -113,7 +113,7 @@ export const testimonials: Testimonial[] = [
     verified: true,
     rating: 5,
     reviewText:
-      "Flight prices for our Phuket trip were unbeatable, and the app kept us updated at every step. Will definitely book through SafarBuddy again for our next vacation.",
+      "Flight prices for our Phuket trip were unbeatable, and the app kept us updated at every step. Will definitely book through Chalfirr again for our next vacation.",
     bookingType: "Flight",
     destination: "Phuket, Thailand",
     travelDate: "Mar 2026",
@@ -183,7 +183,7 @@ export type AppDownloadContent = {
 };
 
 export const appDownloadContent: AppDownloadContent = {
-  heading: "Download the SafarBuddy App",
+  heading: "Download the Chalfirr App",
   subtitle:
     "Book Flights, Hotels, Buses, Trains and Holiday Packages anytime, anywhere.",
   primaryCta: "Download App",
@@ -364,8 +364,8 @@ export type FooterContent = {
 
 export const footerContent: FooterContent = {
   description:
-    "SafarBuddy helps you book flights, hotels, buses and holiday packages at the best prices — all in one place.",
-  copyrightText: "© 2026 SafarBuddy. All Rights Reserved.",
+    "Chalfirr helps you book flights, hotels, buses and holiday packages at the best prices — all in one place.",
+  copyrightText: "© 2026 Chalfirr. All Rights Reserved.",
   popularSearchesLabel: "Popular Searches",
 };
 
