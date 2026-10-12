@@ -26,7 +26,7 @@ import {
 
 const ROLE_LABELS: Record<TicketSenderRole, string> = {
   customer: 'Customer',
-  support: 'SafarBuddy Support',
+  support: 'Chalfirr Support',
 };
 
 function formatTime(value: string): string {
