@@ -19,7 +19,7 @@ import type { BookingMessageRecord, SenderRole } from '@/lib/repositories/bookin
 const ROLE_LABELS: Record<SenderRole, string> = {
   customer: 'Guest',
   hotel: 'Hotel',
-  admin: 'SafarBuddy Support',
+  admin: 'Chalfirr Support',
 };
 
 export function BookingChatThread({
