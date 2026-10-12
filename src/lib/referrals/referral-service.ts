@@ -165,7 +165,7 @@ export async function recordReferralSignup(
     ownerUserId: referredUserId,
     percent: REFERRAL_CONFIG.FRIEND_DISCOUNT_PERCENT,
     maxDiscountInr: REFERRAL_CONFIG.FRIEND_MAX_DISCOUNT_INR,
-    description: 'Welcome coupon — you joined SafarBuddy via a friend’s referral.',
+    description: 'Welcome coupon — you joined Chalfirr via a friend’s referral.',
   });
 
   await referralRepo.setFriendCoupon(referral.id, friendCouponId);
