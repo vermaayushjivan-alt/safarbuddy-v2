@@ -518,7 +518,7 @@ export async function submitPropertyListing(
     // service-role client below (RULE 15 decision, see file header).
     const sessionClient = await createClient();
 
-    // ALREADY-AUTH-01 (2026-09-03): an existing SafarBuddy customer
+    // ALREADY-AUTH-01 (2026-09-03): an existing Chalfirr customer
     // (e.g. someone who already has an account from booking a trip)
     // could never list a property before this fix — signUp() always
     // ran unconditionally and Supabase Auth correctly rejects it with
