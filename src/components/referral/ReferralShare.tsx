@@ -25,7 +25,7 @@ export function ReferralShare({ code, link, friendPercent }: ReferralShareProps)
     }
   }
 
-  const whatsappText = `Join SafarBuddy and get ${friendPercent}% off your trip! Sign up with my link: ${link}`;
+  const whatsappText = `Join Chalfirr and get ${friendPercent}% off your trip! Sign up with my link: ${link}`;
   const whatsappHref = `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
 
   return (
