@@ -185,7 +185,7 @@ export default function InvoiceDocument({
           // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image has no alt prop
           <Image src={logoBase64} style={styles.brandLogo} />
         ) : (
-          <Text style={styles.brandWordmark}>SafarBuddy</Text>
+          <Text style={styles.brandWordmark}>Chalfirr</Text>
         )}
 
         <View style={styles.headerRow}>
