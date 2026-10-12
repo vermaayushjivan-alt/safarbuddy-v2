@@ -87,6 +87,19 @@ export async function GET(request: Request) {
     const currentPost = campaigns[currentIndex];
     const results: Record<string, StepResult> = {};
 
+    // Dynamic poster (logo + title + brand colors). Chalu na ho to purani image_url par fallback.
+    const origin = new URL(request.url).origin;
+    const posterUrl = `${origin}/api/public/poster/${currentPost.id}.jpg`;
+    let imageUrl: string = currentPost.image_url;
+    try {
+      const pr = await fetch(posterUrl);
+      if (pr.ok && (pr.headers.get('content-type') || '').startsWith('image/')) {
+        imageUrl = posterUrl;
+      }
+    } catch {
+      // fallback: original image
+    }
+
     // 2. EMAIL (Resend) - 100-100 ke chunks
     if (!resendKey) {
       results.email = { ok: false, skipped: true, detail: 'RESEND_API_KEY set nahi hai' };
@@ -105,7 +118,7 @@ export async function GET(request: Request) {
         const skippedEmails = users.length - validUsers.length;
         if (validUsers.length === 0) throw new Error('Koi valid email nahi mili');
         const batch = validUsers.map((u) => ({
-          from: 'ChalFirr <updates@chalfirr.com>',
+          from: process.env.MAIL_FROM || 'ChalFirr <onboarding@resend.dev>',
           to: u.email,
           subject: currentPost.email_subject,
           html: currentPost.email_html,
@@ -133,7 +146,7 @@ export async function GET(request: Request) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            url: currentPost.image_url,
+            url: imageUrl,
             caption: currentPost.social_caption,
             access_token: fbAccessToken,
           }),
@@ -152,7 +165,7 @@ export async function GET(request: Request) {
       try {
         const containerRes = await fetch(
           `https://graph.facebook.com/v19.0/${igUserId}/media?image_url=${encodeURIComponent(
-            currentPost.image_url
+            imageUrl
           )}&caption=${encodeURIComponent(currentPost.social_caption)}&access_token=${fbAccessToken}`,
           { method: 'POST' }
         );
@@ -213,6 +226,7 @@ export async function GET(request: Request) {
       published_index: currentIndex,
       title: currentPost.title,
       tracker_advanced: anySuccess,
+      poster_used: imageUrl === posterUrl,
       results,
     };
     console.log('[auto-publish] RESULT', JSON.stringify(finalBody));
