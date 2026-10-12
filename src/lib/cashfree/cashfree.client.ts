@@ -91,7 +91,7 @@ export interface CashfreeOrderPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Cashfree order creation response — only the fields SafarBuddy stores.
+// Cashfree order creation response — only the fields Chalfirr stores.
 // ---------------------------------------------------------------------------
 
 export interface CashfreeOrderResult {
