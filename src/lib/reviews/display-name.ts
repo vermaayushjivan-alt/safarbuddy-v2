@@ -9,7 +9,7 @@ export function reviewerDisplayName(
 ): string {
   const name = (fullName ?? '').trim();
   if (deleted || name.length === 0 || name.toLowerCase() === 'deleted user') {
-    return 'SafarBuddy guest';
+    return 'Chalfirr guest';
   }
 
   const parts = name.split(/\s+/);
