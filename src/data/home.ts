@@ -148,8 +148,8 @@ export type FooterContent = {
 
 export const footerContent: FooterContent = {
   description:
-    "SafarBuddy helps you book hotels, resorts, homestays and holiday packages at great prices — all in one place.",
-  copyrightText: "© 2026 SafarBuddy. All Rights Reserved.",
+    "Chalfirr helps you book hotels, resorts, homestays and holiday packages at great prices — all in one place.",
+  copyrightText: "© 2026 Chalfirr. All Rights Reserved.",
   popularSearchesLabel: "Popular Searches",
 };
 
