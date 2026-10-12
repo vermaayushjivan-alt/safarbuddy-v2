@@ -46,7 +46,7 @@ export function DeleteAccountForm({ needsPassword }: DeleteAccountFormProps) {
         Delete my account
       </h2>
       <p className="text-[13px] leading-relaxed text-ink/60">
-        This permanently removes your name, email and phone from SafarBuddy and
+        This permanently removes your name, email and phone from Chalfirr and
         you will no longer be able to log in. Past bookings, payments and
         invoices are kept without your personal details, because the law
         requires us to keep accounting records.
