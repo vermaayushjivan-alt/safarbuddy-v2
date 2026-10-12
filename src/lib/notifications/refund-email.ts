@@ -47,7 +47,7 @@ export async function notifyCustomerRefundProcessed(
       <p>The amount goes back to the original payment method. Depending on your bank or card issuer, it can take a few working days to show in your account.</p>
       <p>Refund reference: ${escapeHtml(input.refundId)}</p>
       <p>If you have any questions, just reply to this email.</p>
-      <p>SafarBuddy</p>
+      <p>Chalfirr</p>
     `;
 
     const result = await sendEmail({
