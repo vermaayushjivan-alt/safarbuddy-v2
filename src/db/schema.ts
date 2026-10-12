@@ -1,4 +1,4 @@
-// SafarBuddy — Drizzle ORM Schema
+// Chalfirr — Drizzle ORM Schema
 // DB-01 Core Foundation (roles, permissions, users, vendors, app_settings,
 // otp_verifications) plus BOOKING-01 (bookings) and PAY-01 (payments).
 //
