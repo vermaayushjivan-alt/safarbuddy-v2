@@ -70,7 +70,7 @@ export default function ReviewForm({
               rel="noopener noreferrer"
               className="focus-ring rounded-full bg-deep px-5 py-2.5 text-[13px] font-semibold text-cream transition hover:bg-deep-2"
             >
-              Rate SafarBuddy on Google
+              Rate Chalfirr on Google
             </a>
           )}
           <Link
