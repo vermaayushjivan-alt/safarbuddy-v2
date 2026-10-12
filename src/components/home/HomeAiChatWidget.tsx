@@ -25,7 +25,7 @@ interface DisplayMessage {
 const GREETING: DisplayMessage = {
   id: 'greeting',
   role: 'assistant',
-  text: "Hi! I'm the SafarBuddy assistant \u2014 ask me about hotels, packages, or how booking works. For a specific booking, invoice, or issue, log in and open My Bookings for the dedicated support chat.",
+  text: "Hi! I'm the Chalfirr assistant \u2014 ask me about hotels, packages, or how booking works. For a specific booking, invoice, or issue, log in and open My Bookings for the dedicated support chat.",
 };
 
 function ChatBubbleIcon() {
@@ -114,7 +114,7 @@ export default function HomeAiChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between bg-deep px-4 py-3">
             <div>
-              <p className="font-heading text-[15px] font-semibold text-white">SafarBuddy Assistant</p>
+              <p className="font-heading text-[15px] font-semibold text-white">Chalfirr Assistant</p>
               <p className="text-[11px] text-white/65">Usually replies instantly</p>
             </div>
             <button
