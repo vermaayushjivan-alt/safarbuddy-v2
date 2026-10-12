@@ -54,6 +54,9 @@ function isPublicRoute(pathname: string) {
     pathname.startsWith("/_next") ||
     // Cashfree webhook, cron and other server-to-server endpoints.
     pathname.startsWith("/api/public") ||
+    // Cron jobs (cron-job.org) have no session; the route itself checks
+    // CRON_SECRET via the Authorization header.
+    pathname.startsWith("/api/cron/") ||
     /\.(svg|png|jpg|jpeg|ico|webp)$/.test(pathname)
   );
 }
