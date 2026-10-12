@@ -33,7 +33,7 @@ export function safeRedirectPath(
 
   // Belt and braces: resolving it against a dummy origin must stay on that origin.
   try {
-    const base = "http://safarbuddy.invalid";
+    const base = "http://chalfirr.invalid";
     const resolved = new URL(candidate, base);
     if (resolved.origin !== base) return fallback;
   } catch {
