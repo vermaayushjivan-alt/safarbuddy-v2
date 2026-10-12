@@ -100,7 +100,7 @@ function buildEmailHtml(input: NotifyBookingCreatedInput): string {
   // DISINTERMEDIATION-01: the hotel/vendor email intentionally does NOT
   // include the guest's phone/email — a hotel with the guest's direct
   // contact could take the conversation (and any future rebooking)
-  // off-platform, cutting SafarBuddy out. Guest contact details are
+  // off-platform, cutting Chalfirr out. Guest contact details are
   // only ever shown in the admin alert (buildAdminEmailHtml below),
   // which the platform itself controls. Do not add guestPhone/
   // guestEmail back into this template without a deliberate product
@@ -363,7 +363,7 @@ export async function notifyCustomerBookingConfirmed(
           ? `<p>Your invoice (${input.invoicePdf.invoiceNumber}) is attached to this email.</p>`
           : `<p>Your invoice will be emailed separately shortly.</p>`
       }
-      <p>Thank you for booking with SafarBuddy.</p>
+      <p>Thank you for booking with Chalfirr.</p>
     `;
 
     const result = await sendEmail({
