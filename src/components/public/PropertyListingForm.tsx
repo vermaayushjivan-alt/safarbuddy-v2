@@ -28,7 +28,7 @@ type FacilityOption = {
 
 // ALREADY-AUTH-01: passed down from the Server Component page so the
 // form knows, on first render, whether the visitor already has a
-// SafarBuddy account — before they type anything. Prevents the
+// Chalfirr account — before they type anything. Prevents the
 // "User already registered" dead-end for existing customers.
 type InitialAuth =
   | { isAuthenticated: true; email: string; fullName: string }
@@ -391,7 +391,7 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
         subtitle={
           initialAuth.isAuthenticated
             ? "You're signed in — this property will be added to your existing account."
-            : "This creates your SafarBuddy host login."
+            : "This creates your Chalfirr host login."
         }
       >
         {initialAuth.isAuthenticated && (
@@ -890,7 +890,7 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
           Hotel Partner Terms &amp; Commission
         </p>
         <p className="mt-1 text-[13px] leading-relaxed text-[var(--color-ink)]/60">
-          SafarBuddy keeps a {PLATFORM_COMMISSION_PERCENT}% commission on every
+          Chalfirr keeps a {PLATFORM_COMMISSION_PERCENT}% commission on every
           booking paid through the platform. The remaining{" "}
           {100 - PLATFORM_COMMISSION_PERCENT}% is paid out to you.
         </p>
@@ -913,7 +913,7 @@ export function PropertyListingForm({ initialAuth }: { initialAuth: InitialAuth 
             >
               Hotel Partner Terms
             </a>
-            , and I agree that SafarBuddy will receive a {PLATFORM_COMMISSION_PERCENT}%
+            , and I agree that Chalfirr will receive a {PLATFORM_COMMISSION_PERCENT}%
             commission on every booking for my property.
           </span>
         </label>
