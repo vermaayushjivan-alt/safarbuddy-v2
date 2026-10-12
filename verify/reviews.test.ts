@@ -42,8 +42,8 @@ describe('reviewerDisplayName', () => {
     expect(reviewerDisplayName('Priya', false)).toBe('Priya');
   });
   it('deleted / empty -> generic', () => {
-    expect(reviewerDisplayName('Deleted user', false)).toBe('SafarBuddy guest');
-    expect(reviewerDisplayName(null, false)).toBe('SafarBuddy guest');
-    expect(reviewerDisplayName('Ayush Verma', true)).toBe('SafarBuddy guest');
+    expect(reviewerDisplayName('Deleted user', false)).toBe('Chalfirr guest');
+    expect(reviewerDisplayName(null, false)).toBe('Chalfirr guest');
+    expect(reviewerDisplayName('Ayush Verma', true)).toBe('Chalfirr guest');
   });
 });
