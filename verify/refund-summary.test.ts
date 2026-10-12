@@ -1,5 +1,5 @@
 {
-  "name": "safarbuddy-v2",
+  "name": "chalfirr-v2",
   "private": true,
   "scripts": {
     "dev": "next dev",
