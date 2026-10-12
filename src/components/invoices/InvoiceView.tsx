@@ -18,7 +18,7 @@ export default function InvoiceView({ invoice }: { invoice: InvoiceViewModel }) 
           renderer (see InvoiceDocument.tsx, which needs a rasterized
           PNG instead because @react-pdf/renderer can't parse SVG). */}
       {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer adds no value for a small static brand asset here */}
-      <img src="/brand/logo-horizontal.svg" alt="SafarBuddy" className="mb-4 h-6 w-auto" />
+      <img src="/brand/logo-horizontal.svg" alt="Chalfirr" className="mb-4 h-6 w-auto" />
 
       <div className="flex items-start justify-between border-b border-deep/10 pb-6">
         <div>
