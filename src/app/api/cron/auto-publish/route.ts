@@ -47,6 +47,18 @@ export async function GET(request: Request) {
 
     // DRY RUN: kuch bhejta nahi, sirf config dikhata hai
     if (dryRun) {
+      console.log('[auto-publish] DRY', JSON.stringify({
+        last_index: currentIndex,
+        total_posts: campaigns.length,
+        active_users: users?.length ?? 0,
+        users_query_error: usersError?.message ?? null,
+        env: {
+          RESEND_API_KEY: !!resendKey,
+          FB_PAGE_ID: !!fbPageId,
+          FB_PAGE_ACCESS_TOKEN: !!fbAccessToken,
+          IG_USER_ID: !!igUserId,
+        },
+      }));
       return NextResponse.json({
         dry_run: true,
         last_index: currentIndex,
@@ -189,13 +201,15 @@ export async function GET(request: Request) {
         .eq('id', 1);
     }
 
-    return NextResponse.json({
+    const finalBody = {
       success: anySuccess,
       published_index: currentIndex,
       title: currentPost.title,
       tracker_advanced: anySuccess,
       results,
-    });
+    };
+    console.log('[auto-publish] RESULT', JSON.stringify(finalBody));
+    return NextResponse.json(finalBody);
   } catch (error: any) {
     console.error('Publish error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
