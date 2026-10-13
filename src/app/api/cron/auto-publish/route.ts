@@ -92,7 +92,8 @@ export async function GET(request: Request) {
     // If the poster cannot be generated: EMAIL still goes out, but Facebook/Instagram
     // are SKIPPED (never the old cheap campaigns.json image_url).
     const origin = new URL(request.url).origin;
-    const posterUrl = `${origin}/api/public/poster/${currentPost.id}.jpg`;
+    // Finished posters live in public/posters/01.jpg ... 30.jpg (served at /posters/NN.jpg)
+    const posterUrl = `${origin}/posters/${String(currentPost.id).padStart(2, '0')}.jpg`;
     let imageUrl: string | null = null;
     let posterError = '';
     try {
@@ -141,6 +142,8 @@ export async function GET(request: Request) {
 
         let sent = 0;
         const failed: string[] = [];
+        const errorMsgs = new Set<string>();
+        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
         for (let i = 0; i < validUsers.length; i += 100) {
           const chunk = validUsers.slice(i, i + 100);
           const { error } = await resend.batch.send(chunk.map((u) => mk(u.email)));
@@ -148,19 +151,29 @@ export async function GET(request: Request) {
             sent += chunk.length;
             continue;
           }
-          // Chunk rejected: find the bad address(es) by sending one-by-one.
+          // Chunk rejected: send one-by-one (throttled: Resend allows ~2 requests/sec).
           console.error('[auto-publish] email batch rejected, retrying one-by-one', JSON.stringify(error));
+          errorMsgs.add(`batch: ${error.message}`);
           for (const u of chunk) {
-            const r = await resend.emails.send(mk(u.email));
-            if (r.error) failed.push(u.email);
-            else sent += 1;
+            let r = await resend.emails.send(mk(u.email));
+            if (r.error && /rate|too many|429/i.test(`${r.error.name} ${r.error.message}`)) {
+              await sleep(1500);
+              r = await resend.emails.send(mk(u.email)); // one retry after rate limit
+            }
+            if (r.error) {
+              failed.push(u.email);
+              errorMsgs.add(`${r.error.name}: ${r.error.message}`);
+            } else {
+              sent += 1;
+            }
+            await sleep(600);
           }
         }
-        if (failed.length) console.error('[auto-publish] email failed for', JSON.stringify(failed));
+        if (failed.length) console.error('[auto-publish] email failed for', JSON.stringify(failed), JSON.stringify([...errorMsgs]));
         results.email =
           sent > 0
-            ? { ok: true, detail: `${sent} users ko bheji, ${skippedEmails} invalid/test skip, ${failed.length} reject${failed.length ? ': ' + failed.join(', ') : ''}` }
-            : { ok: false, detail: `Kisi ko nahi gayi. Reject: ${failed.join(', ')}` };
+            ? { ok: true, detail: `${sent} users ko bheji, ${skippedEmails} invalid/test skip, ${failed.length} reject${failed.length ? ': ' + failed.join(', ') : ''}${errorMsgs.size ? ' | reason: ' + [...errorMsgs].slice(0, 3).join(' || ') : ''}` }
+            : { ok: false, detail: `Kisi ko nahi gayi. Reject: ${failed.join(', ')} | reason: ${[...errorMsgs].slice(0, 3).join(' || ')}` };
       } catch (e: any) {
         results.email = { ok: false, detail: e.message };
       }
