@@ -89,15 +89,14 @@ export async function GET(request: Request) {
     const results: Record<string, StepResult> = {};
 
     // Dynamic poster (logo + title + brand colors).
-    // NO silent fallback to the old campaigns.json image_url any more: if the poster
-    // cannot be generated we STOP (nothing is published, tracker is not advanced)
-    // so a wrong/cheap image never goes out. Cron will simply retry next run.
+    // If the poster cannot be generated: EMAIL still goes out, but Facebook/Instagram
+    // are SKIPPED (never the old cheap campaigns.json image_url).
     const origin = new URL(request.url).origin;
     const posterUrl = `${origin}/api/public/poster/${currentPost.id}.jpg`;
     let imageUrl: string | null = null;
     let posterError = '';
     try {
-      const pr = await fetch(posterUrl);
+      const pr = await fetch(posterUrl, { signal: AbortSignal.timeout(25000) });
       if (pr.ok && (pr.headers.get('content-type') || '').startsWith('image/')) {
         imageUrl = posterUrl;
       } else {
@@ -106,21 +105,12 @@ export async function GET(request: Request) {
     } catch (e: any) {
       posterError = e?.message || 'poster fetch failed';
     }
+    if (!imageUrl) console.error('[auto-publish] POSTER FAILED', posterError);
 
-    if (!imageUrl) {
-      const failBody = {
-        success: false,
-        error: 'poster_failed',
-        detail: posterError,
-        published_index: currentIndex,
-        title: currentPost.title,
-        tracker_advanced: false,
-      };
-      console.error('[auto-publish] POSTER FAILED', JSON.stringify(failBody));
-      return NextResponse.json(failBody, { status: 502 });
-    }
-
-    // 2. EMAIL (Resend) - 100-100 ke chunks
+    // 2. EMAIL (Resend) - 100-100 ke chunks.
+    // Resend batch is all-or-nothing: ONE bad address (example.com, sub.example.com,
+    // typo...) fails the whole 100. So: strong filter first, and if a chunk still
+    // fails we resend that chunk one-by-one and only skip the bad addresses.
     if (!resendKey) {
       results.email = { ok: false, skipped: true, detail: 'RESEND_API_KEY set nahi hai' };
     } else if (usersError) {
@@ -130,35 +120,56 @@ export async function GET(request: Request) {
     } else {
       try {
         const resend = new Resend(resendKey);
-        // Fake/test emails (example.com etc.) Resend ko reject karwa dete hain aur poora batch fail ho jata hai
-        const blocked = /@(example\.(com|org|net)|test\.com|localhost|invalid)$/i;
-        const validUsers = users.filter(
-          (u) => typeof u.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email) && !blocked.test(u.email)
-        );
+        const blocked =
+          /@([a-z0-9-]+\.)*(example\.(com|org|net|co|in)|test\.(com|org|net|in)|localhost|invalid|local)$/i;
+        const seen = new Set<string>();
+        const validUsers = users
+          .map((u) => (typeof u.email === 'string' ? u.email.trim().toLowerCase() : ''))
+          .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && !blocked.test(e))
+          .filter((e) => (seen.has(e) ? false : (seen.add(e), true)))
+          .map((email) => ({ email }));
         const skippedEmails = users.length - validUsers.length;
         if (validUsers.length === 0) throw new Error('Koi valid email nahi mili');
-        const batch = validUsers.map((u) => ({
-          from: process.env.MAIL_FROM || 'ChalFirr <onboarding@resend.dev>',
-          to: u.email,
+
+        const from = process.env.MAIL_FROM || 'ChalFirr <onboarding@resend.dev>';
+        const mk = (email: string) => ({
+          from,
+          to: email,
           subject: currentPost.email_subject,
           html: currentPost.email_html,
-        }));
-        const errors: any[] = [];
-        for (let i = 0; i < batch.length; i += 100) {
-          const { error } = await resend.batch.send(batch.slice(i, i + 100));
-          if (error) errors.push(error);
+        });
+
+        let sent = 0;
+        const failed: string[] = [];
+        for (let i = 0; i < validUsers.length; i += 100) {
+          const chunk = validUsers.slice(i, i + 100);
+          const { error } = await resend.batch.send(chunk.map((u) => mk(u.email)));
+          if (!error) {
+            sent += chunk.length;
+            continue;
+          }
+          // Chunk rejected: find the bad address(es) by sending one-by-one.
+          console.error('[auto-publish] email batch rejected, retrying one-by-one', JSON.stringify(error));
+          for (const u of chunk) {
+            const r = await resend.emails.send(mk(u.email));
+            if (r.error) failed.push(u.email);
+            else sent += 1;
+          }
         }
+        if (failed.length) console.error('[auto-publish] email failed for', JSON.stringify(failed));
         results.email =
-          errors.length === 0
-            ? { ok: true, detail: `${validUsers.length} users ko bheji, ${skippedEmails} invalid/test email skip` }
-            : { ok: false, detail: errors };
+          sent > 0
+            ? { ok: true, detail: `${sent} users ko bheji, ${skippedEmails} invalid/test skip, ${failed.length} reject${failed.length ? ': ' + failed.join(', ') : ''}` }
+            : { ok: false, detail: `Kisi ko nahi gayi. Reject: ${failed.join(', ')}` };
       } catch (e: any) {
         results.email = { ok: false, detail: e.message };
       }
     }
 
     // 3. FACEBOOK
-    if (!fbPageId || !fbAccessToken) {
+    if (!imageUrl) {
+      results.facebook = { ok: false, skipped: true, detail: `Poster nahi bana: ${posterError}` };
+    } else if (!fbPageId || !fbAccessToken) {
       results.facebook = { ok: false, skipped: true, detail: 'FB_PAGE_ID ya FB_PAGE_ACCESS_TOKEN set nahi' };
     } else {
       try {
@@ -179,7 +190,9 @@ export async function GET(request: Request) {
     }
 
     // 4. INSTAGRAM
-    if (!igUserId || !fbAccessToken) {
+    if (!imageUrl) {
+      results.instagram = { ok: false, skipped: true, detail: `Poster nahi bana: ${posterError}` };
+    } else if (!igUserId || !fbAccessToken) {
       results.instagram = { ok: false, skipped: true, detail: 'IG_USER_ID ya FB_PAGE_ACCESS_TOKEN set nahi' };
     } else {
       try {
@@ -247,6 +260,7 @@ export async function GET(request: Request) {
       title: currentPost.title,
       tracker_advanced: anySuccess,
       poster_used: imageUrl === posterUrl,
+      poster_error: posterError || null,
       results,
     };
     console.log('[auto-publish] RESULT', JSON.stringify(finalBody));
