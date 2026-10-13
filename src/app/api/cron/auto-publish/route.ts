@@ -1,3 +1,4 @@
+// ROOT PATH: src/app/api/cron/auto-publish/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import campaigns from '@/data/campaigns.json';
@@ -87,17 +88,36 @@ export async function GET(request: Request) {
     const currentPost = campaigns[currentIndex];
     const results: Record<string, StepResult> = {};
 
-    // Dynamic poster (logo + title + brand colors). Chalu na ho to purani image_url par fallback.
+    // Dynamic poster (logo + title + brand colors).
+    // NO silent fallback to the old campaigns.json image_url any more: if the poster
+    // cannot be generated we STOP (nothing is published, tracker is not advanced)
+    // so a wrong/cheap image never goes out. Cron will simply retry next run.
     const origin = new URL(request.url).origin;
     const posterUrl = `${origin}/api/public/poster/${currentPost.id}.jpg`;
-    let imageUrl: string = currentPost.image_url;
+    let imageUrl: string | null = null;
+    let posterError = '';
     try {
       const pr = await fetch(posterUrl);
       if (pr.ok && (pr.headers.get('content-type') || '').startsWith('image/')) {
         imageUrl = posterUrl;
+      } else {
+        posterError = `poster route status ${pr.status}`;
       }
-    } catch {
-      // fallback: original image
+    } catch (e: any) {
+      posterError = e?.message || 'poster fetch failed';
+    }
+
+    if (!imageUrl) {
+      const failBody = {
+        success: false,
+        error: 'poster_failed',
+        detail: posterError,
+        published_index: currentIndex,
+        title: currentPost.title,
+        tracker_advanced: false,
+      };
+      console.error('[auto-publish] POSTER FAILED', JSON.stringify(failBody));
+      return NextResponse.json(failBody, { status: 502 });
     }
 
     // 2. EMAIL (Resend) - 100-100 ke chunks
