@@ -12,6 +12,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Env values me aksar quotes / space / newline chali jaati hai -> Meta 'Cannot parse access token' deta hai
+const cleanEnv = (v?: string) => (v ?? '').replace(/^[\s"']+|[\s"']+$/g, '').replace(/\s+/g, '') || undefined;
+
 type StepResult = { ok: boolean; skipped?: boolean; detail?: any };
 
 export async function GET(request: Request) {
@@ -42,9 +45,9 @@ export async function GET(request: Request) {
       .select('email')
       .eq('is_active', true);
 
-    const fbPageId = process.env.FB_PAGE_ID;
-    const fbAccessToken = process.env.FB_PAGE_ACCESS_TOKEN;
-    const igUserId = process.env.IG_USER_ID;
+    const fbPageId = cleanEnv(process.env.FB_PAGE_ID);
+    const fbAccessToken = cleanEnv(process.env.FB_PAGE_ACCESS_TOKEN);
+    const igUserId = cleanEnv(process.env.IG_USER_ID);
     const resendKey = process.env.RESEND_API_KEY;
     const gmailUser = process.env.GMAIL_USER;
     const gmailPass = process.env.GMAIL_APP_PASSWORD;
