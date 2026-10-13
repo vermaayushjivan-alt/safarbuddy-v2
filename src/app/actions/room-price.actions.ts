@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { runAction, type ActionResult } from '@/lib/actions/action-result';
-import { requireRole } from '@/lib/auth/session';
+import { requireRole, resolvePublicUserId } from '@/lib/auth/session';
 import { RoomPriceRepository, type RoomPrice } from '@/lib/repositories/room-price.repository';
 
 const uuidSchema = z.string().uuid('Invalid UUID format');
@@ -109,7 +109,7 @@ export async function createRoomPriceAction(input: unknown): Promise<ActionResul
       basePrice: validated.basePrice,
       discountAmount: validated.discountAmount,
       taxAmount: validated.taxAmount,
-      createdBy: user.id,
+      createdBy: await resolvePublicUserId(supabase, user.id),
     });
   });
 }
@@ -126,7 +126,7 @@ export async function updateRoomPriceAction(input: unknown): Promise<ActionResul
       basePrice: validated.basePrice,
       discountAmount: validated.discountAmount,
       taxAmount: validated.taxAmount,
-      updatedBy: user.id,
+      updatedBy: await resolvePublicUserId(supabase, user.id),
     });
   });
 }
@@ -194,6 +194,7 @@ export async function bulkSetRoomPriceAction(
       }
     }
 
+    const actorId = await resolvePublicUserId(supabase, user.id);
     let updated = 0;
     let created = 0;
 
@@ -206,7 +207,7 @@ export async function bulkSetRoomPriceAction(
           basePrice: validated.basePrice,
           discountAmount: validated.discountAmount,
           taxAmount: validated.taxAmount,
-          updatedBy: user.id,
+          updatedBy: actorId,
         });
         updated += 1;
       } else {
@@ -217,7 +218,7 @@ export async function bulkSetRoomPriceAction(
           basePrice: validated.basePrice,
           discountAmount: validated.discountAmount,
           taxAmount: validated.taxAmount,
-          createdBy: user.id,
+          createdBy: actorId,
         });
         created += 1;
       }
