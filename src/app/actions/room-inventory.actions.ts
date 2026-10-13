@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { runAction, type ActionResult } from '@/lib/actions/action-result';
-import { requireRole } from '@/lib/auth/session';
+import { requireRole, resolvePublicUserId } from '@/lib/auth/session';
 import {
   RoomInventoryRepository,
   type RoomInventoryRow,
@@ -103,7 +103,7 @@ export async function setInventoryForDateAction(
       inventoryDate: validated.inventoryDate,
       totalRooms: validated.totalRooms,
       blockedRooms: validated.blockedRooms,
-      actorId: user.id,
+      actorId: await resolvePublicUserId(supabase, user.id),
     });
   });
 }
@@ -166,6 +166,7 @@ export async function bulkSetInventoryAction(
       }
     }
 
+    const actorId = await resolvePublicUserId(supabase, user.id);
     let updated = 0;
     let created = 0;
 
@@ -177,7 +178,7 @@ export async function bulkSetInventoryAction(
         inventoryDate: date,
         totalRooms: validated.totalRooms,
         blockedRooms: validated.blockedRooms,
-        actorId: user.id,
+        actorId,
       });
 
       if (existing) {
