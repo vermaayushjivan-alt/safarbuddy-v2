@@ -29,6 +29,17 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Poster route reads fonts + local city photos at runtime; make sure Vercel
+  // bundles them into that serverless function.
+  outputFileTracingIncludes: {
+    "/api/public/poster/[id]": [
+      "./node_modules/@fontsource/poppins/files/poppins-latin-700-normal.woff",
+      "./node_modules/@fontsource/poppins/files/poppins-devanagari-700-normal.woff",
+      "./assets/fonts/**/*",
+      "./public/photos/**/*",
+    ],
+  },
+
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
