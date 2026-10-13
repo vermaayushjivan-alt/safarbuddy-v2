@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import campaigns from '@/data/campaigns.json';
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 export const maxDuration = 60;
 
@@ -45,6 +46,9 @@ export async function GET(request: Request) {
     const fbAccessToken = process.env.FB_PAGE_ACCESS_TOKEN;
     const igUserId = process.env.IG_USER_ID;
     const resendKey = process.env.RESEND_API_KEY;
+    const gmailUser = process.env.GMAIL_USER;
+    const gmailPass = process.env.GMAIL_APP_PASSWORD;
+    const useGmail = !!(gmailUser && gmailPass);
 
     // DRY RUN: kuch bhejta nahi, sirf config dikhata hai
     if (dryRun) {
@@ -55,6 +59,7 @@ export async function GET(request: Request) {
         users_query_error: usersError?.message ?? null,
         env: {
           RESEND_API_KEY: !!resendKey,
+          GMAIL_SMTP: useGmail,
           FB_PAGE_ID: !!fbPageId,
           FB_PAGE_ACCESS_TOKEN: !!fbAccessToken,
           IG_USER_ID: !!igUserId,
@@ -70,6 +75,7 @@ export async function GET(request: Request) {
         users_query_error: usersError?.message ?? null,
         env: {
           RESEND_API_KEY: !!resendKey,
+          GMAIL_SMTP: useGmail,
           FB_PAGE_ID: !!fbPageId,
           FB_PAGE_ACCESS_TOKEN: !!fbAccessToken,
           IG_USER_ID: !!igUserId,
@@ -112,15 +118,14 @@ export async function GET(request: Request) {
     // Resend batch is all-or-nothing: ONE bad address (example.com, sub.example.com,
     // typo...) fails the whole 100. So: strong filter first, and if a chunk still
     // fails we resend that chunk one-by-one and only skip the bad addresses.
-    if (!resendKey) {
-      results.email = { ok: false, skipped: true, detail: 'RESEND_API_KEY set nahi hai' };
+    if (!resendKey && !useGmail) {
+      results.email = { ok: false, skipped: true, detail: 'GMAIL_USER/GMAIL_APP_PASSWORD ya RESEND_API_KEY set nahi hai' };
     } else if (usersError) {
       results.email = { ok: false, detail: `users query error: ${usersError.message}` };
     } else if (!users || users.length === 0) {
       results.email = { ok: false, skipped: true, detail: 'is_active=true wala koi user nahi' };
     } else {
       try {
-        const resend = new Resend(resendKey);
         const blocked =
           /@([a-z0-9-]+\.)*(example\.(com|org|net|co|in)|test\.(com|org|net|in)|localhost|invalid|local)$/i;
         const seen = new Set<string>();
@@ -132,48 +137,89 @@ export async function GET(request: Request) {
         const skippedEmails = users.length - validUsers.length;
         if (validUsers.length === 0) throw new Error('Koi valid email nahi mili');
 
-        const from = process.env.MAIL_FROM || 'ChalFirr <onboarding@resend.dev>';
-        const mk = (email: string) => ({
-          from,
-          to: email,
-          subject: currentPost.email_subject,
-          html: currentPost.email_html,
-        });
+        if (useGmail) {
+          // GMAIL MODE: Gmail SMTP (app password). Free limit ~500/day.
+          // 3 parallel sends, har email alag (kisi ko doosron ke address nahi dikhte).
+          const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            pool: true,
+            maxConnections: 3,
+            auth: { user: gmailUser, pass: gmailPass },
+          });
+          const gFrom = process.env.MAIL_FROM || `ChalFirr <${gmailUser}>`;
+          let gSent = 0;
+          const gFailed: string[] = [];
+          const gErrors = new Set<string>();
+          for (let i = 0; i < validUsers.length; i += 3) {
+            const group = validUsers.slice(i, i + 3);
+            await Promise.all(
+              group.map(async (u) => {
+                try {
+                  await transporter.sendMail({
+                    from: gFrom,
+                    to: u.email,
+                    subject: currentPost.email_subject,
+                    html: currentPost.email_html,
+                  });
+                  gSent += 1;
+                } catch (err: any) {
+                  gFailed.push(u.email);
+                  gErrors.add(String(err?.message || err).slice(0, 200));
+                }
+              })
+            );
+          }
+          transporter.close();
+          if (gFailed.length) console.error('[auto-publish] gmail failed for', JSON.stringify(gFailed), JSON.stringify([...gErrors]));
+          results.email =
+            gSent > 0
+              ? { ok: true, detail: `${gSent} users ko bheji (Gmail), ${skippedEmails} invalid/test skip, ${gFailed.length} reject${gErrors.size ? ' | reason: ' + [...gErrors].slice(0, 3).join(' || ') : ''}` }
+              : { ok: false, detail: `Gmail se kisi ko nahi gayi | reason: ${[...gErrors].slice(0, 3).join(' || ')}` };
+        } else {
+          const resend = new Resend(resendKey as string);
+          const from = process.env.MAIL_FROM || 'ChalFirr <onboarding@resend.dev>';
+          const mk = (email: string) => ({
+            from,
+            to: email,
+            subject: currentPost.email_subject,
+            html: currentPost.email_html,
+          });
 
-        let sent = 0;
-        const failed: string[] = [];
-        const errorMsgs = new Set<string>();
-        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-        for (let i = 0; i < validUsers.length; i += 100) {
-          const chunk = validUsers.slice(i, i + 100);
-          const { error } = await resend.batch.send(chunk.map((u) => mk(u.email)));
-          if (!error) {
-            sent += chunk.length;
-            continue;
-          }
-          // Chunk rejected: send one-by-one (throttled: Resend allows ~2 requests/sec).
-          console.error('[auto-publish] email batch rejected, retrying one-by-one', JSON.stringify(error));
-          errorMsgs.add(`batch: ${error.message}`);
-          for (const u of chunk) {
-            let r = await resend.emails.send(mk(u.email));
-            if (r.error && /rate|too many|429/i.test(`${r.error.name} ${r.error.message}`)) {
-              await sleep(1500);
-              r = await resend.emails.send(mk(u.email)); // one retry after rate limit
+          let sent = 0;
+          const failed: string[] = [];
+          const errorMsgs = new Set<string>();
+          const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+          for (let i = 0; i < validUsers.length; i += 100) {
+            const chunk = validUsers.slice(i, i + 100);
+            const { error } = await resend.batch.send(chunk.map((u) => mk(u.email)));
+            if (!error) {
+              sent += chunk.length;
+              continue;
             }
-            if (r.error) {
-              failed.push(u.email);
-              errorMsgs.add(`${r.error.name}: ${r.error.message}`);
-            } else {
-              sent += 1;
+            // Chunk rejected: send one-by-one (throttled: Resend allows ~2 requests/sec).
+            console.error('[auto-publish] email batch rejected, retrying one-by-one', JSON.stringify(error));
+            errorMsgs.add(`batch: ${error.message}`);
+            for (const u of chunk) {
+              let r = await resend.emails.send(mk(u.email));
+              if (r.error && /rate|too many|429/i.test(`${r.error.name} ${r.error.message}`)) {
+                await sleep(1500);
+                r = await resend.emails.send(mk(u.email)); // one retry after rate limit
+              }
+              if (r.error) {
+                failed.push(u.email);
+                errorMsgs.add(`${r.error.name}: ${r.error.message}`);
+              } else {
+                sent += 1;
+              }
+              await sleep(600);
             }
-            await sleep(600);
           }
+          if (failed.length) console.error('[auto-publish] email failed for', JSON.stringify(failed), JSON.stringify([...errorMsgs]));
+          results.email =
+            sent > 0
+              ? { ok: true, detail: `${sent} users ko bheji, ${skippedEmails} invalid/test skip, ${failed.length} reject${failed.length ? ': ' + failed.join(', ') : ''}${errorMsgs.size ? ' | reason: ' + [...errorMsgs].slice(0, 3).join(' || ') : ''}` }
+              : { ok: false, detail: `Kisi ko nahi gayi. Reject: ${failed.join(', ')} | reason: ${[...errorMsgs].slice(0, 3).join(' || ')}` };
         }
-        if (failed.length) console.error('[auto-publish] email failed for', JSON.stringify(failed), JSON.stringify([...errorMsgs]));
-        results.email =
-          sent > 0
-            ? { ok: true, detail: `${sent} users ko bheji, ${skippedEmails} invalid/test skip, ${failed.length} reject${failed.length ? ': ' + failed.join(', ') : ''}${errorMsgs.size ? ' | reason: ' + [...errorMsgs].slice(0, 3).join(' || ') : ''}` }
-            : { ok: false, detail: `Kisi ko nahi gayi. Reject: ${failed.join(', ')} | reason: ${[...errorMsgs].slice(0, 3).join(' || ')}` };
       } catch (e: any) {
         results.email = { ok: false, detail: e.message };
       }
