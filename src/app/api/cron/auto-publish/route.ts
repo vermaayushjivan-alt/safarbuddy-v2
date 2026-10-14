@@ -235,13 +235,22 @@ export async function GET(request: Request) {
       results.facebook = { ok: false, skipped: true, detail: 'FB_PAGE_ID ya FB_PAGE_ACCESS_TOKEN set nahi' };
     } else {
       try {
+        // Same token (User ya Page) se Page token auto nikal lo; fail ho to original token chalega
+        let pageToken = fbAccessToken;
+        try {
+          const ptRes = await fetch(
+            `https://graph.facebook.com/v19.0/${fbPageId}?fields=access_token&access_token=${fbAccessToken}`
+          );
+          const ptData = await ptRes.json();
+          if (ptData?.access_token) pageToken = ptData.access_token;
+        } catch {}
         const res = await fetch(`https://graph.facebook.com/v19.0/${fbPageId}/photos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: imageUrl,
             caption: currentPost.social_caption,
-            access_token: fbAccessToken,
+            access_token: pageToken,
           }),
         });
         const data = await res.json();
