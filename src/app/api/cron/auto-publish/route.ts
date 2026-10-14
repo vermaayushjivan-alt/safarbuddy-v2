@@ -15,6 +15,11 @@ const supabase = createClient(
 // Env values me aksar quotes / space / newline chali jaati hai -> Meta 'Cannot parse access token' deta hai
 const cleanEnv = (v?: string) => (v ?? '').replace(/^[\s"']+|[\s"']+$/g, '').replace(/\s+/g, '') || undefined;
 
+const SITE_URL = (cleanEnv(process.env.NEXT_PUBLIC_SITE_URL) || 'https://safarbuddy-v2-two.vercel.app').replace(/\/$/, '');
+// Facebook caption me URL clickable hota hai; Instagram caption me nahi (isliye 'link in bio')
+const fbLinkLine = `\n\n🔗 Book karo: ${SITE_URL}/?utm_source=facebook&utm_medium=social&utm_campaign=auto_publish`;
+const igLinkLine = `\n\n🔗 Booking link: bio me (${SITE_URL.replace(/^https?:\/\//, '')})`;
+
 type StepResult = { ok: boolean; skipped?: boolean; detail?: any };
 
 export async function GET(request: Request) {
@@ -249,7 +254,7 @@ export async function GET(request: Request) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             url: imageUrl,
-            caption: currentPost.social_caption,
+            caption: currentPost.social_caption + fbLinkLine,
             access_token: pageToken,
           }),
         });
@@ -270,7 +275,7 @@ export async function GET(request: Request) {
         const containerRes = await fetch(
           `https://graph.facebook.com/v19.0/${igUserId}/media?image_url=${encodeURIComponent(
             imageUrl
-          )}&caption=${encodeURIComponent(currentPost.social_caption)}&access_token=${fbAccessToken}`,
+          )}&caption=${encodeURIComponent(currentPost.social_caption + igLinkLine)}&access_token=${fbAccessToken}`,
           { method: 'POST' }
         );
         const containerData = await containerRes.json();
