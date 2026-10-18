@@ -28,7 +28,11 @@ export default function AgentChat() {
   const turns = threads[agent] ?? [];
   const tab = TABS.find((t) => t.id === agent)!;
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [turns, pending]);
+  // Braces matter: an effect must return nothing or a cleanup function. The old one-line arrow
+  // returned scrollIntoView()'s result, which React then tried to call as a cleanup ("i is not a function").
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [turns, pending]);
 
   function send(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +55,12 @@ export default function AgentChat() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-3 p-4">
-      <h1 className="text-xl font-bold">Virtual Team (sirf admin)</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Virtual Team (sirf admin)</h1>
+        <a href="/admin/agents/team" className="rounded-full border border-orange-600 px-3 py-1 text-sm text-orange-700">
+          🚀 Auto Team mode
+        </a>
+      </div>
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button key={t.id} type="button" onClick={() => { setAgent(t.id); setError(''); }}
