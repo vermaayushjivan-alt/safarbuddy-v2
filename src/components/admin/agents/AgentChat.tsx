@@ -5,20 +5,27 @@ import { askAdminAgent, type AdminAgentTurn } from '@/app/actions/admin-agents.a
 import type { AdminAgentId } from '@/lib/ai/admin-agents';
 
 const TABS: { id: AdminAgentId; label: string; hint: string }[] = [
+  { id: 'growth', label: '🚀 Growth Head', hint: 'Jaise: "Is hafte ke top 3 kaam batao" (bookings ka snapshot usse khud milta hai)' },
+  { id: 'partnerships', label: '🏨 Hotel Partnerships', hint: 'Jaise: "Ayodhya ke chhote hotel owner ko WhatsApp pitch + 7 din ka follow-up"' },
+  { id: 'ads', label: '📣 Ads Manager', hint: 'Jaise: "Ayodhya stay ke liye Meta ad copy + ₹500/day test plan"' },
+  { id: 'sales', label: '🎯 Deal Closer', hint: 'Jaise: "Reddit par stay puchne wale ko reply" ya "tempo traveller operator ko pitch"' },
+  { id: 'social', label: '🎬 Social & Reels', hint: 'Jaise: "30 din ka content calendar" ya "30 sec Reel script"' },
+  { id: 'seo', label: '✍️ SEO & Content', hint: 'Jaise: "Ayodhya hotels guide + meta + FAQ + JSON-LD"' },
   { id: 'planner', label: '🗺️ Trip Planner', hint: 'Jaise: "Ayodhya 2 din ka itinerary, family of 4, budget batao"' },
-  { id: 'seo', label: '✍️ Content & SEO', hint: 'Jaise: "Ayodhya hotels guide + meta + FAQ + JSON-LD" ya "30 sec Reel script"' },
-  { id: 'sales', label: '🎯 Deal Closer', hint: 'Jaise: "Reddit par Ayodhya stay puchne wale ko reply" ya "tempo traveller operator ko pitch"' },
+  { id: 'support', label: '💬 Support Drafts', hint: 'Customer ka message paste karo, reply draft milega (bhejna aap ko hai)' },
+  { id: 'finance', label: '📊 Finance & Ops', hint: 'Jaise: "Pichhle 30 din ka summary" ya "commission 10% par mera margin kya"' },
+  { id: 'compliance', label: '📜 Policy & Compliance', hint: 'Jaise: "Hotel partner agreement ka draft" (lawyer/CA se confirm zaroor karna)' },
 ];
 
 export default function AgentChat() {
-  const [agent, setAgent] = useState<AdminAgentId>('planner');
-  const [threads, setThreads] = useState<Record<AdminAgentId, AdminAgentTurn[]>>({ planner: [], seo: [], sales: [] });
+  const [agent, setAgent] = useState<AdminAgentId>('growth');
+  const [threads, setThreads] = useState<Record<string, AdminAgentTurn[]>>({});
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(-1);
   const [pending, start] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
-  const turns = threads[agent];
+  const turns = threads[agent] ?? [];
   const tab = TABS.find((t) => t.id === agent)!;
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [turns, pending]);
@@ -27,13 +34,13 @@ export default function AgentChat() {
     e.preventDefault();
     const text = input.trim();
     if (!text || pending) return;
-    const history = threads[agent];
+    const history = threads[agent] ?? [];
     setThreads((t) => ({ ...t, [agent]: [...history, { role: 'user', content: text }] }));
     setInput('');
     setError('');
     start(async () => {
       const res = await askAdminAgent(agent, history, text);
-      if (res.success) setThreads((t) => ({ ...t, [agent]: [...t[agent], { role: 'assistant', content: res.data }] }));
+      if (res.success) setThreads((t) => ({ ...t, [agent]: [...(t[agent] ?? []), { role: 'assistant', content: res.data }] }));
       else setError(res.error);
     });
   }
@@ -43,8 +50,8 @@ export default function AgentChat() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-3 p-4">
-      <h1 className="text-xl font-bold">AI Agents (sirf admin)</h1>
+    <div className="mx-auto flex max-w-4xl flex-col gap-3 p-4">
+      <h1 className="text-xl font-bold">Virtual Team (sirf admin)</h1>
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button key={t.id} type="button" onClick={() => { setAgent(t.id); setError(''); }}
