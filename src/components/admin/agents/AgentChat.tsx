@@ -1,33 +1,82 @@
-import 'server-only';
-import { APP } from '@/lib/config/constants';
+'use client';
 
-// Internal, admin-only agents. Prompts stay on the server: never import
-// this file from a client component (use `import type` only).
+import { useRef, useState, useTransition, useEffect } from 'react';
+import { askAdminAgent, type AdminAgentTurn } from '@/app/actions/admin-agents.actions';
+import type { AdminAgentId } from '@/lib/ai/admin-agents';
 
-export const ADMIN_AGENT_IDS = ['planner', 'seo', 'sales'] as const;
-export type AdminAgentId = (typeof ADMIN_AGENT_IDS)[number];
+const TABS: { id: AdminAgentId; label: string; hint: string }[] = [
+  { id: 'planner', label: '🗺️ Trip Planner', hint: 'Jaise: "Ayodhya 2 din ka itinerary, family of 4, budget batao"' },
+  { id: 'seo', label: '✍️ Content & SEO', hint: 'Jaise: "Ayodhya hotels guide + meta + FAQ + JSON-LD" ya "30 sec Reel script"' },
+  { id: 'sales', label: '🎯 Deal Closer', hint: 'Jaise: "Reddit par Ayodhya stay puchne wale ko reply" ya "tempo traveller operator ko pitch"' },
+];
 
-export function isAdminAgentId(v: string): v is AdminAgentId {
-  return (ADMIN_AGENT_IDS as readonly string[]).includes(v);
-}
+export default function AgentChat() {
+  const [agent, setAgent] = useState<AdminAgentId>('planner');
+  const [threads, setThreads] = useState<Record<AdminAgentId, AdminAgentTurn[]>>({ planner: [], seo: [], sales: [] });
+  const [input, setInput] = useState('');
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(-1);
+  const [pending, start] = useTransition();
+  const endRef = useRef<HTMLDivElement>(null);
+  const turns = threads[agent];
+  const tab = TABS.find((t) => t.id === agent)!;
 
-const COMMON = `You are an internal Chalfirr team member working for the owner (admin). Chalfirr is an Indian hotel + holiday-package booking platform; the pilot is in Ayodhya.
-Output is for the owner to review and copy. Nothing you write is sent automatically.
-Language: default Hinglish (Roman Hindi + English) unless the owner asks for another language.
-Hard rules:
-- Use ONLY the catalog below (and facts the owner types in this chat) for hotel names, prices, offers, coupon codes and policies. Never invent prices, availability, discounts, coupon codes, reviews, testimonials, ratings or statistics.
-- If a needed fact is missing, write [CONFIRM: what is needed] instead of guessing.
-- Contact details you may use: ${APP.SUPPORT_EMAIL} / ${APP.SUPPORT_PHONE}.
-- No fake urgency or fake scarcity. No spam tactics. Follow each platform's rules.`;
+  useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [turns, pending]);
 
-const AGENTS: Record<AdminAgentId, string> = {
-  planner: `ROLE: Trip Planner. Build day-wise itineraries (pilgrimage, treks, beach/leisure, weekend, workation) with transit options, realistic timings (darshan/aarti, trek windows, season), per-person budget ranges and local nuance. State assumptions. Where permits, timings or road/weather matter, add [CONFIRM] so the owner verifies locally. When relevant, point to Chalfirr listings from the catalog with their /hotels/<slug> or /packages path.`,
-  seo: `ROLE: Content & SEO. Produce: programmatic SEO guides, meta title (<60 chars) and meta description (<155 chars), valid JSON-LD (TouristDestination / LodgingBusiness / FAQPage, only with facts from the catalog), FAQ blocks, Instagram Reels / YouTube Shorts scripts (hook in first 3 seconds, scene-by-scene, Hinglish by default) and WhatsApp broadcast copy. Keep claims factual and checkable.`,
-  sales: `ROLE: Outbound Sales / Deal Closer (goal: more confirmed bookings per day, honestly). Produce: helpful (not spammy) replies for travellers asking for stays on forums / X / Reddit (disclose that you represent Chalfirr, respect the platform's self-promotion rules); abandoned-search WhatsApp follow-up messages; B2B pitches for tour operators and tempo-traveller groups. Use a coupon code ONLY if the owner names it in this chat or it appears in the catalog. Give 2-3 variants when asked for copy, short and ready to paste.`,
-};
+  function send(e: React.FormEvent) {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || pending) return;
+    const history = threads[agent];
+    setThreads((t) => ({ ...t, [agent]: [...history, { role: 'user', content: text }] }));
+    setInput('');
+    setError('');
+    start(async () => {
+      const res = await askAdminAgent(agent, history, text);
+      if (res.success) setThreads((t) => ({ ...t, [agent]: [...t[agent], { role: 'assistant', content: res.data }] }));
+      else setError(res.error);
+    });
+  }
 
-export function buildAdminSystemPrompt(agent: AdminAgentId, knowledge: string): string {
-  return `${COMMON}\n\n${AGENTS[agent]}\n\nCHALFIRR CATALOG (live data):\n${
-    knowledge || '(Catalog unavailable right now: say so and use [CONFIRM] for any listing facts.)'
-  }`;
+  async function copy(i: number, text: string) {
+    try { await navigator.clipboard.writeText(text); setCopied(i); setTimeout(() => setCopied(-1), 1500); } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-3 p-4">
+      <h1 className="text-xl font-bold">AI Agents (sirf admin)</h1>
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" onClick={() => { setAgent(t.id); setError(''); }}
+            className={`rounded-full border px-3 py-1 text-sm ${agent === t.id ? 'border-orange-600 bg-orange-600 text-white' : 'bg-white'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="min-h-[50vh] space-y-3 rounded-xl border bg-white p-3">
+        {turns.length === 0 && <p className="text-sm text-gray-500">{tab.hint}</p>}
+        {turns.map((t, i) => (
+          <div key={i} className={t.role === 'user' ? 'text-right' : ''}>
+            <div className={`inline-block max-w-[95%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-left text-sm ${t.role === 'user' ? 'bg-orange-600 text-white' : 'bg-gray-100'}`}>
+              {t.content}
+            </div>
+            {t.role === 'assistant' && (
+              <div><button type="button" onClick={() => copy(i, t.content)} className="mt-1 text-xs text-orange-700 underline">{copied === i ? 'Copied ✓' : 'Copy'}</button></div>
+            )}
+          </div>
+        ))}
+        {pending && <p className="text-xs text-gray-400">soch raha hai… (30-40 sec lag sakte hain)</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div ref={endRef} />
+      </div>
+
+      <form onSubmit={send} className="flex gap-2">
+        <textarea value={input} onChange={(e) => setInput(e.target.value)} maxLength={3000} rows={2} placeholder="Kaam likhiye…"
+          className="flex-1 rounded-xl border px-3 py-2 text-sm outline-none focus:border-orange-500" />
+        <button disabled={pending} className="rounded-xl bg-orange-600 px-5 text-sm font-medium text-white disabled:opacity-50">Send</button>
+      </form>
+      <p className="text-xs text-gray-500">Reply copy-paste ke liye hai. Kuch bhi apne aap send/post nahi hota. [CONFIRM] wali cheezein khud verify karo.</p>
+    </div>
+  );
 }
