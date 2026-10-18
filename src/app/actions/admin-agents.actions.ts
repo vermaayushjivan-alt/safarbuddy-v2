@@ -8,7 +8,8 @@
 import { runAction, type ActionResult } from '@/lib/actions/action-result';
 import { requireRole } from '@/lib/auth/session';
 import { getSiteKnowledge } from '@/lib/ai/site-knowledge';
-import { buildAdminSystemPrompt, isAdminAgentId } from '@/lib/ai/admin-agents';
+import { AGENTS_WITH_SNAPSHOT, buildAdminSystemPrompt, isAdminAgentId } from '@/lib/ai/admin-agents';
+import { getBusinessSnapshot } from '@/lib/ai/business-snapshot';
 import { callGemini, type GeminiContent } from '@/lib/ai/gemini-admin';
 
 const MAX_MESSAGE = 3000;
@@ -33,6 +34,7 @@ export async function askAdminAgent(
     if (text.length > MAX_MESSAGE) throw new Error(`Message too long (${MAX_MESSAGE} characters max).`);
 
     const knowledge = await getSiteKnowledge();
+    const snapshot = AGENTS_WITH_SNAPSHOT.includes(agent) ? await getBusinessSnapshot() : '';
     const past: GeminiContent[] = (Array.isArray(history) ? history : [])
       .slice(-MAX_HISTORY)
       .filter((t) => (t?.role === 'user' || t?.role === 'assistant') && typeof t.content === 'string' && t.content.trim())
@@ -41,7 +43,7 @@ export async function askAdminAgent(
         parts: [{ text: t.content.slice(0, 6000) }],
       }));
 
-    return callGemini(buildAdminSystemPrompt(agent, knowledge), [
+    return callGemini(buildAdminSystemPrompt(agent, knowledge, snapshot), [
       ...past,
       { role: 'user', parts: [{ text }] },
     ]);
