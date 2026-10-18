@@ -42,6 +42,8 @@ where ri.created_by is not null
 
 -- 2) DROP THE BROKEN FK --------------------------------------------------------
 do $$
+declare
+  c record;  -- loop variable for the defensive constraint sweep below
 begin
   if exists (select 1 from pg_constraint
              where conname = 'room_inventory_created_by_fkey'
