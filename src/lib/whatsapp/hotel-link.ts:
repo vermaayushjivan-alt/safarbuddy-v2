@@ -1,20 +1,14 @@
 // ROOT PATH: src/lib/whatsapp/hotel-link.ts
 // Pure helpers for the "Chat on WhatsApp" button on hotel pages.
-// No React, no network, no env — so it is trivially unit-testable.
 
 /** "+91 73074 93338" -> "917307493338" (wa.me wants digits only, with country code). */
 export function toWhatsAppNumber(phone: string): string {
   const digits = phone.replace(/\D+/g, "");
-  // 10-digit Indian mobile without country code -> prefix 91.
   if (digits.length === 10) return `91${digits}`;
   return digits;
 }
 
-/**
- * Ad-campaign tag that travels inside the WhatsApp message, so the person
- * answering knows which hotel/ad the chat came from. Keeps only
- * [a-z0-9_-] and caps the length — it is user-controlled input.
- */
+/** Keeps only [a-z0-9_-] and caps length — it is user-controlled input. */
 export function sanitizeRef(raw: string | undefined | null): string {
   if (!raw) return "";
   return raw
@@ -24,13 +18,10 @@ export function sanitizeRef(raw: string | undefined | null): string {
 }
 
 export type HotelWhatsAppInput = {
-  /** Digits-only number with country code (see toWhatsAppNumber). */
   number: string;
   hotelName: string;
   city?: string | null;
-  /** Canonical hotel slug — always included as the reference. */
   slug: string;
-  /** Optional ad tag, e.g. utm_campaign. Sanitised here. */
   campaign?: string | null;
   checkin?: string | null;
   checkout?: string | null;
