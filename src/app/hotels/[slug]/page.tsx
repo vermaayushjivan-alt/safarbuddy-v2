@@ -28,6 +28,7 @@ import { slugify } from "@/lib/utils/format";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
 import HotelGallery from "@/components/public/HotelGallery";
 import HotelMap from "@/components/public/HotelMap";
+import HotelInquiryForm from "@/components/public/HotelInquiryForm";
 import HotelWhatsAppButton, {
   buildHotelWhatsAppLink,
   toWhatsAppNumber,
@@ -431,6 +432,14 @@ export default async function HotelDetailPage({
             )}
           </div>
 
+          {/* Phones: quick jump to the enquiry form (the desktop card has its own link). */}
+          <a
+            href="#enquire"
+            className="focus-ring mt-4 inline-flex items-center rounded-full border border-deep/20 bg-white px-4 py-2 font-heading text-[13px] font-semibold text-deep lg:hidden"
+          >
+            Send an enquiry ↓
+          </a>
+
           <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
               {/* Highlights */}
@@ -611,6 +620,20 @@ export default async function HotelDetailPage({
                 </section>
               )}
 
+              {/* PILOT-01: no-login enquiry (ad landing leads) */}
+              <section id="enquire" className="mt-10 scroll-mt-24">
+                <HotelInquiryForm
+                  hotelId={hotel.id}
+                  hotelName={hotel.hotel_name}
+                  hotelSlug={canonicalSlug}
+                  city={hotel.city}
+                  defaultCheckIn={checkin}
+                  defaultCheckOut={checkout}
+                  defaultGuests={guests}
+                  source={utm_campaign}
+                />
+              </section>
+
               {/* Guest reviews (GOLIVE-15) */}
               <HotelReviews hotelId={hotel.id} />
             </div>
@@ -629,6 +652,12 @@ export default async function HotelDetailPage({
                 Book Now
               </Link>
               <HotelWhatsAppButton href={whatsappHref} variant="full" />
+              <a
+                href="#enquire"
+                className="focus-ring mt-3 block w-full rounded-xl border border-deep/15 py-2.5 text-center font-heading text-[13px] font-semibold text-deep transition hover:bg-mist"
+              >
+                Send an enquiry
+              </a>
             </aside>
           </div>
         </div>
