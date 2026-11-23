@@ -28,6 +28,8 @@ import { slugify } from "@/lib/utils/format";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
 import HotelGallery from "@/components/public/HotelGallery";
 import HotelMap from "@/components/public/HotelMap";
+import HotelWhatsAppButton from "@/components/public/HotelWhatsAppButton";
+import { buildHotelWhatsAppLink, toWhatsAppNumber } from "@/lib/whatsapp/hotel-link";
 import HotelReviews from "@/components/public/HotelReviews";
 import { getHotelReviewSummary } from "@/app/actions/review.actions";
 import ReadMore from "@/components/public/ReadMore";
@@ -179,10 +181,11 @@ export default async function HotelDetailPage({
     checkin?: string;
     checkout?: string;
     guests?: string;
+    utm_campaign?: string;
   }>;
 }) {
   const { slug } = await params;
-  const { checkin, checkout, guests } = await searchParams;
+  const { checkin, checkout, guests, utm_campaign } = await searchParams;
 
   // HOME-HOTEL-SEARCH-01: carry the dates/guests picked at search time
   // through room + booking links, instead of dropping them here.
@@ -330,6 +333,18 @@ export default async function HotelDetailPage({
       : null;
   const supportTel = `tel:${footerContact.supportPhone.replace(/\s+/g, "")}`;
   const bookHref = `/hotels/${canonicalSlug}/book${stayQuery}`;
+  // PILOT-WA-01: "Chat on WhatsApp" with the hotel + ad campaign prefilled,
+  // so every enquiry tells the person answering which hotel/ad it came from.
+  const whatsappHref = buildHotelWhatsAppLink({
+    number: toWhatsAppNumber(footerContact.supportPhone),
+    hotelName: hotel.hotel_name,
+    city: hotel.city,
+    slug: canonicalSlug,
+    campaign: utm_campaign,
+    checkin,
+    checkout,
+    guests,
+  });
 
   return (
     <main className="bg-cream">
@@ -611,6 +626,7 @@ export default async function HotelDetailPage({
               >
                 Book Now
               </Link>
+              <HotelWhatsAppButton href={whatsappHref} variant="full" />
             </aside>
           </div>
         </div>
@@ -628,13 +644,16 @@ export default async function HotelDetailPage({
               ₹{formatPrice(fromPrice)}
             </p>
           </div>
-          <a
-            href={supportTel}
-            aria-label="Call Chalfirr support"
-            className="focus-ring ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sky text-white shadow-md transition active:scale-95"
-          >
-            <Phone size={20} aria-hidden />
-          </a>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <HotelWhatsAppButton href={whatsappHref} variant="icon" />
+            <a
+              href={supportTel}
+              aria-label="Call Chalfirr support"
+              className="focus-ring grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sky text-white shadow-md transition active:scale-95"
+            >
+              <Phone size={20} aria-hidden />
+            </a>
+          </div>
           <Link
             href={bookHref}
             className="focus-ring rounded-full bg-orange px-7 py-3 font-heading text-[14px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(255,106,43,0.7)] transition active:scale-[0.97]"
