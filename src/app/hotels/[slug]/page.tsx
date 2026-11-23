@@ -28,8 +28,10 @@ import { slugify } from "@/lib/utils/format";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
 import HotelGallery from "@/components/public/HotelGallery";
 import HotelMap from "@/components/public/HotelMap";
-import HotelWhatsAppButton from "@/components/public/HotelWhatsAppButton";
-import { buildHotelWhatsAppLink, toWhatsAppNumber } from "@/lib/whatsapp/hotel-link";
+import HotelWhatsAppButton, {
+  buildHotelWhatsAppLink,
+  toWhatsAppNumber,
+} from "@/components/public/HotelWhatsAppButton";
 import HotelReviews from "@/components/public/HotelReviews";
 import { getHotelReviewSummary } from "@/app/actions/review.actions";
 import ReadMore from "@/components/public/ReadMore";
