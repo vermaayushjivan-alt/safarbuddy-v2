@@ -1,4 +1,5 @@
 // ROOT PATH: src/app/api/cron/auto-publish/route.ts
+import { timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import campaigns from '@/data/campaigns.json';
@@ -22,10 +23,23 @@ const igLinkLine = `\n\n🔗 Booking link: bio me (${SITE_URL.replace(/^https?:\
 
 type StepResult = { ok: boolean; skipped?: boolean; detail?: any };
 
+function tokenMatches(received: string, expected: string): boolean {
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function GET(request: Request) {
-  // Security secret check
-  const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Security secret check — fail CLOSED (same rule as /api/public/cron/*):
+  // if CRON_SECRET is not configured the endpoint is off, never open.
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.error('[auto-publish] CRON_SECRET is not set — endpoint disabled');
+    return NextResponse.json({ error: 'Not configured' }, { status: 503 });
+  }
+  const authHeader = request.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!tokenMatches(token, secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
