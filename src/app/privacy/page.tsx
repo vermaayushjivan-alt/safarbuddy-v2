@@ -87,11 +87,21 @@ const sections: LegalSection[] = [
   {
     heading: "Cookies",
     body: (
+      <>
       <p>
         We use essential cookies to keep you signed in and to run the site. You
         can block cookies in your browser settings, but parts of the site (such
         as signing in) may then not work.
       </p>
+      <p>
+        On our public pages we also use the Meta (Facebook) Pixel to measure
+        how our advertising performs and to show our ads to relevant people. It
+        may set cookies and share limited information with Meta, such as the
+        pages you view and when you send an enquiry. We do not share your name
+        or phone number with Meta through the Pixel. You can control ad
+        personalisation in your Facebook and browser settings.
+      </p>
+      </>
     ),
   },
   {
