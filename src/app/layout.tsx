@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { RootProvider } from '@/components/providers/RootProvider';
 import MobileBottomNav from '@/components/layout/MobileBottomNav';
 import InstallPrompt from '@/components/layout/InstallPrompt';
+import MetaPixel from '@/components/analytics/MetaPixel';
 import { getSiteUrl, SITE_NAME, ORG_CONTACT } from '@/lib/seo/site';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -98,6 +99,9 @@ export default function RootLayout({
         {/* GOLIVE-18: cookieless page-view analytics. Switch it on in the
             Vercel dashboard (project -> Analytics); harmless until then. */}
         <Analytics />
+        {/* PILOT-02: Meta Pixel — public pages only, off until
+            NEXT_PUBLIC_META_PIXEL_ID is set in Vercel. */}
+        <MetaPixel />
       </body>
     </html>
   );
