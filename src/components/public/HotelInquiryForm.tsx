@@ -14,6 +14,7 @@ import {
   toWhatsAppNumber,
 } from '@/components/public/HotelWhatsAppButton';
 import { footerContact } from '@/data/home';
+import { trackMetaEvent } from '@/lib/analytics/meta-pixel';
 
 type Props = {
   hotelId: string;
@@ -89,6 +90,11 @@ export default function HotelInquiryForm({
       );
 
       if (result.success) {
+        // PILOT-02: tell Meta a real lead happened (drives ad optimisation).
+        trackMetaEvent('Lead', {
+          content_name: hotelName,
+          content_category: 'hotel_enquiry',
+        });
         setDone(true);
         return;
       }
