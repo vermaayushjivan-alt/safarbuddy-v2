@@ -6,12 +6,12 @@ import type { NextConfig } from "next";
 // header to "Content-Security-Policy" to enforce it.
 const cspReportOnly = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://challenges.cloudflare.com https://*.cashfree.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.cashfree.com https://challenges.cloudflare.com https://*.cashfree.com https://connect.facebook.net",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.supabase.co https://picsum.photos https://*.googleusercontent.com",
+  "img-src 'self' data: blob: https://*.supabase.co https://picsum.photos https://*.googleusercontent.com https://www.facebook.com",
   "media-src 'self' blob: https://*.supabase.co",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.cashfree.com https://challenges.cloudflare.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.cashfree.com https://challenges.cloudflare.com https://www.facebook.com https://connect.facebook.net",
   "frame-src 'self' https://challenges.cloudflare.com https://*.cashfree.com",
   "object-src 'none'",
   "base-uri 'self'",
